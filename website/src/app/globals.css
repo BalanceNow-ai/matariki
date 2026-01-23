@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+:root {
+  /* Primary - Ocean depths */
+  --deep-ocean: #0a1628;
+  --midnight-blue: #162742;
+  --slate-water: #1e3a5f;
+
+  /* Neutral - Sea mist */
+  --storm-grey: #4a6274;
+  --mist: #8fa3b3;
+  --foam: #e8eef3;
+  --salt-white: #f7f9fb;
+
+  /* Accent - Yacht hardware */
+  --copper-accent: #c17f59;
+  --copper-light: #d4a574;
+  --brass: #b8956e;
+
+  /* Functional */
+  --sea-green: #3d7a6e;
+  --warning-red: #a63d3d;
+
+  /* Special */
+  --champagne-hull: #a89070;
+
+  /* Background/Foreground */
+  --background: var(--deep-ocean);
+  --foreground: var(--salt-white);
+}
+
+@theme inline {
+  --color-deep-ocean: var(--deep-ocean);
+  --color-midnight-blue: var(--midnight-blue);
+  --color-slate-water: var(--slate-water);
+  --color-storm-grey: var(--storm-grey);
+  --color-mist: var(--mist);
+  --color-foam: var(--foam);
+  --color-salt-white: var(--salt-white);
+  --color-copper-accent: var(--copper-accent);
+  --color-copper-light: var(--copper-light);
+  --color-brass: var(--brass);
+  --color-sea-green: var(--sea-green);
+  --color-warning-red: var(--warning-red);
+  --color-champagne-hull: var(--champagne-hull);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  line-height: 1.7;
+}
+
+/* Typography utilities */
+.font-display {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.font-body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* Type scale */
+.text-display {
+  font-size: 4.5rem;
+  line-height: 1.05;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 300;
+}
+
+.text-h1 {
+  font-size: 3rem;
+  line-height: 1.1;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.text-h2 {
+  font-size: 2.5rem;
+  line-height: 1.2;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.text-h3 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.text-subhead {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--copper-accent);
+}
+
+.text-caption {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Card styling */
+.card {
+  background: rgba(22, 39, 66, 0.3);
+  border: 1px solid rgba(143, 163, 179, 0.08);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  border-color: var(--copper-accent);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Gradient utilities */
+.gradient-ocean {
+  background: linear-gradient(180deg, var(--deep-ocean) 0%, var(--midnight-blue) 100%);
+}
+
+.gradient-copper {
+  background: linear-gradient(135deg, var(--copper-accent) 0%, var(--copper-light) 100%);
+}
+
+/* Section label line */
+.section-label-line::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--copper-accent) 0%, transparent 100%);
+  margin-left: 1rem;
+}
+
+/* Responsive container */
+.container-site {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-left: 4rem;
+  padding-right: 4rem;
+}
+
+@media (max-width: 768px) {
+  .container-site {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  .text-display {
+    font-size: 2.5rem;
+  }
+
+  .text-h1 {
+    font-size: 2rem;
+  }
+
+  .text-h2 {
+    font-size: 1.75rem;
+  }
+}
