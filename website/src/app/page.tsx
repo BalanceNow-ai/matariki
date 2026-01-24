@@ -7,7 +7,6 @@ import { MapWidget } from "@/components/map";
 import { NewsletterForm } from "@/components/forms";
 import {
   siteSettings,
-  currentPosition,
   getRecentLogEntries,
   getFeaturedGalleryImages,
   yachtSpecs,
@@ -68,7 +67,7 @@ export default function HomePage() {
 
               {/* Map Widget */}
               <div className="lg:justify-self-end w-full max-w-md">
-                <MapWidget position={currentPosition} />
+                <MapWidget />
               </div>
             </div>
           </Container>
