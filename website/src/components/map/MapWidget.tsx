@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
 
 // Current position from SailLogger: 36°25'41.40" S, 174°49'8.53" E
+// Reverse geocoded: Mahurangi Harbour, Auckland Region
 const CURRENT_POSITION = {
   lat: -36.428167,
   lng: 174.819036,
   updated: "Nov 8, 2025",
-  location: "Bay of Islands, NZ",
+  location: "Mahurangi Harbour",
+  region: "Auckland Region, NZ",
 };
 
 interface MapWidgetProps {
@@ -22,47 +23,46 @@ export function MapWidget({ className }: MapWidgetProps) {
   const mapUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d50000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1sen!2snz!4v1699999999999!5m2!1sen!2snz`;
 
   return (
-    <Card className={className} hoverable={false}>
-      <div className="relative">
-        {/* Google Maps embed */}
-        <div className="aspect-[4/3] bg-slate-water relative overflow-hidden rounded-t-lg">
-          <iframe
-            src={mapUrl}
-            className="absolute inset-0 w-full h-full border-0"
-            title="Matariki III Position"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            allowFullScreen
-          />
-        </div>
-
-        {/* Info panel */}
-        <div className="p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
-              <span className="text-caption text-sea-green">Live Position</span>
-            </div>
-            <span className="text-xs text-storm-grey">
-              Updated {CURRENT_POSITION.updated}
-            </span>
-          </div>
-
-          <div>
-            <div className="text-salt-white font-medium">{CURRENT_POSITION.location}</div>
-            <div className="font-mono text-xs text-mist mt-1">
-              {Math.abs(lat).toFixed(4)}°S, {Math.abs(lng).toFixed(4)}°E
-            </div>
-          </div>
-
-          <Link
-            href="/track"
-            className="block text-center py-2 text-sm text-copper-accent hover:text-copper-light transition-colors uppercase tracking-wider border-t border-white/5 -mx-4 px-4 mt-3 pt-3"
-          >
-            View Full Track →
-          </Link>
-        </div>
+    <div className={`bg-deep-ocean/95 backdrop-blur-sm border border-mist/20 rounded-xl shadow-2xl overflow-hidden ${className || ''}`}>
+      {/* Google Maps embed */}
+      <div className="aspect-[4/3] bg-slate-water relative overflow-hidden">
+        <iframe
+          src={mapUrl}
+          className="absolute inset-0 w-full h-full border-0"
+          title="Matariki III Position"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
+        />
       </div>
-    </Card>
+
+      {/* Info panel */}
+      <div className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
+            <span className="text-xs font-medium text-sea-green uppercase tracking-wider">At Anchor</span>
+          </div>
+          <span className="text-xs text-storm-grey">
+            {CURRENT_POSITION.updated}
+          </span>
+        </div>
+
+        <div>
+          <div className="text-lg text-salt-white font-display">{CURRENT_POSITION.location}</div>
+          <div className="text-sm text-mist">{CURRENT_POSITION.region}</div>
+          <div className="font-mono text-xs text-storm-grey mt-1">
+            {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
+          </div>
+        </div>
+
+        <Link
+          href="/track"
+          className="block text-center py-2.5 text-sm text-copper-accent hover:text-copper-light transition-colors uppercase tracking-wider border-t border-mist/10 -mx-4 px-4 mt-3 pt-3 hover:bg-midnight-blue/30"
+        >
+          View Full Track →
+        </Link>
+      </div>
+    </div>
   );
 }
