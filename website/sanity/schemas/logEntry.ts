@@ -4,7 +4,6 @@ export const logEntry = defineType({
   name: "logEntry",
   title: "Log Entry",
   type: "document",
-  icon: () => "📝",
   fields: [
     defineField({
       name: "title",

@@ -4,7 +4,6 @@ export const position = defineType({
   name: "position",
   title: "Position Log",
   type: "document",
-  icon: () => "📍",
   fields: [
     defineField({
       name: "coordinates",
