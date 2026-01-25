@@ -77,7 +77,7 @@ export function Footer() {
               <ul className="space-y-3">
                 <li>
                   <a
-                    href="https://instagram.com/matariki3"
+                    href="https://instagram.com/sailingmatariki"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-mist hover:text-salt-white transition-colors flex items-center gap-2"

@@ -22,7 +22,7 @@ export const siteSettings: SiteSettings = {
     diveSites: 89,
   },
   socialLinks: {
-    instagram: "https://instagram.com/matariki3",
+    instagram: "https://instagram.com/sailingmatariki",
     youtube: "https://youtube.com/@matariki3",
   },
 };
