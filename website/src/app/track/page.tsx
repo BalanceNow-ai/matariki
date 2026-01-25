@@ -24,8 +24,8 @@ const SAILLOGGER_URL = "https://saillogger.com/svmatariki-iii";
 export default function TrackPage() {
   const { lat, lng } = CURRENT_POSITION;
 
-  // Google Maps embed URL - satellite/terrain hybrid view
-  const mapUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d80000!2d${lng}!3d${lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1sen!2snz!4v1699999999999!5m2!1sen!2snz`;
+  // Google Maps embed URL with marker - using place query format
+  const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=14&output=embed`;
 
   return (
     <>
