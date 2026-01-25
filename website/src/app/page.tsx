@@ -119,7 +119,7 @@ export default async function HomePage() {
                 {/* Headline */}
                 <h1 className="text-display text-salt-white mb-6">
                   Sailing the{" "}
-                  <span className="text-copper-accent">Wild Coast</span>
+                  <span className="text-copper-accent">Wild South</span>
                 </h1>
 
                 {/* Description */}
