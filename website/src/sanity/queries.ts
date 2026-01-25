@@ -63,7 +63,7 @@ export const FEATURED_GALLERY_QUERY = groq`*[
 // Fetch all gallery images
 export const ALL_GALLERY_QUERY = groq`*[
   _type == "galleryImage"
-]|order(takenAt desc){
+]|order(_createdAt desc){
   _id,
   image,
   caption,
