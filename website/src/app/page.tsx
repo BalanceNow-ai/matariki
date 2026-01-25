@@ -11,8 +11,15 @@ import {
   getFeaturedGalleryImages,
   yachtSpecs,
 } from "@/lib/data/mock";
-import { client } from "@/sanity/client";
-import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY } from "@/sanity/queries";
+import { client, projectId, dataset } from "@/sanity/client";
+import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
+import imageUrlBuilder from "@sanity/image-url";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function urlFor(source: any) {
+  if (!projectId || !dataset || !source) return null;
+  return imageUrlBuilder({ projectId, dataset }).image(source);
+}
 
 // Types for Sanity data
 type SanityLogEntry = {
@@ -39,6 +46,15 @@ type SanitySiteSettings = {
   };
 };
 
+type SanityGalleryImage = {
+  _id: string;
+  image: {
+    asset: { _ref: string };
+  };
+  caption?: string;
+  category?: string;
+};
+
 // Fetch options for ISR
 const options = { next: { revalidate: 60 } };
 
@@ -46,6 +62,7 @@ export default async function HomePage() {
   // Fetch from Sanity with fallback to mock data
   let recentPosts = getRecentLogEntries(3);
   let stats = mockSiteSettings.stats;
+  let featuredImages: Array<{ id: string; src: string; caption: string }> = [];
 
   try {
     const sanityPosts = await client.fetch<SanityLogEntry[]>(
@@ -85,12 +102,36 @@ export default async function HomePage() {
         ...sanitySettings.stats,
       };
     }
+
+    // Fetch gallery images from Sanity
+    const sanityGallery = await client.fetch<SanityGalleryImage[]>(
+      FEATURED_GALLERY_QUERY,
+      {},
+      options
+    );
+
+    if (sanityGallery && sanityGallery.length > 0) {
+      featuredImages = sanityGallery
+        .filter((img) => img.image?.asset)
+        .map((img) => ({
+          id: img._id,
+          src: urlFor(img.image)?.width(800).height(800).url() || "",
+          caption: img.caption || "",
+        }));
+    }
   } catch (error) {
     // Silently fall back to mock data if Sanity fetch fails
     console.error("Failed to fetch from Sanity:", error);
   }
 
-  const featuredImages = getFeaturedGalleryImages(5);
+  // Fall back to mock data if no Sanity gallery images
+  if (featuredImages.length === 0) {
+    featuredImages = getFeaturedGalleryImages(5).map((img) => ({
+      id: img.id,
+      src: img.src,
+      caption: img.caption,
+    }));
+  }
 
   return (
     <>
@@ -287,28 +328,58 @@ export default async function HomePage() {
 
           {/* Asymmetric Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Large Placeholder */}
+            {/* Large Featured Image */}
             <div className="col-span-2 row-span-2">
               <Link href="/gallery" className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50">
-                <div className="absolute inset-0 flex items-center justify-center text-mist">
-                  <svg className="w-20 h-20 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
+                {featuredImages[0]?.src ? (
+                  <>
+                    <Image
+                      src={featuredImages[0].src}
+                      alt={featuredImages[0].caption || "Gallery image"}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <p className="text-sm text-salt-white">{featuredImages[0].caption}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-mist">
+                    <svg className="w-20 h-20 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
               </Link>
             </div>
-            {/* Smaller Placeholders */}
-            {[1, 2, 3, 4].map((i) => (
+            {/* Smaller Images */}
+            {featuredImages.slice(1, 5).map((img, i) => (
               <Link
-                key={i}
+                key={img.id || i}
                 href="/gallery"
                 className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50"
               >
-                <div className="absolute inset-0 flex items-center justify-center text-mist">
-                  <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
+                {img.src ? (
+                  <>
+                    <Image
+                      src={img.src}
+                      alt={img.caption || "Gallery image"}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      sizes="(max-width: 768px) 50vw, 25vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-mist">
+                    <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
               </Link>
             ))}
           </div>
