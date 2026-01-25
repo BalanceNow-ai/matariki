@@ -4,7 +4,6 @@ export const crew = defineType({
   name: "crew",
   title: "Crew Member",
   type: "document",
-  icon: () => "👤",
   fields: [
     defineField({
       name: "name",

@@ -4,7 +4,6 @@ export const video = defineType({
   name: "video",
   title: "Video",
   type: "document",
-  icon: () => "🎬",
   fields: [
     defineField({
       name: "title",

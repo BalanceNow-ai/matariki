@@ -4,7 +4,6 @@ export const galleryImage = defineType({
   name: "galleryImage",
   title: "Gallery Image",
   type: "document",
-  icon: () => "🖼️",
   fields: [
     defineField({
       name: "image",

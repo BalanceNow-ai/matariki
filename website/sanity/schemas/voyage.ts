@@ -4,7 +4,6 @@ export const voyage = defineType({
   name: "voyage",
   title: "Voyage",
   type: "document",
-  icon: () => "⛵",
   fields: [
     defineField({
       name: "title",
