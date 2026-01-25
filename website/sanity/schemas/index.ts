@@ -5,6 +5,7 @@ import { video } from "./video";
 import { siteSettings } from "./siteSettings";
 import { position } from "./position";
 import { crew } from "./crew";
+import { vessel } from "./vessel";
 
 export const schemaTypes = [
   voyage,
@@ -14,4 +15,5 @@ export const schemaTypes = [
   siteSettings,
   position,
   crew,
+  vessel,
 ];
