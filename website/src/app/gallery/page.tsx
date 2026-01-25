@@ -2,12 +2,10 @@ import Image from "next/image";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { galleryImages as mockGalleryImages } from "@/lib/data/mock";
-import { client } from "@/sanity/client";
+import { client, projectId, dataset } from "@/sanity/client";
 import { ALL_GALLERY_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 import { GalleryGrid } from "@/components/gallery/GalleryGrid";
-
-const { projectId, dataset } = client.config();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {

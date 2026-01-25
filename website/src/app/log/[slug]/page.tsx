@@ -6,7 +6,7 @@ import { Header, Footer, Section, Container } from "@/components/layout";
 import { Badge, Button } from "@/components/ui";
 import { logEntries } from "@/lib/data/mock";
 import { formatDate, formatCoordinates } from "@/lib/utils";
-import { client } from "@/sanity/client";
+import { client, projectId, dataset } from "@/sanity/client";
 import type { Metadata } from "next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,7 +25,6 @@ const POST_QUERY = `*[_type == "logEntry" && slug.current == $slug][0]{
   weather
 }`;
 
-const { projectId, dataset } = client.config();
 const urlFor = (source: SanityImageSource) =>
   projectId && dataset
     ? imageUrlBuilder({ projectId, dataset }).image(source)
