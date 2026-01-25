@@ -109,3 +109,22 @@ export const CREW_QUERY = groq`*[
   bio,
   photo
 }`;
+
+// Fetch vessel details
+export const VESSEL_QUERY = groq`*[_type == "vessel"][0]{
+  _id,
+  name,
+  type,
+  designer,
+  builder,
+  year,
+  flag,
+  description,
+  dimensions,
+  rig,
+  engine,
+  tanks,
+  electronics,
+  heroImage,
+  gallery
+}`;
