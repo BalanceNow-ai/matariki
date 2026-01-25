@@ -6,16 +6,91 @@ import { StatBlock, PostCard } from "@/components/content";
 import { MapWidget } from "@/components/map";
 import { NewsletterForm } from "@/components/forms";
 import {
-  siteSettings,
+  siteSettings as mockSiteSettings,
   getRecentLogEntries,
   getFeaturedGalleryImages,
   yachtSpecs,
 } from "@/lib/data/mock";
+import { client } from "@/sanity/client";
+import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY } from "@/sanity/queries";
 
-export default function HomePage() {
-  const recentPosts = getRecentLogEntries(3);
+// Types for Sanity data
+type SanityLogEntry = {
+  _id: string;
+  title: string;
+  slug: { current: string };
+  publishedAt: string;
+  category: string;
+  excerpt: string;
+  location?: string;
+  heroImage?: {
+    asset: { _ref: string };
+  };
+};
+
+type SanitySiteSettings = {
+  siteName?: string;
+  stats?: {
+    totalNauticalMiles?: number;
+    totalDaysAtSea?: number;
+    totalAnchorages?: number;
+    redStags?: number;
+    diveSites?: number;
+  };
+};
+
+// Fetch options for ISR
+const options = { next: { revalidate: 60 } };
+
+export default async function HomePage() {
+  // Fetch from Sanity with fallback to mock data
+  let recentPosts = getRecentLogEntries(3);
+  let stats = mockSiteSettings.stats;
+
+  try {
+    const sanityPosts = await client.fetch<SanityLogEntry[]>(
+      RECENT_POSTS_QUERY,
+      {},
+      options
+    );
+
+    if (sanityPosts && sanityPosts.length > 0) {
+      // Transform Sanity posts to match component expected format
+      recentPosts = sanityPosts.map((post) => ({
+        id: post._id,
+        title: post.title,
+        slug: post.slug.current,
+        publishedAt: post.publishedAt,
+        voyageId: "",
+        category: (post.category || "general") as "sailing" | "hunting" | "diving" | "fishing" | "general",
+        excerpt: post.excerpt || "",
+        location: {
+          name: post.location || "Unknown",
+          coordinates: [0, 0] as [number, number],
+        },
+        heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
+        body: "",
+      }));
+    }
+
+    const sanitySettings = await client.fetch<SanitySiteSettings>(
+      SITE_SETTINGS_QUERY,
+      {},
+      options
+    );
+
+    if (sanitySettings?.stats) {
+      stats = {
+        ...mockSiteSettings.stats,
+        ...sanitySettings.stats,
+      };
+    }
+  } catch (error) {
+    // Silently fall back to mock data if Sanity fetch fails
+    console.error("Failed to fetch from Sanity:", error);
+  }
+
   const featuredImages = getFeaturedGalleryImages(5);
-  const { stats } = siteSettings;
 
   return (
     <>
