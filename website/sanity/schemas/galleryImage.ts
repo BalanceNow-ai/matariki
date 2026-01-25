@@ -39,6 +39,7 @@ export const galleryImage = defineType({
           { title: "Landscapes", value: "landscapes" },
           { title: "Yacht", value: "yacht" },
           { title: "People", value: "people" },
+          { title: "2022 Refit", value: "2022-refit" },
         ],
         layout: "dropdown",
       },
