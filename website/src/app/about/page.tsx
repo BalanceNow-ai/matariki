@@ -93,7 +93,7 @@ export default function AboutPage() {
               <Button href="/subscribe">
                 Subscribe to Newsletter
               </Button>
-              <Button href="https://instagram.com/matariki3" variant="ghost">
+              <Button href="https://instagram.com/sailingmatariki" variant="ghost">
                 Follow on Instagram
               </Button>
             </div>
