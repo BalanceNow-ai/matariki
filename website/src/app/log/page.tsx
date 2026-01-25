@@ -1,7 +1,9 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { PostCard } from "@/components/content";
-import { logEntries } from "@/lib/data/mock";
+import { logEntries as mockLogEntries } from "@/lib/data/mock";
+import { client } from "@/sanity/client";
+import { ALL_POSTS_QUERY } from "@/sanity/queries";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,7 +11,51 @@ export const metadata: Metadata = {
   description: "Read the voyage log entries from Matariki III's adventures around New Zealand and the Pacific.",
 };
 
-export default function LogPage() {
+type SanityLogEntry = {
+  _id: string;
+  title: string;
+  slug: { current: string };
+  publishedAt: string;
+  category: string;
+  excerpt: string;
+  location?: string;
+  heroImage?: {
+    asset: { _ref: string };
+  };
+};
+
+const options = { next: { revalidate: 60 } };
+
+export default async function LogPage() {
+  let logEntries = mockLogEntries;
+
+  try {
+    const sanityPosts = await client.fetch<SanityLogEntry[]>(
+      ALL_POSTS_QUERY,
+      {},
+      options
+    );
+
+    if (sanityPosts && sanityPosts.length > 0) {
+      logEntries = sanityPosts.map((post) => ({
+        id: post._id,
+        title: post.title,
+        slug: post.slug.current,
+        publishedAt: post.publishedAt,
+        voyageId: "",
+        category: (post.category || "general") as "sailing" | "hunting" | "diving" | "fishing" | "general",
+        excerpt: post.excerpt || "",
+        location: {
+          name: post.location || "Unknown",
+          coordinates: [0, 0] as [number, number],
+        },
+        heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
+        body: "",
+      }));
+    }
+  } catch (error) {
+    console.error("Failed to fetch from Sanity:", error);
+  }
   return (
     <>
       <Header />
