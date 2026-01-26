@@ -75,6 +75,7 @@ export const vessel = defineType({
         { name: "make", title: "Make", type: "string" },
         { name: "model", title: "Model", type: "string" },
         { name: "power", title: "Power", type: "string" },
+        { name: "fuelCapacity", title: "Fuel Capacity", type: "string" },
       ],
     }),
     defineField({
