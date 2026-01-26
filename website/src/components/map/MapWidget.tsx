@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 
-// Current position from SailLogger: 36°25'41.40" S, 174°49'8.53" E
-// Location: Kawau Island, Auckland Region
-const CURRENT_POSITION = {
+// Fallback position if no data from Sanity
+const FALLBACK_POSITION = {
   lat: -36.428167,
   lng: 174.819036,
   updated: "Nov 8, 2025",
@@ -14,10 +13,18 @@ const CURRENT_POSITION = {
 
 interface MapWidgetProps {
   className?: string;
+  position?: {
+    lat: number;
+    lng: number;
+    updated?: string;
+    location?: string;
+    region?: string;
+  };
 }
 
-export function MapWidget({ className }: MapWidgetProps) {
-  const { lat, lng } = CURRENT_POSITION;
+export function MapWidget({ className, position }: MapWidgetProps) {
+  const currentPosition = position || FALLBACK_POSITION;
+  const { lat, lng } = currentPosition;
 
   // Google Maps embed URL with marker
   const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=12&output=embed`;
@@ -44,13 +51,13 @@ export function MapWidget({ className }: MapWidgetProps) {
             <span className="text-xs font-medium text-sea-green uppercase tracking-wider">At Anchor</span>
           </div>
           <span className="text-xs text-storm-grey">
-            {CURRENT_POSITION.updated}
+            {currentPosition.updated}
           </span>
         </div>
 
         <div>
-          <div className="text-lg text-salt-white font-display">{CURRENT_POSITION.location}</div>
-          <div className="text-sm text-mist">{CURRENT_POSITION.region}</div>
+          <div className="text-lg text-salt-white font-display">{currentPosition.location}</div>
+          <div className="text-sm text-mist">{currentPosition.region}</div>
           <div className="font-mono text-xs text-storm-grey mt-1">
             {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
           </div>

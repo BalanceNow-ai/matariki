@@ -12,7 +12,7 @@ import {
   yachtSpecs,
 } from "@/lib/data/mock";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
-import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
+import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY, LATEST_POSITION_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,11 +55,22 @@ type SanityGalleryImage = {
   category?: string;
 };
 
+type SanityPosition = {
+  _id: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  timestamp?: string;
+  locationName?: string;
+};
+
 export default async function HomePage() {
   // Fetch from Sanity with fallback to mock data
   let recentPosts = getRecentLogEntries(3);
   let stats = mockSiteSettings.stats;
   let featuredImages: Array<{ id: string; src: string; caption: string }> = [];
+  let currentPosition: { lat: number; lng: number; updated?: string; location?: string; region?: string } | undefined;
 
   try {
     const sanityPosts = await client.fetch<SanityLogEntry[]>(
@@ -115,6 +126,31 @@ export default async function HomePage() {
           src: urlFor(img.image)?.width(800).height(800).url() || "",
           caption: img.caption || "",
         }));
+    }
+
+    // Fetch latest position from Sanity
+    const sanityPosition = await client.fetch<SanityPosition>(
+      LATEST_POSITION_QUERY,
+      {},
+      fetchOptions
+    );
+
+    if (sanityPosition?.coordinates) {
+      currentPosition = {
+        lat: sanityPosition.coordinates.lat,
+        lng: sanityPosition.coordinates.lng,
+        updated: sanityPosition.timestamp
+          ? new Date(sanityPosition.timestamp).toLocaleDateString("en-NZ", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : undefined,
+        location: sanityPosition.locationName?.split(",")[0],
+        region: sanityPosition.locationName?.includes(",")
+          ? sanityPosition.locationName.split(",").slice(1).join(",").trim()
+          : "New Zealand",
+      };
     }
   } catch (error) {
     // Silently fall back to mock data if Sanity fetch fails
@@ -180,7 +216,7 @@ export default async function HomePage() {
 
               {/* Map Widget */}
               <div className="lg:justify-self-end w-full max-w-md">
-                <MapWidget />
+                <MapWidget position={currentPosition} />
               </div>
             </div>
           </Container>
