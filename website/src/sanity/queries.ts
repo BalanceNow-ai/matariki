@@ -139,3 +139,35 @@ export const LATEST_POSITION_QUERY = groq`*[_type == "position"]|order(timestamp
   weather,
   "voyage": voyage->title
 }`;
+
+// Fetch single voyage by slug with gallery
+export const VOYAGE_BY_SLUG_QUERY = groq`*[
+  _type == "voyage"
+  && slug.current == $slug
+][0]{
+  _id,
+  title,
+  slug,
+  description,
+  startDate,
+  endDate,
+  status,
+  heroImage,
+  gallery,
+  "galleryImages": *[_type == "galleryImage" && references(^._id)]|order(takenAt desc){
+    _id,
+    image,
+    caption,
+    category,
+    takenAt
+  },
+  "logEntries": *[_type == "logEntry" && references(^._id)]|order(publishedAt desc){
+    _id,
+    title,
+    slug,
+    publishedAt,
+    category,
+    excerpt,
+    heroImage
+  }
+}`;
