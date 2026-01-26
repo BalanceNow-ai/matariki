@@ -1,21 +1,32 @@
 import Link from "next/link";
 import { Container } from "./Container";
+import { client, fetchOptions } from "@/sanity/client";
+import { VOYAGES_QUERY } from "@/sanity/queries";
 
-const navigation = {
-  main: [
-    { name: "Track", href: "/track" },
-    { name: "Log", href: "/log" },
-    { name: "Gallery", href: "/gallery" },
-    { name: "Yacht", href: "/yacht" },
-    { name: "About", href: "/about" },
-  ],
-  voyages: [
-    { name: "Fiordland 2026", href: "/voyages/fiordland-2026" },
-    { name: "Bay of Islands 2025", href: "/voyages/bay-of-islands-2025" },
-  ],
+const navigation = [
+  { name: "Track", href: "/track" },
+  { name: "Log", href: "/log" },
+  { name: "Gallery", href: "/gallery" },
+  { name: "Yacht", href: "/yacht" },
+  { name: "About", href: "/about" },
+];
+
+type SanityVoyage = {
+  _id: string;
+  title: string;
+  slug: { current: string };
 };
 
-export function Footer() {
+export async function Footer() {
+  let voyages: SanityVoyage[] = [];
+
+  try {
+    const allVoyages = await client.fetch<SanityVoyage[]>(VOYAGES_QUERY, {}, fetchOptions);
+    voyages = allVoyages?.slice(0, 4) || [];
+  } catch (error) {
+    console.error("Failed to fetch voyages for footer:", error);
+  }
+
   return (
     <footer className="bg-midnight-blue border-t border-white/5">
       <Container>
@@ -41,7 +52,7 @@ export function Footer() {
                 Navigation
               </h3>
               <ul className="space-y-3">
-                {navigation.main.map((item) => (
+                {navigation.map((item) => (
                   <li key={item.name}>
                     <Link
                       href={item.href}
@@ -58,16 +69,27 @@ export function Footer() {
             <div>
               <h3 className="text-caption text-copper-accent mb-4">Voyages</h3>
               <ul className="space-y-3">
-                {navigation.voyages.map((item) => (
-                  <li key={item.name}>
+                {voyages.length > 0 ? (
+                  voyages.map((voyage) => (
+                    <li key={voyage._id}>
+                      <Link
+                        href={`/voyages/${voyage.slug?.current || voyage._id}`}
+                        className="text-sm text-mist hover:text-salt-white transition-colors"
+                      >
+                        {voyage.title}
+                      </Link>
+                    </li>
+                  ))
+                ) : (
+                  <li>
                     <Link
-                      href={item.href}
+                      href="/voyages"
                       className="text-sm text-mist hover:text-salt-white transition-colors"
                     >
-                      {item.name}
+                      View All Voyages
                     </Link>
                   </li>
-                ))}
+                )}
               </ul>
             </div>
 
