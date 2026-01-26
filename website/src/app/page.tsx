@@ -11,7 +11,7 @@ import {
   getFeaturedGalleryImages,
   yachtSpecs,
 } from "@/lib/data/mock";
-import { client, projectId, dataset } from "@/sanity/client";
+import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 
@@ -55,9 +55,6 @@ type SanityGalleryImage = {
   category?: string;
 };
 
-// Fetch options for ISR
-const options = { next: { revalidate: 60 } };
-
 export default async function HomePage() {
   // Fetch from Sanity with fallback to mock data
   let recentPosts = getRecentLogEntries(3);
@@ -68,7 +65,7 @@ export default async function HomePage() {
     const sanityPosts = await client.fetch<SanityLogEntry[]>(
       RECENT_POSTS_QUERY,
       {},
-      options
+      fetchOptions
     );
 
     if (sanityPosts && sanityPosts.length > 0) {
@@ -93,7 +90,7 @@ export default async function HomePage() {
     const sanitySettings = await client.fetch<SanitySiteSettings>(
       SITE_SETTINGS_QUERY,
       {},
-      options
+      fetchOptions
     );
 
     if (sanitySettings?.stats) {
@@ -107,7 +104,7 @@ export default async function HomePage() {
     const sanityGallery = await client.fetch<SanityGalleryImage[]>(
       FEATURED_GALLERY_QUERY,
       {},
-      options
+      fetchOptions
     );
 
     if (sanityGallery && sanityGallery.length > 0) {
