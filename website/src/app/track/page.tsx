@@ -13,7 +13,7 @@ const CURRENT_POSITION = {
   lat: -36.428167,
   lng: 174.819036,
   updated: "Nov 8, 2025, 9:08 PM",
-  location: "Mahurangi Harbour",
+  location: "Kawau Island",
   region: "Auckland Region, NZ",
   cruiseDistance: "724 miles",
   arrived: "Sep 12, 2025",
