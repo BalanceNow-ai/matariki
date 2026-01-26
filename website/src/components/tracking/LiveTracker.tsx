@@ -57,7 +57,7 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
               {/* Status */}
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 bg-sea-green rounded-full animate-pulse" />
-                <span className="text-sm font-medium text-sea-green">Live AIS Tracking</span>
+                <span className="text-sm font-medium text-sea-green">MarineTraffic AIS</span>
               </div>
 
               {/* Location */}
@@ -133,7 +133,7 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
                   <span className="text-xs font-medium text-sea-green uppercase tracking-wider">
-                    Live AIS
+                    MarineTraffic
                   </span>
                 </div>
                 <div className="text-salt-white font-medium">{fallback.location}</div>
