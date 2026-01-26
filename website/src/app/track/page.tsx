@@ -1,6 +1,6 @@
 import { Header } from "@/components/layout";
 import { LiveTracker } from "@/components/tracking/LiveTracker";
-import { client } from "@/sanity/client";
+import { client, fetchOptions } from "@/sanity/client";
 import { LATEST_POSITION_QUERY } from "@/sanity/queries";
 import type { Metadata } from "next";
 
@@ -28,13 +28,11 @@ type SanityPosition = {
   locationName?: string;
 } | null;
 
-const options = { next: { revalidate: 60 } };
-
 export default async function TrackPage() {
   let sanityPosition: SanityPosition = null;
 
   try {
-    sanityPosition = await client.fetch<SanityPosition>(LATEST_POSITION_QUERY, {}, options);
+    sanityPosition = await client.fetch<SanityPosition>(LATEST_POSITION_QUERY, {}, fetchOptions);
   } catch (error) {
     console.error("Failed to fetch position from Sanity:", error);
   }
