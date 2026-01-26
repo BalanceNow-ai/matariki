@@ -73,6 +73,23 @@ export const ALL_GALLERY_QUERY = groq`*[
   "voyage": voyage->title
 }`;
 
+// Fetch all videos
+export const ALL_VIDEOS_QUERY = groq`*[
+  _type == "video"
+]|order(publishedAt desc){
+  _id,
+  title,
+  description,
+  videoType,
+  youtubeUrl,
+  vimeoUrl,
+  thumbnail,
+  category,
+  duration,
+  featured,
+  "voyage": voyage->title
+}`;
+
 // Fetch site settings
 export const SITE_SETTINGS_QUERY = groq`*[_type == "siteSettings"][0]{
   siteName,
