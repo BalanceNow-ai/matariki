@@ -3,12 +3,12 @@
 import Link from "next/link";
 
 // Current position from SailLogger: 36°25'41.40" S, 174°49'8.53" E
-// Reverse geocoded: Mahurangi Harbour, Auckland Region
+// Location: Kawau Island, Auckland Region
 const CURRENT_POSITION = {
   lat: -36.428167,
   lng: 174.819036,
   updated: "Nov 8, 2025",
-  location: "Mahurangi Harbour",
+  location: "Kawau Island",
   region: "Auckland Region, NZ",
 };
 
