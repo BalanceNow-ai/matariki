@@ -1,6 +1,8 @@
 "use client";
 
-import { useAISStream, type AISPosition } from "@/hooks/useAISStream";
+import { MarineTrafficEmbed } from "./MarineTrafficEmbed";
+
+const MATARIKI_MMSI = "512004962";
 
 type FallbackPosition = {
   lat: number;
@@ -16,44 +18,21 @@ type LiveTrackerProps = {
 };
 
 export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
-  const apiKey = process.env.NEXT_PUBLIC_AISSTREAM_API_KEY;
-  const { position: aisPosition, isConnected, error } = useAISStream(apiKey);
-
-  // Use AIS data if available, otherwise fallback
-  const lat = aisPosition?.lat ?? fallback.lat;
-  const lng = aisPosition?.lng ?? fallback.lng;
-  const isLive = isConnected && aisPosition !== null;
-
-  // Format timestamp
-  const updated = aisPosition?.timestamp
-    ? new Date(aisPosition.timestamp).toLocaleDateString("en-NZ", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : fallback.updated;
-
-  // Status from AIS or default
-  const status = aisPosition?.status ?? "At Anchor";
-
-  // Google Maps embed URL
-  const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=14&output=embed`;
-
   return (
     <>
       {/* Map Area - Full Screen */}
       <div className="flex-1 relative">
-        {/* Google Maps embed */}
-        <iframe
-          src={mapUrl}
-          className="absolute inset-0 w-full h-full border-0"
-          title="Matariki III Live Tracking"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          allowFullScreen
-        />
+        {/* MarineTraffic Live Map */}
+        <div className="absolute inset-0">
+          <MarineTrafficEmbed
+            mmsi={MATARIKI_MMSI}
+            latitude={fallback.lat}
+            longitude={fallback.lng}
+            zoom={10}
+            height="100%"
+            showNames={true}
+          />
+        </div>
 
         {/* Position Info Panel - Solid Background */}
         <div className="absolute top-4 left-4 z-10 w-80 hidden md:block">
@@ -69,24 +48,16 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
                 </div>
                 <div>
                   <h1 className="text-lg text-salt-white font-display font-medium">Matariki III</h1>
-                  <div className="text-xs text-mist">Oyster 68 • MMSI 512004962</div>
+                  <div className="text-xs text-mist">Oyster 68 • MMSI {MATARIKI_MMSI}</div>
                 </div>
               </div>
             </div>
 
             <div className="p-5 space-y-5">
-              {/* Connection Status */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`w-2.5 h-2.5 rounded-full ${isLive ? "bg-sea-green animate-pulse" : isConnected ? "bg-copper-accent" : "bg-storm-grey"}`} />
-                <span className={`text-sm font-medium ${isLive ? "text-sea-green" : isConnected ? "text-copper-accent" : "text-storm-grey"}`}>
-                  {isLive ? "Live" : isConnected ? "Waiting for data..." : error ? "Offline" : "Connecting..."}
-                </span>
-                {error && !isConnected && (
-                  <span className="text-xs text-red-400 w-full mt-1">{error}</span>
-                )}
-                {isLive && (
-                  <span className="text-xs text-mist ml-auto">{status}</span>
-                )}
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 bg-sea-green rounded-full animate-pulse" />
+                <span className="text-sm font-medium text-sea-green">Live AIS Tracking</span>
               </div>
 
               {/* Location */}
@@ -98,32 +69,15 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
                   {fallback.region}
                 </div>
                 <div className="font-mono text-xs text-storm-grey mt-2">
-                  {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
+                  {Math.abs(fallback.lat).toFixed(4)}°S, {fallback.lng.toFixed(4)}°E
                 </div>
               </div>
 
-              {/* Live Stats Grid */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-mist/10">
-                <div>
-                  <div className="text-xs text-storm-grey uppercase tracking-wider">Last Updated</div>
-                  <div className="text-sm text-salt-white mt-1">{updated}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-storm-grey uppercase tracking-wider">Source</div>
-                  <div className="text-sm text-salt-white mt-1">{isLive ? "AIS Live" : "Cached"}</div>
-                </div>
-                {isLive && aisPosition && (
-                  <>
-                    <div>
-                      <div className="text-xs text-storm-grey uppercase tracking-wider">Speed</div>
-                      <div className="text-sm text-salt-white mt-1">{aisPosition.speed.toFixed(1)} kts</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-storm-grey uppercase tracking-wider">Course</div>
-                      <div className="text-sm text-salt-white mt-1">{aisPosition.course.toFixed(0)}°</div>
-                    </div>
-                  </>
-                )}
+              {/* Info */}
+              <div className="pt-4 border-t border-mist/10">
+                <p className="text-xs text-mist">
+                  Click on the vessel marker for real-time speed, course, and position data from MarineTraffic.
+                </p>
               </div>
 
               {/* SailLogger Links */}
@@ -177,17 +131,13 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`w-2 h-2 rounded-full ${isLive ? "bg-sea-green animate-pulse" : "bg-storm-grey"}`} />
-                  <span className={`text-xs font-medium uppercase tracking-wider ${isLive ? "text-sea-green" : "text-storm-grey"}`}>
-                    {isLive ? `Live • ${status}` : "Offline"}
+                  <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
+                  <span className="text-xs font-medium text-sea-green uppercase tracking-wider">
+                    Live AIS
                   </span>
                 </div>
                 <div className="text-salt-white font-medium">{fallback.location}</div>
                 <div className="text-sm text-mist">{fallback.region}</div>
-                <div className="font-mono text-xs text-storm-grey mt-1">
-                  {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
-                  {isLive && aisPosition && ` • ${aisPosition.speed.toFixed(1)} kts`}
-                </div>
               </div>
               <a
                 href={sailloggerUrl}
