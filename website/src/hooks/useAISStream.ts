@@ -53,15 +53,22 @@ export function useAISStream(apiKey: string | undefined) {
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 3;
 
   const connect = useCallback(() => {
     if (!apiKey) {
-      console.log("[AIS] No API key configured");
       setError("AIS API key not configured");
       return;
     }
 
-    console.log("[AIS] Connecting to", AISSTREAM_URL);
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.log("[AIS] Max reconnect attempts reached, giving up");
+      setError("AIS service unavailable");
+      return;
+    }
+
+    console.log("[AIS] Connecting to", AISSTREAM_URL, `(attempt ${reconnectAttemptsRef.current + 1})`);
 
     try {
       const socket = new WebSocket(AISSTREAM_URL);
@@ -69,6 +76,7 @@ export function useAISStream(apiKey: string | undefined) {
 
       socket.onopen = () => {
         console.log("[AIS] WebSocket connected, subscribing to MMSI:", MATARIKI_MMSI);
+        reconnectAttemptsRef.current = 0; // Reset on successful connection
         const subscriptionMessage = {
           Apikey: apiKey,
           BoundingBoxes: [[[-90, -180], [90, 180]]], // Global coverage
@@ -83,7 +91,6 @@ export function useAISStream(apiKey: string | undefined) {
       socket.onmessage = (event) => {
         try {
           const data: AISMessage = JSON.parse(event.data);
-          console.log("[AIS] Received message:", data.MessageType, data.MetaData?.ShipName);
 
           if (data.Message?.PositionReport) {
             const report = data.Message.PositionReport;
@@ -103,24 +110,29 @@ export function useAISStream(apiKey: string | undefined) {
         }
       };
 
-      socket.onerror = (e) => {
-        console.error("[AIS] WebSocket error:", e);
-        setError("WebSocket connection error");
+      socket.onerror = () => {
+        setError("AIS service unavailable");
         setIsConnected(false);
       };
 
       socket.onclose = (e) => {
-        console.log("[AIS] WebSocket closed:", e.code, e.reason);
+        console.log("[AIS] WebSocket closed:", e.code);
         setIsConnected(false);
-        // Attempt reconnect after 10 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log("[AIS] Attempting reconnect...");
-          connect();
-        }, 10000);
+        reconnectAttemptsRef.current++;
+
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          // Exponential backoff: 10s, 20s, 40s
+          const delay = 10000 * Math.pow(2, reconnectAttemptsRef.current - 1);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+          }, delay);
+        } else {
+          setError("AIS service unavailable");
+        }
       };
     } catch (e) {
       console.error("[AIS] Failed to create WebSocket:", e);
-      setError("Failed to create WebSocket connection");
+      setError("Failed to connect to AIS");
     }
   }, [apiKey]);
 
