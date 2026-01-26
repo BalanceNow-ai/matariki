@@ -128,3 +128,14 @@ export const VESSEL_QUERY = groq`*[_type == "vessel"][0]{
   heroImage,
   gallery
 }`;
+
+// Fetch latest position for tracking
+export const LATEST_POSITION_QUERY = groq`*[_type == "position"]|order(timestamp desc)[0]{
+  _id,
+  coordinates,
+  timestamp,
+  locationName,
+  source,
+  weather,
+  "voyage": voyage->title
+}`;

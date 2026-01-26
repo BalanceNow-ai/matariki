@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { Header, Footer, Container } from "@/components/layout";
+import { Header } from "@/components/layout";
+import { client } from "@/sanity/client";
+import { LATEST_POSITION_QUERY } from "@/sanity/queries";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,8 +9,8 @@ export const metadata: Metadata = {
     "Track the live position of Matariki III as we sail around New Zealand and the Pacific.",
 };
 
-// Current position from SailLogger: 36°25'41.40" S, 174°49'8.53" E
-const CURRENT_POSITION = {
+// Fallback position when no Sanity data is available
+const FALLBACK_POSITION = {
   lat: -36.428167,
   lng: 174.819036,
   updated: "Nov 8, 2025, 9:08 PM",
@@ -21,8 +22,44 @@ const CURRENT_POSITION = {
 
 const SAILLOGGER_URL = "https://saillogger.com/svmatariki-iii";
 
-export default function TrackPage() {
-  const { lat, lng } = CURRENT_POSITION;
+type SanityPosition = {
+  _id: string;
+  coordinates?: { lat: number; lng: number };
+  timestamp?: string;
+  locationName?: string;
+  source?: string;
+  weather?: {
+    windSpeed?: number;
+    windDirection?: number;
+    conditions?: string;
+  };
+  voyage?: string;
+} | null;
+
+const options = { next: { revalidate: 60 } };
+
+export default async function TrackPage() {
+  let position: SanityPosition = null;
+
+  try {
+    position = await client.fetch<SanityPosition>(LATEST_POSITION_QUERY, {}, options);
+  } catch (error) {
+    console.error("Failed to fetch position from Sanity:", error);
+  }
+
+  // Use Sanity data if available, otherwise fall back to defaults
+  const lat = position?.coordinates?.lat ?? FALLBACK_POSITION.lat;
+  const lng = position?.coordinates?.lng ?? FALLBACK_POSITION.lng;
+  const location = position?.locationName ?? FALLBACK_POSITION.location;
+  const updated = position?.timestamp
+    ? new Date(position.timestamp).toLocaleDateString("en-NZ", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : FALLBACK_POSITION.updated;
 
   // Google Maps embed URL with marker - using place query format
   const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=14&output=embed`;
@@ -72,10 +109,10 @@ export default function TrackPage() {
                 {/* Location */}
                 <div>
                   <div className="text-xl text-salt-white font-display">
-                    {CURRENT_POSITION.location}
+                    {location}
                   </div>
                   <div className="text-sm text-mist mt-1">
-                    {CURRENT_POSITION.region}
+                    {FALLBACK_POSITION.region}
                   </div>
                   <div className="font-mono text-xs text-storm-grey mt-2">
                     {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
@@ -87,21 +124,24 @@ export default function TrackPage() {
                   <div>
                     <div className="text-xs text-storm-grey uppercase tracking-wider">Last Updated</div>
                     <div className="text-sm text-salt-white mt-1">
-                      {CURRENT_POSITION.updated}
+                      {updated}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-storm-grey uppercase tracking-wider">Arrived</div>
-                    <div className="text-sm text-salt-white mt-1">
-                      {CURRENT_POSITION.arrived}
+                    <div className="text-xs text-storm-grey uppercase tracking-wider">Source</div>
+                    <div className="text-sm text-salt-white mt-1 capitalize">
+                      {position?.source ?? "Manual"}
                     </div>
                   </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-storm-grey uppercase tracking-wider">Cruise Distance</div>
-                    <div className="text-sm text-salt-white mt-1">
-                      {CURRENT_POSITION.cruiseDistance}
+                  {position?.weather?.conditions && (
+                    <div className="col-span-2">
+                      <div className="text-xs text-storm-grey uppercase tracking-wider">Conditions</div>
+                      <div className="text-sm text-salt-white mt-1">
+                        {position.weather.conditions}
+                        {position.weather.windSpeed && ` • ${position.weather.windSpeed} kts`}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* SailLogger Links */}
@@ -158,8 +198,8 @@ export default function TrackPage() {
                     <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
                     <span className="text-xs font-medium text-sea-green uppercase tracking-wider">At Anchor</span>
                   </div>
-                  <div className="text-salt-white font-medium">{CURRENT_POSITION.location}</div>
-                  <div className="text-sm text-mist">{CURRENT_POSITION.region}</div>
+                  <div className="text-salt-white font-medium">{location}</div>
+                  <div className="text-sm text-mist">{FALLBACK_POSITION.region}</div>
                   <div className="font-mono text-xs text-storm-grey mt-1">
                     {Math.abs(lat).toFixed(4)}°S, {lng.toFixed(4)}°E
                   </div>
