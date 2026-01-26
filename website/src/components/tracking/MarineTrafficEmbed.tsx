@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 type MarineTrafficEmbedProps = {
   mmsi: string;
   latitude?: number;
   longitude?: number;
   zoom?: number;
-  height?: string;
   showNames?: boolean;
 };
 
@@ -16,58 +13,34 @@ export function MarineTrafficEmbed({
   latitude = -36.428,
   longitude = 174.819,
   zoom = 10,
-  height = "100%",
   showNames = true,
 }: MarineTrafficEmbedProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Build the MarineTraffic embed URL with parameters
+  const params = new URLSearchParams({
+    width: "100%",
+    height: "100%",
+    latitude: latitude.toString(),
+    longitude: longitude.toString(),
+    zoom: zoom.toString(),
+    maptype: "4", // 0=Normal, 1=Satellite, 4=Dark
+    shownames: showNames ? "true" : "false",
+    mmsi: mmsi,
+    clicktoact: "true",
+    fleet: "",
+    remember: "false",
+    show_track: "true",
+  });
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Clear any existing content
-    containerRef.current.innerHTML = "";
-
-    // Create the script configuration
-    const configScript = document.createElement("script");
-    configScript.type = "text/javascript";
-    configScript.text = `
-      width='100%';
-      height='${height}';
-      border='0';
-      shownames='${showNames}';
-      latitude='${latitude}';
-      longitude='${longitude}';
-      zoom='${zoom}';
-      maptype='0';
-      trackvessel='${mmsi}';
-      fleet='';
-      remember='false';
-      language='en';
-      show_track='true';
-    `;
-
-    // Create the MarineTraffic embed script
-    const embedScript = document.createElement("script");
-    embedScript.type = "text/javascript";
-    embedScript.src = "https://www.marinetraffic.com/js/embed.js";
-
-    // Append scripts to container
-    containerRef.current.appendChild(configScript);
-    containerRef.current.appendChild(embedScript);
-
-    return () => {
-      // Cleanup on unmount
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-      }
-    };
-  }, [mmsi, latitude, longitude, zoom, height, showNames]);
+  const embedUrl = `https://www.marinetraffic.com/en/ais/embed/maptype:4/zoom:${zoom}/centery:${latitude}/centerx:${longitude}/mmsi:${mmsi}/shownames:${showNames}/clicktoact:true/remember:false`;
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full min-h-[400px]"
-      style={{ height }}
+    <iframe
+      src={embedUrl}
+      className="w-full h-full min-h-[400px] border-0"
+      title="MarineTraffic Live Map - Matariki III"
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+      allowFullScreen
     />
   );
 }

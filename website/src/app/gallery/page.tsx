@@ -141,14 +141,14 @@ export default async function GalleryPage() {
 
           {/* Filter Bar */}
           <div className="flex flex-wrap gap-4 mb-12 pb-8 border-b border-white/5">
-            <select className="px-4 py-2 bg-midnight-blue/50 border border-mist/20 text-mist text-sm rounded">
+            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
               <option>All Categories</option>
               <option>Landscapes</option>
               <option>Sailing</option>
               <option>Wildlife</option>
               <option>Diving</option>
             </select>
-            <select className="px-4 py-2 bg-midnight-blue/50 border border-mist/20 text-mist text-sm rounded">
+            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
               <option>All Voyages</option>
               <option>Fiordland 2026</option>
               <option>Bay of Islands 2025</option>
