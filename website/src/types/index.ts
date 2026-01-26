@@ -67,6 +67,7 @@ export interface YachtSpecs {
   builder: string;
   year: number;
   flag: string;
+  description?: string;
   dimensions: {
     loa: string;
     lwl: string;
