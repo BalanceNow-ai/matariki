@@ -6,6 +6,7 @@ type MarineTrafficEmbedProps = {
   longitude?: number;
   zoom?: number;
   showNames?: boolean;
+  height?: string;
 };
 
 export function MarineTrafficEmbed({
@@ -14,6 +15,7 @@ export function MarineTrafficEmbed({
   longitude = 174.819,
   zoom = 10,
   showNames = true,
+  height,
 }: MarineTrafficEmbedProps) {
   // Build the MarineTraffic embed URL with parameters
   const params = new URLSearchParams({
@@ -37,6 +39,7 @@ export function MarineTrafficEmbed({
     <iframe
       src={embedUrl}
       className="w-full h-full min-h-[400px] border-0"
+      style={height ? { height } : undefined}
       title="MarineTraffic Live Map - Matariki III"
       loading="lazy"
       referrerPolicy="no-referrer-when-downgrade"

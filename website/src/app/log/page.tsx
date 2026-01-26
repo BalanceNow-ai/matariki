@@ -2,7 +2,7 @@ import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { PostCard } from "@/components/content";
 import { logEntries as mockLogEntries } from "@/lib/data/mock";
-import { client } from "@/sanity/client";
+import { client, fetchOptions } from "@/sanity/client";
 import { ALL_POSTS_QUERY } from "@/sanity/queries";
 import type { Metadata } from "next";
 
@@ -24,8 +24,6 @@ type SanityLogEntry = {
   };
 };
 
-const options = { next: { revalidate: 60 } };
-
 export default async function LogPage() {
   let logEntries = mockLogEntries;
 
@@ -33,7 +31,7 @@ export default async function LogPage() {
     const sanityPosts = await client.fetch<SanityLogEntry[]>(
       ALL_POSTS_QUERY,
       {},
-      options
+      fetchOptions
     );
 
     if (sanityPosts && sanityPosts.length > 0) {
@@ -69,16 +67,16 @@ export default async function LogPage() {
             </p>
           </div>
 
-          {/* Filter Bar Placeholder */}
+          {/* Filter Bar */}
           <div className="flex flex-wrap gap-4 mb-12 pb-8 border-b border-white/5">
-            <select className="px-4 py-2 bg-midnight-blue/50 border border-mist/20 text-mist text-sm">
+            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
               <option>All Categories</option>
               <option>Sailing</option>
               <option>Hunting</option>
               <option>Diving</option>
               <option>Fishing</option>
             </select>
-            <select className="px-4 py-2 bg-midnight-blue/50 border border-mist/20 text-mist text-sm">
+            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
               <option>All Voyages</option>
               <option>Fiordland 2026</option>
               <option>Bay of Islands 2025</option>
