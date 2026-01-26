@@ -1,6 +1,8 @@
 import { Header, Footer, Section } from "@/components/layout";
-import { SectionLabel, Button } from "@/components/ui";
-import { yachtSpecs } from "@/lib/data/mock";
+import { SectionLabel } from "@/components/ui";
+import { client, fetchOptions } from "@/sanity/client";
+import { VESSEL_QUERY } from "@/sanity/queries";
+import { yachtSpecs as mockYachtSpecs } from "@/lib/data/mock";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,7 +10,60 @@ export const metadata: Metadata = {
   description: "Matariki III is an Oyster 68 blue-water cruising yacht designed for long-distance voyaging.",
 };
 
-export default function YachtPage() {
+type VesselData = {
+  _id: string;
+  name: string;
+  type: string;
+  designer: string;
+  builder: string;
+  year: number;
+  flag: string;
+  description?: string;
+  dimensions?: {
+    loa?: string;
+    lwl?: string;
+    beam?: string;
+    draft?: string;
+    displacement?: string;
+    ballast?: string;
+  };
+  rig?: {
+    type?: string;
+    mastHeight?: string;
+    mainSail?: string;
+    genoa?: string;
+  };
+  engine?: {
+    make?: string;
+    model?: string;
+    power?: string;
+    fuelCapacity?: string;
+  };
+  tanks?: {
+    fuel?: string;
+    water?: string;
+    holding?: string;
+  };
+  electronics?: string[];
+} | null;
+
+export default async function YachtPage() {
+  let vessel: VesselData = null;
+
+  try {
+    vessel = await client.fetch<VesselData>(VESSEL_QUERY, {}, fetchOptions);
+  } catch (error) {
+    console.error("Failed to fetch vessel from Sanity:", error);
+  }
+
+  // Use Sanity data or fall back to mock
+  const specs = vessel || mockYachtSpecs;
+  const dimensions = specs.dimensions || {};
+  const rig = specs.rig || {};
+  const engine = specs.engine || {};
+  const tanks = specs.tanks || {};
+  const electronics = specs.electronics || [];
+
   return (
     <>
       <Header />
@@ -19,13 +74,13 @@ export default function YachtPage() {
             <div className="max-w-3xl">
               <SectionLabel label="The Vessel" className="mb-4" />
               <h1 className="text-display text-salt-white mb-4">
-                {yachtSpecs.name}
+                {specs.name}
               </h1>
-              <p className="text-2xl text-copper-accent mb-6">{yachtSpecs.type}</p>
+              <p className="text-2xl text-copper-accent mb-6">{specs.type}</p>
               <p className="text-mist leading-relaxed">
-                Built by {yachtSpecs.builder} in the UK and designed by {yachtSpecs.designer},
+                {specs.description || `Built by ${specs.builder} in the UK and designed by ${specs.designer},
                 Matariki III is a blue-water cruising yacht designed for long-distance voyaging
-                in comfort and safety. Flying the {yachtSpecs.flag} flag since {yachtSpecs.year}.
+                in comfort and safety. Flying the ${specs.flag} flag since ${specs.year}.`}
               </p>
             </div>
           </div>
@@ -38,7 +93,7 @@ export default function YachtPage() {
             <div>
               <h2 className="text-h3 text-salt-white mb-6">Dimensions</h2>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(yachtSpecs.dimensions).map(([key, value]) => (
+                {Object.entries(dimensions).filter(([_, v]) => v).map(([key, value]) => (
                   <div key={key} className="border-l-2 border-copper-accent/30 pl-4 py-2">
                     <div className="text-caption text-mist uppercase">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
                     <div className="text-salt-white font-mono text-lg">{value}</div>
@@ -51,7 +106,7 @@ export default function YachtPage() {
             <div>
               <h2 className="text-h3 text-salt-white mb-6">Rig</h2>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(yachtSpecs.rig).map(([key, value]) => (
+                {Object.entries(rig).filter(([_, v]) => v).map(([key, value]) => (
                   <div key={key} className="border-l-2 border-copper-accent/30 pl-4 py-2">
                     <div className="text-caption text-mist uppercase">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
                     <div className="text-salt-white font-mono text-lg">{value}</div>
@@ -69,7 +124,7 @@ export default function YachtPage() {
             <div>
               <h2 className="text-h3 text-salt-white mb-6">Engine</h2>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(yachtSpecs.engine).map(([key, value]) => (
+                {Object.entries(engine).filter(([_, v]) => v).map(([key, value]) => (
                   <div key={key} className="border-l-2 border-copper-accent/30 pl-4 py-2">
                     <div className="text-caption text-mist uppercase">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
                     <div className="text-salt-white font-mono text-lg">{value}</div>
@@ -82,7 +137,7 @@ export default function YachtPage() {
             <div>
               <h2 className="text-h3 text-salt-white mb-6">Tanks</h2>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(yachtSpecs.tanks).map(([key, value]) => (
+                {Object.entries(tanks).filter(([_, v]) => v).map(([key, value]) => (
                   <div key={key} className="border-l-2 border-copper-accent/30 pl-4 py-2">
                     <div className="text-caption text-mist uppercase">{key}</div>
                     <div className="text-salt-white font-mono text-lg">{value}</div>
@@ -94,19 +149,21 @@ export default function YachtPage() {
         </Section>
 
         {/* Electronics */}
-        <Section>
-          <h2 className="text-h3 text-salt-white mb-6">Electronics & Navigation</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {yachtSpecs.electronics.map((item, index) => (
-              <div key={index} className="card p-4 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-sea-green rounded-full" />
-                  <span className="text-salt-white">{item}</span>
+        {electronics.length > 0 && (
+          <Section>
+            <h2 className="text-h3 text-salt-white mb-6">Electronics & Navigation</h2>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {electronics.map((item, index) => (
+                <div key={index} className="card p-4 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-sea-green rounded-full" />
+                    <span className="text-salt-white">{item}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Section>
+              ))}
+            </div>
+          </Section>
+        )}
 
         {/* Image Gallery Placeholder */}
         <Section background="dark">
