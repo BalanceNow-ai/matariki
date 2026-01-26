@@ -76,11 +76,14 @@ export function LiveTracker({ fallback, sailloggerUrl }: LiveTrackerProps) {
 
             <div className="p-5 space-y-5">
               {/* Connection Status */}
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${isLive ? "bg-sea-green animate-pulse" : "bg-storm-grey"}`} />
-                <span className={`text-sm font-medium ${isLive ? "text-sea-green" : "text-storm-grey"}`}>
-                  {isLive ? "Live" : error ? "Offline" : "Connecting..."}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`w-2.5 h-2.5 rounded-full ${isLive ? "bg-sea-green animate-pulse" : isConnected ? "bg-copper-accent" : "bg-storm-grey"}`} />
+                <span className={`text-sm font-medium ${isLive ? "text-sea-green" : isConnected ? "text-copper-accent" : "text-storm-grey"}`}>
+                  {isLive ? "Live" : isConnected ? "Waiting for data..." : error ? "Offline" : "Connecting..."}
                 </span>
+                {error && !isConnected && (
+                  <span className="text-xs text-red-400 w-full mt-1">{error}</span>
+                )}
                 {isLive && (
                   <span className="text-xs text-mist ml-auto">{status}</span>
                 )}
