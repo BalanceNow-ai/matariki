@@ -56,15 +56,19 @@ export function useAISStream(apiKey: string | undefined) {
 
   const connect = useCallback(() => {
     if (!apiKey) {
+      console.log("[AIS] No API key configured");
       setError("AIS API key not configured");
       return;
     }
+
+    console.log("[AIS] Connecting to", AISSTREAM_URL);
 
     try {
       const socket = new WebSocket(AISSTREAM_URL);
       socketRef.current = socket;
 
       socket.onopen = () => {
+        console.log("[AIS] WebSocket connected, subscribing to MMSI:", MATARIKI_MMSI);
         const subscriptionMessage = {
           Apikey: apiKey,
           BoundingBoxes: [[[-90, -180], [90, 180]]], // Global coverage
@@ -79,9 +83,11 @@ export function useAISStream(apiKey: string | undefined) {
       socket.onmessage = (event) => {
         try {
           const data: AISMessage = JSON.parse(event.data);
+          console.log("[AIS] Received message:", data.MessageType, data.MetaData?.ShipName);
 
           if (data.Message?.PositionReport) {
             const report = data.Message.PositionReport;
+            console.log("[AIS] Position update:", report.Latitude, report.Longitude);
             setPosition({
               lat: report.Latitude,
               lng: report.Longitude,
@@ -93,23 +99,27 @@ export function useAISStream(apiKey: string | undefined) {
             });
           }
         } catch (e) {
-          console.error("Failed to parse AIS message:", e);
+          console.error("[AIS] Failed to parse message:", e);
         }
       };
 
-      socket.onerror = () => {
+      socket.onerror = (e) => {
+        console.error("[AIS] WebSocket error:", e);
         setError("WebSocket connection error");
         setIsConnected(false);
       };
 
-      socket.onclose = () => {
+      socket.onclose = (e) => {
+        console.log("[AIS] WebSocket closed:", e.code, e.reason);
         setIsConnected(false);
         // Attempt reconnect after 10 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
+          console.log("[AIS] Attempting reconnect...");
           connect();
         }, 10000);
       };
     } catch (e) {
+      console.error("[AIS] Failed to create WebSocket:", e);
       setError("Failed to create WebSocket connection");
     }
   }, [apiKey]);
