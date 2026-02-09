@@ -2,17 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { Header, Footer, Section, Container } from "@/components/layout";
 import { Button, SectionLabel } from "@/components/ui";
-import { StatBlock, PostCard } from "@/components/content";
+import { PostCard } from "@/components/content";
 import { MapWidget } from "@/components/map";
 import { NewsletterForm } from "@/components/forms";
 import {
-  siteSettings as mockSiteSettings,
   getRecentLogEntries,
   getFeaturedGalleryImages,
   yachtSpecs,
 } from "@/lib/data/mock";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
-import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
+import { RECENT_POSTS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 
 // Force dynamic rendering to always fetch fresh data from Sanity
@@ -38,17 +37,6 @@ type SanityLogEntry = {
   };
 };
 
-type SanitySiteSettings = {
-  siteName?: string;
-  stats?: {
-    totalNauticalMiles?: number;
-    totalDaysAtSea?: number;
-    totalAnchorages?: number;
-    redStags?: number;
-    diveSites?: number;
-  };
-};
-
 type SanityGalleryImage = {
   _id: string;
   image: {
@@ -61,7 +49,6 @@ type SanityGalleryImage = {
 export default async function HomePage() {
   // Fetch from Sanity with fallback to mock data
   let recentPosts = getRecentLogEntries(3);
-  let stats = mockSiteSettings.stats;
   let featuredImages: Array<{ id: string; src: string; caption: string }> = [];
 
   try {
@@ -88,19 +75,6 @@ export default async function HomePage() {
         heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
         body: "",
       }));
-    }
-
-    const sanitySettings = await client.fetch<SanitySiteSettings>(
-      SITE_SETTINGS_QUERY,
-      {},
-      fetchOptions
-    );
-
-    if (sanitySettings?.stats) {
-      stats = {
-        ...mockSiteSettings.stats,
-        ...sanitySettings.stats,
-      };
     }
 
     // Fetch gallery images from Sanity
@@ -194,23 +168,6 @@ export default async function HomePage() {
               <div className="w-1 h-3 bg-mist/50 rounded-full animate-bounce" />
             </div>
           </div>
-        </section>
-
-        {/* Stats Bar */}
-        <section className="bg-midnight-blue py-12 border-y border-white/5">
-          <Container>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-              <StatBlock
-                value={stats.totalNauticalMiles}
-                label="Nautical Miles"
-                suffix="NM"
-              />
-              <StatBlock value={stats.totalDaysAtSea} label="Days at Sea" />
-              <StatBlock value={stats.totalAnchorages} label="Anchorages" />
-              <StatBlock value={stats.redStags} label="Red Stags" />
-              <StatBlock value={stats.diveSites} label="Dive Sites" />
-            </div>
-          </Container>
         </section>
 
         {/* The Yacht Section */}

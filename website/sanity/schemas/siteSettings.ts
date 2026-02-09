@@ -50,18 +50,6 @@ export const siteSettings = defineType({
       ],
     }),
     defineField({
-      name: "stats",
-      title: "Statistics",
-      type: "object",
-      fields: [
-        { name: "totalNauticalMiles", title: "Total Nautical Miles", type: "number" },
-        { name: "totalDaysAtSea", title: "Total Days at Sea", type: "number" },
-        { name: "totalAnchorages", title: "Total Anchorages", type: "number" },
-        { name: "redStags", title: "Red Stags", type: "number" },
-        { name: "diveSites", title: "Dive Sites", type: "number" },
-      ],
-    }),
-    defineField({
       name: "socialLinks",
       title: "Social Links",
       type: "object",

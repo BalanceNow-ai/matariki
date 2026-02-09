@@ -96,7 +96,6 @@ export const SITE_SETTINGS_QUERY = groq`*[_type == "siteSettings"][0]{
   tagline,
   description,
   currentPosition,
-  stats,
   socialLinks,
   sailloggerUrl,
   "currentVoyage": currentVoyage->title
