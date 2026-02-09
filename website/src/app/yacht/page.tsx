@@ -1,8 +1,7 @@
 import { Header, Footer, Section } from "@/components/layout";
-import { SectionLabel } from "@/components/ui";
+import { SectionLabel, MissingContent } from "@/components/ui";
 import { client, fetchOptions } from "@/sanity/client";
 import { VESSEL_QUERY } from "@/sanity/queries";
-import { yachtSpecs as mockYachtSpecs } from "@/lib/data/mock";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -65,14 +64,34 @@ export default async function YachtPage() {
     console.error("Failed to fetch vessel from Sanity:", error);
   }
 
-  // Use Sanity data or fall back to mock
-  const specs = vessel || mockYachtSpecs;
-  const dimensions = specs.dimensions || {};
-  const rig = specs.rig || {};
-  const engine = specs.engine || {};
-  const tanks = specs.tanks || {};
-  const electronics = specs.electronics || [];
-  const descriptionSections = specs.descriptionSections || [];
+  // If no vessel data, show missing content
+  if (!vessel) {
+    return (
+      <>
+        <Header />
+        <main className="pt-20">
+          <section className="relative py-24 bg-midnight-blue">
+            <div className="container-site">
+              <div className="max-w-3xl">
+                <SectionLabel label="The Vessel" className="mb-4" />
+                <div className="bg-slate-water/30 rounded-lg py-12">
+                  <MissingContent label="Vessel data not configured in Sanity" size="lg" />
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const dimensions = vessel.dimensions || {};
+  const rig = vessel.rig || {};
+  const engine = vessel.engine || {};
+  const tanks = vessel.tanks || {};
+  const electronics = vessel.electronics || [];
+  const descriptionSections = vessel.descriptionSections || [];
 
   return (
     <>
@@ -84,9 +103,9 @@ export default async function YachtPage() {
             <div className="max-w-3xl">
               <SectionLabel label="The Vessel" className="mb-4" />
               <h1 className="text-display text-salt-white mb-4">
-                {specs.name}
+                {vessel.name || <span className="text-red-400">Name missing</span>}
               </h1>
-              <p className="text-2xl text-copper-accent mb-6">{specs.type}</p>
+              <p className="text-2xl text-copper-accent mb-6">{vessel.type || <span className="text-red-400">Type missing</span>}</p>
 
               {/* Description Sections */}
               {descriptionSections.length > 0 ? (
@@ -100,13 +119,13 @@ export default async function YachtPage() {
                     </div>
                   ))}
                 </div>
-              ) : specs.description ? (
-                <p className="text-mist leading-relaxed">{specs.description}</p>
+              ) : vessel.description ? (
+                <p className="text-mist leading-relaxed">{vessel.description}</p>
               ) : (
                 <p className="text-mist leading-relaxed">
-                  Built by {specs.builder} in the UK and designed by {specs.designer},
+                  Built by {vessel.builder || "—"} in the UK and designed by {vessel.designer || "—"},
                   Matariki III is a blue-water cruising yacht designed for long-distance voyaging
-                  in comfort and safety. Flying the {specs.flag} flag since {specs.year}.
+                  in comfort and safety. Flying the {vessel.flag || "—"} flag since {vessel.year || "—"}.
                 </p>
               )}
             </div>

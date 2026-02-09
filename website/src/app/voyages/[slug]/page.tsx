@@ -1,9 +1,8 @@
 import { Header, Footer, Section } from "@/components/layout";
-import { SectionLabel } from "@/components/ui";
+import { SectionLabel, MissingContent } from "@/components/ui";
 import { ExpeditionSchedule } from "@/components/content";
 import { client, fetchOptions, projectId, dataset } from "@/sanity/client";
 import { VOYAGE_BY_SLUG_QUERY } from "@/sanity/queries";
-import { voyages as mockVoyages, logEntries as mockLogEntries } from "@/lib/data/mock";
 import imageUrlBuilder from "@sanity/image-url";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,19 +11,6 @@ import type { Metadata } from "next";
 
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
-
-// Hardcoded expedition plan entry - always shown for Fiordland voyage
-const EXPEDITION_PLAN_ENTRY = {
-  id: "expedition-plan",
-  _id: "expedition-plan",
-  title: "Fiordland & Stewart Island: The Expedition Plan",
-  slug: { current: "fiordland-stewart-island-expedition-plan" },
-  publishedAt: "2026-02-01T09:00:00Z",
-  category: "sailing",
-  excerpt:
-    "Nine weeks through New Zealand's wildest coastline — from Milford Sound to Stewart Island. A comprehensive plan for hunting, diving, and fishing aboard Matariki III.",
-  heroImage: undefined as { asset: { _ref: string } } | undefined,
-};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {
@@ -72,7 +58,6 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
 
-  // Try Sanity first
   try {
     const voyage = await client.fetch<Voyage>(VOYAGE_BY_SLUG_QUERY, { slug }, fetchOptions);
     if (voyage) {
@@ -82,19 +67,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       };
     }
   } catch {
-    // Fall through to mock data
+    // Fall through
   }
 
-  // Fall back to mock data
-  const mockVoyage = mockVoyages.find((v) => v.slug === slug);
-  if (!mockVoyage) {
-    return { title: "Voyage Not Found" };
-  }
-
-  return {
-    title: mockVoyage.title,
-    description: mockVoyage.description || `Follow the ${mockVoyage.title} voyage of Matariki III.`,
-  };
+  return { title: "Voyage Not Found" };
 }
 
 export default async function VoyagePage({ params }: PageProps) {
@@ -108,27 +84,27 @@ export default async function VoyagePage({ params }: PageProps) {
     console.error("Failed to fetch voyage from Sanity:", error);
   }
 
-  // If we have a Sanity voyage, render it
-  if (voyage) {
-    const allImages = [
-      ...(voyage.gallery || []).map((img, i) => ({
-        _id: `gallery-${i}`,
-        image: img,
-        caption: img.caption,
-      })),
-      ...(voyage.galleryImages || []),
-    ];
+  // If no voyage found, return 404
+  if (!voyage) {
+    notFound();
+  }
 
-    // Check if this voyage should show the expedition schedule (controlled via Sanity CMS)
-    const showExpeditionSchedule = voyage.showExpeditionSchedule === true;
+  const allImages = [
+    ...(voyage.gallery || []).map((img, i) => ({
+      _id: `gallery-${i}`,
+      image: img,
+      caption: img.caption,
+    })),
+    ...(voyage.galleryImages || []),
+  ];
 
-    // Combine Sanity log entries with hardcoded expedition plan for expedition voyages
-    const sanityLogEntries = voyage.logEntries || [];
-    const allLogEntries = showExpeditionSchedule
-      ? [EXPEDITION_PLAN_ENTRY, ...sanityLogEntries.filter(e => e.slug.current !== EXPEDITION_PLAN_ENTRY.slug.current)]
-      : sanityLogEntries;
+  // Check if this voyage should show the expedition schedule (controlled via Sanity CMS)
+  const showExpeditionSchedule = voyage.showExpeditionSchedule === true;
 
-    return (
+  // Use Sanity log entries directly
+  const allLogEntries = voyage.logEntries || [];
+
+  return (
       <>
         <Header />
         <main className="pt-20">
@@ -284,121 +260,4 @@ export default async function VoyagePage({ params }: PageProps) {
         <Footer />
       </>
     );
-  }
-
-  // Fall back to mock data
-  const mockVoyage = mockVoyages.find((v) => v.slug === slug);
-
-  if (!mockVoyage) {
-    notFound();
-  }
-
-  // Get related log entries from mock data
-  const relatedLogEntries = mockLogEntries.filter((entry) => entry.voyageId === mockVoyage.id);
-
-  // Legacy fallback: mock data doesn't have showExpeditionSchedule field
-  // This section will be removed when all data is migrated to Sanity
-  const showExpeditionSchedule = false;
-
-  return (
-    <>
-      <Header />
-      <main className="pt-20">
-        {/* Hero */}
-        <section className="relative py-24 bg-midnight-blue">
-          <div className="container-site relative z-10">
-            <Link
-              href="/voyages"
-              className="inline-flex items-center gap-2 text-mist hover:text-salt-white transition-colors mb-6"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              All Voyages
-            </Link>
-            <div className="max-w-3xl">
-              {mockVoyage.status && (
-                <span className={`inline-block px-3 py-1 text-xs font-medium uppercase tracking-wider rounded-full mb-4 ${
-                  mockVoyage.status === "active"
-                    ? "bg-sea-green/20 text-sea-green border border-sea-green/30"
-                    : mockVoyage.status === "completed"
-                    ? "bg-copper-accent/20 text-copper-accent border border-copper-accent/30"
-                    : "bg-mist/20 text-mist border border-mist/30"
-                }`}>
-                  {mockVoyage.status}
-                </span>
-              )}
-              <h1 className="text-display text-salt-white mb-4">{mockVoyage.title}</h1>
-              {(mockVoyage.startDate || mockVoyage.endDate) && (
-                <p className="text-copper-accent text-lg mb-6">
-                  {mockVoyage.startDate && new Date(mockVoyage.startDate).toLocaleDateString("en-NZ", { month: "long", year: "numeric" })}
-                  {mockVoyage.endDate && ` — ${new Date(mockVoyage.endDate).toLocaleDateString("en-NZ", { month: "long", year: "numeric" })}`}
-                  {!mockVoyage.endDate && mockVoyage.status === "active" && " — Present"}
-                </p>
-              )}
-              {mockVoyage.description && (
-                <p className="text-mist text-lg leading-relaxed">{mockVoyage.description}</p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Expedition Schedule - mock data fallback (always false for mock) */}
-        {showExpeditionSchedule && (
-          <Section>
-            <SectionLabel label="Expedition Schedule" className="mb-8" />
-            <ExpeditionSchedule />
-          </Section>
-        )}
-
-        {/* Log Entries */}
-        {relatedLogEntries.length > 0 && (
-          <Section background={showExpeditionSchedule ? "dark" : undefined}>
-            <SectionLabel label="Log Entries" className="mb-8" />
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {relatedLogEntries.map((entry) => (
-                <Link
-                  key={entry.id}
-                  href={`/log/${entry.slug}`}
-                  className="group block"
-                >
-                  <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-slate-water/50 mb-3">
-                    <div className="absolute inset-0 flex items-center justify-center text-mist">
-                      <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div className="absolute top-3 left-3">
-                      <span className="px-2 py-1 text-xs bg-deep-ocean/80 text-mist rounded capitalize">
-                        {entry.category}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-storm-grey mb-1">
-                    {new Date(entry.publishedAt).toLocaleDateString("en-NZ", { month: "short", day: "numeric", year: "numeric" })}
-                  </p>
-                  <h3 className="text-salt-white font-medium group-hover:text-copper-accent transition-colors">
-                    {entry.title}
-                  </h3>
-                  {entry.excerpt && (
-                    <p className="text-mist text-sm mt-1 line-clamp-2">{entry.excerpt}</p>
-                  )}
-                </Link>
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Empty State */}
-        {relatedLogEntries.length === 0 && !showExpeditionSchedule && (
-          <Section>
-            <div className="text-center py-16">
-              <p className="text-mist">Content for this voyage coming soon.</p>
-            </div>
-          </Section>
-        )}
-      </main>
-      <Footer />
-    </>
-  );
 }

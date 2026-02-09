@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { Header, Footer, Section } from "@/components/layout";
-import { SectionLabel, Button } from "@/components/ui";
-import { crew as mockCrew } from "@/lib/data/mock";
+import { SectionLabel, Button, MissingContent } from "@/components/ui";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { CREW_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
@@ -45,9 +44,8 @@ const urlFor = (source: SanityImageSource) =>
     : null;
 
 export default async function AboutPage() {
-  // Fetch crew from Sanity with fallback to mock data
-  let crew: CrewMember[] = mockCrew;
-  let dataSource = "mock";
+  // Fetch crew from Sanity only - no mock data fallback
+  let crew: CrewMember[] = [];
 
   try {
     const sanityCrew = await client.fetch<SanityCrew[]>(
@@ -56,10 +54,7 @@ export default async function AboutPage() {
       fetchOptions
     );
 
-    console.log("[About] Sanity crew fetch:", sanityCrew?.length ?? 0, "members found");
-
     if (sanityCrew && sanityCrew.length > 0) {
-      dataSource = "sanity";
       crew = sanityCrew.map((member) => ({
         id: member._id,
         name: member.name,
@@ -71,8 +66,6 @@ export default async function AboutPage() {
   } catch (error) {
     console.error("[About] Failed to fetch crew from Sanity:", error);
   }
-
-  console.log("[About] Using", dataSource, "data -", crew.length, "crew members");
   return (
     <>
       <Header />
@@ -97,34 +90,36 @@ export default async function AboutPage() {
         {/* Crew Section */}
         <Section>
           <SectionLabel number="01" label="The Crew" className="mb-8" />
-          <div className="grid md:grid-cols-2 gap-12">
-            {crew.map((member) => (
-              <div key={member.id} className="flex gap-6">
-                <div className="w-32 h-32 rounded-lg bg-slate-water/50 flex-shrink-0 overflow-hidden">
-                  {isSanityImage(member.photo) ? (
-                    <Image
-                      src={urlFor(member.photo)?.width(256).height(256).url() || ""}
-                      alt={member.name}
-                      width={128}
-                      height={128}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <svg className="w-12 h-12 text-mist/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                  )}
+          {crew.length > 0 ? (
+            <div className="grid md:grid-cols-2 gap-12">
+              {crew.map((member) => (
+                <div key={member.id} className="flex gap-6">
+                  <div className="w-32 h-32 rounded-lg bg-slate-water/50 flex-shrink-0 overflow-hidden">
+                    {isSanityImage(member.photo) ? (
+                      <Image
+                        src={urlFor(member.photo)?.width(256).height(256).url() || ""}
+                        alt={member.name}
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <MissingContent label="No photo" size="sm" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-h3 text-salt-white mb-1">{member.name}</h3>
+                    <p className="text-copper-accent text-sm mb-3">{member.role || <span className="text-red-400">Role missing</span>}</p>
+                    <p className="text-mist leading-relaxed">{member.bio || <span className="text-red-400">Bio missing</span>}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-h3 text-salt-white mb-1">{member.name}</h3>
-                  <p className="text-copper-accent text-sm mb-3">{member.role}</p>
-                  <p className="text-mist leading-relaxed">{member.bio}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-water/30 rounded-lg py-12">
+              <MissingContent label="No crew members in Sanity" size="lg" />
+            </div>
+          )}
         </Section>
 
         {/* Our Mission */}
