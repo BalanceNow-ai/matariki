@@ -1,6 +1,10 @@
+import Image from "next/image";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
-import { crew } from "@/lib/data/mock";
+import { crew as mockCrew } from "@/lib/data/mock";
+import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
+import { CREW_QUERY } from "@/sanity/queries";
+import imageUrlBuilder from "@sanity/image-url";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,7 +12,58 @@ export const metadata: Metadata = {
   description: "Meet the crew of Matariki III and learn about our sailing adventures.",
 };
 
-export default function AboutPage() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SanityImageSource = any;
+
+type SanityCrew = {
+  _id: string;
+  name: string;
+  role?: string;
+  bio?: string;
+  photo?: SanityImageSource;
+};
+
+type CrewMember = {
+  id: string;
+  name: string;
+  role: string;
+  bio: string;
+  photo?: SanityImageSource | string;
+};
+
+// Helper to check if photo is a Sanity image object
+const isSanityImage = (photo: SanityImageSource | string | undefined): photo is SanityImageSource => {
+  return photo !== undefined && typeof photo === "object" && photo !== null && "asset" in photo;
+};
+
+const urlFor = (source: SanityImageSource) =>
+  projectId && dataset
+    ? imageUrlBuilder({ projectId, dataset }).image(source)
+    : null;
+
+export default async function AboutPage() {
+  // Fetch crew from Sanity with fallback to mock data
+  let crew: CrewMember[] = mockCrew;
+
+  try {
+    const sanityCrew = await client.fetch<SanityCrew[]>(
+      CREW_QUERY,
+      {},
+      fetchOptions
+    );
+
+    if (sanityCrew && sanityCrew.length > 0) {
+      crew = sanityCrew.map((member) => ({
+        id: member._id,
+        name: member.name,
+        role: member.role || "",
+        bio: member.bio || "",
+        photo: member.photo,
+      }));
+    }
+  } catch (error) {
+    console.error("Failed to fetch crew from Sanity:", error);
+  }
   return (
     <>
       <Header />
@@ -36,10 +91,22 @@ export default function AboutPage() {
           <div className="grid md:grid-cols-2 gap-12">
             {crew.map((member) => (
               <div key={member.id} className="flex gap-6">
-                <div className="w-32 h-32 rounded-lg bg-slate-water/50 flex-shrink-0 flex items-center justify-center">
-                  <svg className="w-12 h-12 text-mist/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+                <div className="w-32 h-32 rounded-lg bg-slate-water/50 flex-shrink-0 overflow-hidden">
+                  {isSanityImage(member.photo) ? (
+                    <Image
+                      src={urlFor(member.photo)?.width(256).height(256).url() || ""}
+                      alt={member.name}
+                      width={128}
+                      height={128}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <svg className="w-12 h-12 text-mist/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-h3 text-salt-white mb-1">{member.name}</h3>
