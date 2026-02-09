@@ -29,6 +29,7 @@ type SanityLogEntry = {
 
 export default async function LogPage() {
   let logEntries = mockLogEntries;
+  let dataSource = "mock";
 
   try {
     const sanityPosts = await client.fetch<SanityLogEntry[]>(
@@ -37,7 +38,10 @@ export default async function LogPage() {
       fetchOptions
     );
 
+    console.log("[Log] Sanity posts fetch:", sanityPosts?.length ?? 0, "entries found");
+
     if (sanityPosts && sanityPosts.length > 0) {
+      dataSource = "sanity";
       logEntries = sanityPosts.map((post) => ({
         id: post._id,
         title: post.title,
@@ -55,8 +59,10 @@ export default async function LogPage() {
       }));
     }
   } catch (error) {
-    console.error("Failed to fetch from Sanity:", error);
+    console.error("[Log] Failed to fetch from Sanity:", error);
   }
+
+  console.log("[Log] Using", dataSource, "data -", logEntries.length, "entries");
   return (
     <>
       <Header />

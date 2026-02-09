@@ -18,6 +18,14 @@ export const crew = defineType({
       description: "e.g., Captain, First Mate, Crew",
     }),
     defineField({
+      name: "sortOrder",
+      title: "Sort Order",
+      type: "number",
+      description: "Controls display order on the website. Lower numbers appear first (e.g., 1 = first, 2 = second).",
+      initialValue: 10,
+      validation: (Rule) => Rule.required().min(1),
+    }),
+    defineField({
       name: "photo",
       title: "Photo",
       type: "image",
@@ -31,26 +39,32 @@ export const crew = defineType({
       type: "text",
       rows: 5,
     }),
-    defineField({
-      name: "order",
-      title: "Display Order",
-      type: "number",
-      description: "Lower numbers appear first",
-      initialValue: 0,
-    }),
   ],
   preview: {
     select: {
       title: "name",
-      subtitle: "role",
+      role: "role",
+      order: "sortOrder",
       media: "photo",
+    },
+    prepare({ title, role, order, media }) {
+      return {
+        title,
+        subtitle: `${role || "Crew"} • Order: ${order ?? "—"}`,
+        media,
+      };
     },
   },
   orderings: [
     {
-      title: "Display Order",
-      name: "orderAsc",
-      by: [{ field: "order", direction: "asc" }],
+      title: "Sort Order",
+      name: "sortOrderAsc",
+      by: [{ field: "sortOrder", direction: "asc" }],
+    },
+    {
+      title: "Name",
+      name: "nameAsc",
+      by: [{ field: "name", direction: "asc" }],
     },
   ],
 });
