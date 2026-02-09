@@ -68,6 +68,10 @@ export interface YachtSpecs {
   year: number;
   flag: string;
   description?: string;
+  descriptionSections?: Array<{
+    title?: string;
+    content: string;
+  }>;
   dimensions: {
     loa: string;
     lwl: string;

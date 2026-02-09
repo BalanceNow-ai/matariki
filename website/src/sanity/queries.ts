@@ -137,6 +137,10 @@ export const VESSEL_QUERY = groq`*[_type == "vessel"][0]{
   year,
   flag,
   description,
+  descriptionSections[]{
+    title,
+    content
+  },
   dimensions,
   rig,
   engine,

@@ -39,9 +39,51 @@ export const vessel = defineType({
     }),
     defineField({
       name: "description",
-      title: "Description",
+      title: "Description (Legacy)",
       type: "text",
       rows: 4,
+      description: "Single description field - use Description Sections instead for better formatting",
+      hidden: true,
+    }),
+    defineField({
+      name: "descriptionSections",
+      title: "Description Sections",
+      description: "Add multiple paragraphs/sections for the vessel description. Each section will be displayed with spacing between.",
+      type: "array",
+      of: [
+        {
+          type: "object",
+          name: "section",
+          title: "Section",
+          fields: [
+            {
+              name: "title",
+              title: "Section Title (Optional)",
+              type: "string",
+              description: "Leave blank for a simple paragraph",
+            },
+            {
+              name: "content",
+              title: "Content",
+              type: "text",
+              rows: 6,
+              validation: (Rule) => Rule.required(),
+            },
+          ],
+          preview: {
+            select: {
+              title: "title",
+              content: "content",
+            },
+            prepare({ title, content }: { title?: string; content?: string }) {
+              return {
+                title: title || "Paragraph",
+                subtitle: content ? content.substring(0, 80) + "..." : "",
+              };
+            },
+          },
+        },
+      ],
     }),
     defineField({
       name: "dimensions",
