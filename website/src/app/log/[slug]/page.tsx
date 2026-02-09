@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { PortableText } from "next-sanity";
+import { PortableText, PortableTextComponents } from "next-sanity";
 import imageUrlBuilder from "@sanity/image-url";
 import { Header, Footer, Section, Container } from "@/components/layout";
 import { Badge, Button } from "@/components/ui";
@@ -29,6 +29,38 @@ const urlFor = (source: SanityImageSource) =>
   projectId && dataset
     ? imageUrlBuilder({ projectId, dataset }).image(source)
     : null;
+
+// Portable Text components for custom block types
+const portableTextComponents: PortableTextComponents = {
+  types: {
+    image: ({ value }: { value: SanityImageSource & { caption?: string; alt?: string } }) => {
+      const imageUrl = urlFor(value)?.width(800).url();
+      if (!imageUrl) return null;
+      return (
+        <figure className="my-8">
+          <Image
+            src={imageUrl}
+            alt={value.alt || ""}
+            width={800}
+            height={450}
+            className="rounded-lg w-full"
+          />
+          {value.caption && (
+            <figcaption className="text-center text-sm text-mist mt-2">
+              {value.caption}
+            </figcaption>
+          )}
+        </figure>
+      );
+    },
+    htmlEmbed: ({ value }: { value: { html: string } }) => (
+      <div
+        className="my-8"
+        dangerouslySetInnerHTML={{ __html: value.html }}
+      />
+    ),
+  },
+};
 
 const options = { next: { revalidate: 30 } };
 
@@ -154,7 +186,10 @@ export default async function LogEntryPage({ params }: Props) {
                     {sanityPost.excerpt}
                   </p>
                   {Array.isArray(sanityPost.body) && (
-                    <PortableText value={sanityPost.body} />
+                    <PortableText
+                      value={sanityPost.body}
+                      components={portableTextComponents}
+                    />
                   )}
                 </div>
               </article>

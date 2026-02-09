@@ -133,6 +133,29 @@ export const logEntry = defineType({
             },
           ],
         },
+        {
+          type: "object",
+          name: "htmlEmbed",
+          title: "HTML Embed",
+          fields: [
+            {
+              name: "html",
+              title: "HTML Code",
+              type: "text",
+              rows: 15,
+              description: "Raw HTML to embed in the post",
+            },
+          ],
+          preview: {
+            select: { html: "html" },
+            prepare({ html }: { html?: string }) {
+              return {
+                title: "HTML Embed",
+                subtitle: html ? html.substring(0, 60) + "..." : "Empty",
+              };
+            },
+          },
+        },
       ],
     }),
     defineField({
