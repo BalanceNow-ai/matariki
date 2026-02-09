@@ -13,6 +13,19 @@ import type { Metadata } from "next";
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
 
+// Hardcoded expedition plan entry - always shown for Fiordland voyage
+const EXPEDITION_PLAN_ENTRY = {
+  id: "expedition-plan",
+  _id: "expedition-plan",
+  title: "Fiordland & Stewart Island: The Expedition Plan",
+  slug: { current: "fiordland-stewart-island-expedition-plan" },
+  publishedAt: "2026-02-01T09:00:00Z",
+  category: "sailing",
+  excerpt:
+    "Nine weeks through New Zealand's wildest coastline — from Milford Sound to Stewart Island. A comprehensive plan for hunting, diving, and fishing aboard Matariki III.",
+  heroImage: undefined as { asset: { _ref: string } } | undefined,
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {
   if (!projectId || !dataset || !source) return null;
@@ -105,6 +118,15 @@ export default async function VoyagePage({ params }: PageProps) {
       ...(voyage.galleryImages || []),
     ];
 
+    // Check if this is the Fiordland expedition voyage
+    const isExpeditionVoyage = slug === "fiordland-2026";
+
+    // Combine Sanity log entries with hardcoded expedition plan for Fiordland voyage
+    const sanityLogEntries = voyage.logEntries || [];
+    const allLogEntries = isExpeditionVoyage
+      ? [EXPEDITION_PLAN_ENTRY, ...sanityLogEntries.filter(e => e.slug.current !== EXPEDITION_PLAN_ENTRY.slug.current)]
+      : sanityLogEntries;
+
     return (
       <>
         <Header />
@@ -160,12 +182,20 @@ export default async function VoyagePage({ params }: PageProps) {
             </div>
           </section>
 
-          {/* Log Entries */}
-          {voyage.logEntries && voyage.logEntries.length > 0 && (
+          {/* Expedition Schedule for Fiordland voyage */}
+          {isExpeditionVoyage && (
             <Section>
+              <SectionLabel label="Expedition Schedule" className="mb-8" />
+              <ExpeditionSchedule />
+            </Section>
+          )}
+
+          {/* Log Entries */}
+          {allLogEntries.length > 0 && (
+            <Section background={isExpeditionVoyage ? "dark" : undefined}>
               <SectionLabel label="Log Entries" className="mb-8" />
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {voyage.logEntries.map((entry) => (
+                {allLogEntries.map((entry) => (
                   <Link
                     key={entry._id}
                     href={`/log/${entry.slug.current}`}

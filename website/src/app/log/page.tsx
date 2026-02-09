@@ -5,6 +5,7 @@ import { logEntries as mockLogEntries } from "@/lib/data/mock";
 import { client, fetchOptions } from "@/sanity/client";
 import { ALL_POSTS_QUERY } from "@/sanity/queries";
 import type { Metadata } from "next";
+import type { LogEntry } from "@/types";
 
 export const metadata: Metadata = {
   title: "Voyage Log",
@@ -13,6 +14,24 @@ export const metadata: Metadata = {
 
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
+
+// Hardcoded expedition plan entry - always shown regardless of Sanity data
+const EXPEDITION_PLAN_ENTRY: LogEntry = {
+  id: "expedition-plan",
+  title: "Fiordland & Stewart Island: The Expedition Plan",
+  slug: "fiordland-stewart-island-expedition-plan",
+  publishedAt: "2026-02-01T09:00:00Z",
+  voyageId: "fiordland-2026",
+  category: "sailing",
+  location: {
+    name: "Milford Sound",
+    coordinates: [167.9256, -44.6414],
+  },
+  heroImage: "/images/fiordland-expedition.jpg",
+  excerpt:
+    "Nine weeks through New Zealand's wildest coastline — from Milford Sound to Stewart Island. A comprehensive plan for hunting, diving, and fishing aboard Matariki III, timed to hit the roar in Fiordland's most remote country.",
+  body: "",
+};
 
 type SanityLogEntry = {
   _id: string;
@@ -28,7 +47,7 @@ type SanityLogEntry = {
 };
 
 export default async function LogPage() {
-  let logEntries = mockLogEntries;
+  let logEntries: LogEntry[] = mockLogEntries;
   let dataSource = "mock";
 
   try {
@@ -42,7 +61,7 @@ export default async function LogPage() {
 
     if (sanityPosts && sanityPosts.length > 0) {
       dataSource = "sanity";
-      logEntries = sanityPosts.map((post) => ({
+      const sanityEntries = sanityPosts.map((post) => ({
         id: post._id,
         title: post.title,
         slug: post.slug.current,
@@ -57,6 +76,13 @@ export default async function LogPage() {
         heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
         body: "",
       }));
+
+      // Always include the hardcoded expedition plan entry at the top
+      // Filter out any Sanity entry with the same slug to avoid duplicates
+      const filteredSanityEntries = sanityEntries.filter(
+        (entry) => entry.slug !== EXPEDITION_PLAN_ENTRY.slug
+      );
+      logEntries = [EXPEDITION_PLAN_ENTRY, ...filteredSanityEntries];
     }
   } catch (error) {
     console.error("[Log] Failed to fetch from Sanity:", error);
