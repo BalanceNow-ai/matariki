@@ -1,4 +1,5 @@
 import { defineType, defineField } from "sanity";
+import { CodeIcon } from "@sanity/icons";
 
 export const logEntry = defineType({
   name: "logEntry",
@@ -137,6 +138,7 @@ export const logEntry = defineType({
           type: "object",
           name: "htmlEmbed",
           title: "HTML Embed",
+          icon: CodeIcon,
           fields: [
             {
               name: "html",
