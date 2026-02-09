@@ -15,7 +15,9 @@ export const metadata: Metadata = {
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
 
-// Hardcoded expedition plan entry - always shown regardless of Sanity data
+// Hardcoded expedition plan entry - shown at the top of the log list
+// TODO: Migrate this content to Sanity CMS for single source of truth
+// This exists because the expedition schedule content is currently static/hardcoded
 const EXPEDITION_PLAN_ENTRY: LogEntry = {
   id: "expedition-plan",
   title: "Fiordland & Stewart Island: The Expedition Plan",

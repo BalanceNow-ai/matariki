@@ -281,7 +281,8 @@ export default async function LogEntryPage({ params }: Props) {
           <div className={slug === "fiordland-stewart-island-expedition-plan" ? "" : "grid lg:grid-cols-3 gap-12"}>
             {/* Main Content */}
             <article className={slug === "fiordland-stewart-island-expedition-plan" ? "" : "lg:col-span-2"}>
-              {slug === "fiordland-stewart-island-expedition-plan" ? (
+              {/* TODO: Migrate expedition plan to Sanity CMS - currently hardcoded */}
+            {slug === "fiordland-stewart-island-expedition-plan" ? (
                 <>
                   <div className="prose prose-invert prose-lg max-w-3xl mb-8">
                     <p className="text-xl text-mist leading-relaxed">

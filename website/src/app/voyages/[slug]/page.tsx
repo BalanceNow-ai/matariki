@@ -59,6 +59,7 @@ type Voyage = {
   endDate?: string;
   status?: string;
   heroImage?: { asset: { _ref: string } };
+  showExpeditionSchedule?: boolean;
   gallery?: Array<{ asset: { _ref: string }; caption?: string }>;
   galleryImages?: VoyageImage[];
   logEntries?: VoyageLogEntry[];
@@ -118,13 +119,12 @@ export default async function VoyagePage({ params }: PageProps) {
       ...(voyage.galleryImages || []),
     ];
 
-    // Check if this is the Fiordland expedition voyage (match by slug or title containing "fiordland")
-    const isExpeditionVoyage = slug.toLowerCase().includes("fiordland") ||
-      voyage.title.toLowerCase().includes("fiordland");
+    // Check if this voyage should show the expedition schedule (controlled via Sanity CMS)
+    const showExpeditionSchedule = voyage.showExpeditionSchedule === true;
 
-    // Combine Sanity log entries with hardcoded expedition plan for Fiordland voyage
+    // Combine Sanity log entries with hardcoded expedition plan for expedition voyages
     const sanityLogEntries = voyage.logEntries || [];
-    const allLogEntries = isExpeditionVoyage
+    const allLogEntries = showExpeditionSchedule
       ? [EXPEDITION_PLAN_ENTRY, ...sanityLogEntries.filter(e => e.slug.current !== EXPEDITION_PLAN_ENTRY.slug.current)]
       : sanityLogEntries;
 
@@ -183,8 +183,8 @@ export default async function VoyagePage({ params }: PageProps) {
             </div>
           </section>
 
-          {/* Expedition Schedule for Fiordland voyage */}
-          {isExpeditionVoyage && (
+          {/* Expedition Schedule - controlled via Sanity CMS */}
+          {showExpeditionSchedule && (
             <Section>
               <SectionLabel label="Expedition Schedule" className="mb-8" />
               <ExpeditionSchedule />
@@ -193,7 +193,7 @@ export default async function VoyagePage({ params }: PageProps) {
 
           {/* Log Entries */}
           {allLogEntries.length > 0 && (
-            <Section background={isExpeditionVoyage ? "dark" : undefined}>
+            <Section background={showExpeditionSchedule ? "dark" : undefined}>
               <SectionLabel label="Log Entries" className="mb-8" />
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {allLogEntries.map((entry) => (
@@ -273,7 +273,7 @@ export default async function VoyagePage({ params }: PageProps) {
           )}
 
           {/* Empty State - only show if no expedition schedule, no log entries, and no gallery */}
-          {!isExpeditionVoyage && allLogEntries.length === 0 && allImages.length === 0 && (
+          {!showExpeditionSchedule && allLogEntries.length === 0 && allImages.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>
@@ -296,9 +296,9 @@ export default async function VoyagePage({ params }: PageProps) {
   // Get related log entries from mock data
   const relatedLogEntries = mockLogEntries.filter((entry) => entry.voyageId === mockVoyage.id);
 
-  // Check if this is the Fiordland expedition voyage (match by slug or title containing "fiordland")
-  const isExpeditionVoyage = slug.toLowerCase().includes("fiordland") ||
-    mockVoyage.title.toLowerCase().includes("fiordland");
+  // Legacy fallback: mock data doesn't have showExpeditionSchedule field
+  // This section will be removed when all data is migrated to Sanity
+  const showExpeditionSchedule = false;
 
   return (
     <>
@@ -343,8 +343,8 @@ export default async function VoyagePage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Expedition Schedule for Fiordland voyage */}
-        {isExpeditionVoyage && (
+        {/* Expedition Schedule - mock data fallback (always false for mock) */}
+        {showExpeditionSchedule && (
           <Section>
             <SectionLabel label="Expedition Schedule" className="mb-8" />
             <ExpeditionSchedule />
@@ -353,7 +353,7 @@ export default async function VoyagePage({ params }: PageProps) {
 
         {/* Log Entries */}
         {relatedLogEntries.length > 0 && (
-          <Section background={isExpeditionVoyage ? "dark" : undefined}>
+          <Section background={showExpeditionSchedule ? "dark" : undefined}>
             <SectionLabel label="Log Entries" className="mb-8" />
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {relatedLogEntries.map((entry) => (
@@ -390,7 +390,7 @@ export default async function VoyagePage({ params }: PageProps) {
         )}
 
         {/* Empty State */}
-        {relatedLogEntries.length === 0 && !isExpeditionVoyage && (
+        {relatedLogEntries.length === 0 && !showExpeditionSchedule && (
           <Section>
             <div className="text-center py-16">
               <p className="text-mist">Content for this voyage coming soon.</p>

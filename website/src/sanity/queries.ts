@@ -174,6 +174,7 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
   endDate,
   status,
   heroImage,
+  showExpeditionSchedule,
   gallery,
   "galleryImages": *[_type == "galleryImage" && references(^._id)]|order(takenAt desc){
     _id,
