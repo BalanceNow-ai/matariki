@@ -30,11 +30,12 @@ export const siteSettings: SiteSettings = {
 export const voyages: Voyage[] = [
   {
     id: "fiordland-2026",
-    title: "Fiordland Expedition",
+    title: "Fiordland & Stewart Island 2026",
     slug: "fiordland-2026",
     description:
-      "Exploring the remote fiords of New Zealand's South Island, from Milford Sound to Preservation Inlet.",
-    startDate: "2026-01-15",
+      "Nine weeks through New Zealand's wildest coastline — hunting, diving, and fishing from Milford Sound through the fiords to Stewart Island.",
+    startDate: "2026-02-20",
+    endDate: "2026-04-18",
     status: "active",
     heroImage: "/images/fiordland-hero.jpg",
   },
@@ -64,6 +65,22 @@ export const currentPosition: Position = {
 };
 
 export const logEntries: LogEntry[] = [
+  {
+    id: "4",
+    title: "Fiordland & Stewart Island: The Expedition Plan",
+    slug: "fiordland-stewart-island-expedition-plan",
+    publishedAt: "2026-02-01T09:00:00Z",
+    voyageId: "fiordland-2026",
+    category: "sailing",
+    location: {
+      name: "Milford Sound",
+      coordinates: [167.9256, -44.6414],
+    },
+    heroImage: "/images/fiordland-expedition.jpg",
+    excerpt:
+      "Nine weeks through New Zealand's wildest coastline — from Milford Sound to Stewart Island. A comprehensive plan for hunting, diving, and fishing aboard Matariki III, timed to hit the roar in Fiordland's most remote country.",
+    body: "Full expedition schedule available in post...",
+  },
   {
     id: "1",
     title: "Into the Fiords",
