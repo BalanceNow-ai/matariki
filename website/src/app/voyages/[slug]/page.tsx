@@ -46,6 +46,7 @@ type Voyage = {
   status?: string;
   heroImage?: { asset: { _ref: string } };
   showExpeditionSchedule?: boolean;
+  expeditionHtml?: string;
   gallery?: Array<{ asset: { _ref: string }; caption?: string }>;
   galleryImages?: VoyageImage[];
   logEntries?: VoyageLogEntry[];
@@ -163,7 +164,7 @@ export default async function VoyagePage({ params }: PageProps) {
           {showExpeditionSchedule && (
             <Section>
               <SectionLabel label="Expedition Schedule" className="mb-8" />
-              <ExpeditionSchedule />
+              <ExpeditionSchedule html={voyage.expeditionHtml} />
             </Section>
           )}
 

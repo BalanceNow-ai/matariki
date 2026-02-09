@@ -1,7 +1,11 @@
 "use client";
 
-export function ExpeditionSchedule() {
-  const scheduleHtml = `
+type ExpeditionScheduleProps = {
+  html?: string;
+};
+
+export function ExpeditionSchedule({ html }: ExpeditionScheduleProps) {
+  const defaultHtml = `
 <style>
   .expedition-schedule {
     --deep-ocean: #0a1628;
@@ -893,6 +897,8 @@ export function ExpeditionSchedule() {
   </div>
 </div>
 `;
+
+  const scheduleHtml = html || defaultHtml;
 
   return (
     <div dangerouslySetInnerHTML={{ __html: scheduleHtml }} />
