@@ -119,12 +119,13 @@ export const VOYAGES_QUERY = groq`*[
 // Fetch crew members
 export const CREW_QUERY = groq`*[
   _type == "crew"
-]|order(order asc){
+]|order(sortOrder asc){
   _id,
   name,
   role,
   bio,
-  photo
+  photo,
+  sortOrder
 }`;
 
 // Fetch vessel details
