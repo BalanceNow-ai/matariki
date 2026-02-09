@@ -118,8 +118,9 @@ export default async function VoyagePage({ params }: PageProps) {
       ...(voyage.galleryImages || []),
     ];
 
-    // Check if this is the Fiordland expedition voyage
-    const isExpeditionVoyage = slug === "fiordland-2026";
+    // Check if this is the Fiordland expedition voyage (match by slug or title containing "fiordland")
+    const isExpeditionVoyage = slug.toLowerCase().includes("fiordland") ||
+      voyage.title.toLowerCase().includes("fiordland");
 
     // Combine Sanity log entries with hardcoded expedition plan for Fiordland voyage
     const sanityLogEntries = voyage.logEntries || [];
@@ -271,8 +272,8 @@ export default async function VoyagePage({ params }: PageProps) {
             </Section>
           )}
 
-          {/* Empty State */}
-          {(!voyage.logEntries || voyage.logEntries.length === 0) && allImages.length === 0 && (
+          {/* Empty State - only show if no expedition schedule, no log entries, and no gallery */}
+          {!isExpeditionVoyage && allLogEntries.length === 0 && allImages.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>
@@ -295,8 +296,9 @@ export default async function VoyagePage({ params }: PageProps) {
   // Get related log entries from mock data
   const relatedLogEntries = mockLogEntries.filter((entry) => entry.voyageId === mockVoyage.id);
 
-  // Check if this is the Fiordland expedition voyage
-  const isExpeditionVoyage = slug === "fiordland-2026";
+  // Check if this is the Fiordland expedition voyage (match by slug or title containing "fiordland")
+  const isExpeditionVoyage = slug.toLowerCase().includes("fiordland") ||
+    mockVoyage.title.toLowerCase().includes("fiordland");
 
   return (
     <>
