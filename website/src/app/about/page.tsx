@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   description: "Meet the crew of Matariki III and learn about our sailing adventures.",
 };
 
+// Force dynamic rendering to always fetch fresh crew data from Sanity
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SanityImageSource = any;
 
@@ -44,6 +47,7 @@ const urlFor = (source: SanityImageSource) =>
 export default async function AboutPage() {
   // Fetch crew from Sanity with fallback to mock data
   let crew: CrewMember[] = mockCrew;
+  let dataSource = "mock";
 
   try {
     const sanityCrew = await client.fetch<SanityCrew[]>(
@@ -52,7 +56,10 @@ export default async function AboutPage() {
       fetchOptions
     );
 
+    console.log("[About] Sanity crew fetch:", sanityCrew?.length ?? 0, "members found");
+
     if (sanityCrew && sanityCrew.length > 0) {
+      dataSource = "sanity";
       crew = sanityCrew.map((member) => ({
         id: member._id,
         name: member.name,
@@ -62,8 +69,10 @@ export default async function AboutPage() {
       }));
     }
   } catch (error) {
-    console.error("Failed to fetch crew from Sanity:", error);
+    console.error("[About] Failed to fetch crew from Sanity:", error);
   }
+
+  console.log("[About] Using", dataSource, "data -", crew.length, "crew members");
   return (
     <>
       <Header />
