@@ -1,17 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Header, Footer, Section, Container } from "@/components/layout";
-import { Button, SectionLabel } from "@/components/ui";
+import { Button, SectionLabel, MissingContent } from "@/components/ui";
 import { PostCard } from "@/components/content";
 import { MapWidget } from "@/components/map";
 import { NewsletterForm } from "@/components/forms";
-import {
-  getRecentLogEntries,
-  getFeaturedGalleryImages,
-  yachtSpecs,
-} from "@/lib/data/mock";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
-import { RECENT_POSTS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
+import { RECENT_POSTS_QUERY, FEATURED_GALLERY_QUERY, VESSEL_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 
 // Force dynamic rendering to always fetch fresh data from Sanity
@@ -46,20 +41,54 @@ type SanityGalleryImage = {
   category?: string;
 };
 
+type VesselData = {
+  _id: string;
+  name: string;
+  type: string;
+  designer: string;
+  builder: string;
+  year: number;
+  flag: string;
+  dimensions?: {
+    loa?: string;
+    lwl?: string;
+    beam?: string;
+    draft?: string;
+    displacement?: string;
+    ballast?: string;
+  };
+} | null;
+
+type RecentPost = {
+  id: string;
+  title: string;
+  slug: string;
+  publishedAt: string;
+  voyageId: string;
+  category: "sailing" | "hunting" | "diving" | "fishing" | "general";
+  excerpt: string;
+  location: {
+    name: string;
+    coordinates: [number, number];
+  };
+  heroImage: string;
+  body: string;
+};
+
 export default async function HomePage() {
-  // Fetch from Sanity with fallback to mock data
-  let recentPosts = getRecentLogEntries(3);
+  // Fetch from Sanity only - no mock data fallback
+  let recentPosts: RecentPost[] = [];
   let featuredImages: Array<{ id: string; src: string; caption: string }> = [];
+  let vessel: VesselData = null;
 
   try {
-    const sanityPosts = await client.fetch<SanityLogEntry[]>(
-      RECENT_POSTS_QUERY,
-      {},
-      fetchOptions
-    );
+    const [sanityPosts, sanityGallery, sanityVessel] = await Promise.all([
+      client.fetch<SanityLogEntry[]>(RECENT_POSTS_QUERY, {}, fetchOptions),
+      client.fetch<SanityGalleryImage[]>(FEATURED_GALLERY_QUERY, {}, fetchOptions),
+      client.fetch<VesselData>(VESSEL_QUERY, {}, fetchOptions),
+    ]);
 
     if (sanityPosts && sanityPosts.length > 0) {
-      // Transform Sanity posts to match component expected format
       recentPosts = sanityPosts.map((post) => ({
         id: post._id,
         title: post.title,
@@ -77,13 +106,6 @@ export default async function HomePage() {
       }));
     }
 
-    // Fetch gallery images from Sanity
-    const sanityGallery = await client.fetch<SanityGalleryImage[]>(
-      FEATURED_GALLERY_QUERY,
-      {},
-      fetchOptions
-    );
-
     if (sanityGallery && sanityGallery.length > 0) {
       featuredImages = sanityGallery
         .filter((img) => img.image?.asset)
@@ -93,19 +115,14 @@ export default async function HomePage() {
           caption: img.caption || "",
         }));
     }
+
+    vessel = sanityVessel;
   } catch (error) {
-    // Silently fall back to mock data if Sanity fetch fails
     console.error("Failed to fetch from Sanity:", error);
   }
 
-  // Fall back to mock data if no Sanity gallery images
-  if (featuredImages.length === 0) {
-    featuredImages = getFeaturedGalleryImages(5).map((img) => ({
-      id: img.id,
-      src: img.src,
-      caption: img.caption,
-    }));
-  }
+  // Get vessel specs for display
+  const yachtSpecs = vessel?.dimensions || {};
 
   return (
     <>
@@ -217,20 +234,23 @@ export default async function HomePage() {
 
               {/* Key Specs */}
               <div className="grid grid-cols-2 gap-4 mb-8">
-                {[
-                  { label: "LOA", value: yachtSpecs.dimensions.loa },
-                  { label: "Beam", value: yachtSpecs.dimensions.beam },
-                  { label: "Draft", value: yachtSpecs.dimensions.draft },
-                  {
-                    label: "Displacement",
-                    value: yachtSpecs.dimensions.displacement,
-                  },
-                ].map((spec) => (
-                  <div key={spec.label} className="border-l-2 border-copper-accent/30 pl-4">
-                    <div className="text-caption text-mist">{spec.label}</div>
-                    <div className="text-salt-white font-mono">{spec.value}</div>
+                {vessel ? (
+                  [
+                    { label: "LOA", value: yachtSpecs.loa },
+                    { label: "Beam", value: yachtSpecs.beam },
+                    { label: "Draft", value: yachtSpecs.draft },
+                    { label: "Displacement", value: yachtSpecs.displacement },
+                  ].map((spec) => (
+                    <div key={spec.label} className="border-l-2 border-copper-accent/30 pl-4">
+                      <div className="text-caption text-mist">{spec.label}</div>
+                      <div className="text-salt-white font-mono">{spec.value || "—"}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-2 bg-slate-water/30 rounded-lg py-6">
+                    <MissingContent label="Vessel specs not configured" size="sm" />
                   </div>
-                ))}
+                )}
               </div>
 
               <Button href="/yacht" variant="ghost">
@@ -255,11 +275,17 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {recentPosts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-          </div>
+          {recentPosts.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {recentPosts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-water/30 rounded-lg py-12">
+              <MissingContent label="No log entries in Sanity" size="lg" />
+            </div>
+          )}
 
           <div className="mt-8 text-center sm:hidden">
             <Button href="/log" variant="ghost">
@@ -284,62 +310,60 @@ export default async function HomePage() {
           </div>
 
           {/* Asymmetric Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Large Featured Image */}
-            <div className="col-span-2 row-span-2">
-              <Link href="/gallery" className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50">
-                {featuredImages[0]?.src ? (
-                  <>
-                    <Image
-                      src={featuredImages[0].src}
-                      alt={featuredImages[0].caption || "Gallery image"}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                      sizes="(max-width: 768px) 100vw, 50vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <p className="text-sm text-salt-white">{featuredImages[0].caption}</p>
+          {featuredImages.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Large Featured Image */}
+              <div className="col-span-2 row-span-2">
+                <Link href="/gallery" className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50">
+                  {featuredImages[0]?.src ? (
+                    <>
+                      <Image
+                        src={featuredImages[0].src}
+                        alt={featuredImages[0].caption || "Gallery image"}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <p className="text-sm text-salt-white">{featuredImages[0].caption}</p>
+                        </div>
                       </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-mist">
-                    <svg className="w-20 h-20 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-              </Link>
+                    </>
+                  ) : (
+                    <MissingContent label="Image missing" size="lg" />
+                  )}
+                </Link>
+              </div>
+              {/* Smaller Images */}
+              {featuredImages.slice(1, 5).map((img, i) => (
+                <Link
+                  key={img.id || i}
+                  href="/gallery"
+                  className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50"
+                >
+                  {img.src ? (
+                    <>
+                      <Image
+                        src={img.src}
+                        alt={img.caption || "Gallery image"}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </>
+                  ) : (
+                    <MissingContent label="Image missing" size="sm" />
+                  )}
+                </Link>
+              ))}
             </div>
-            {/* Smaller Images */}
-            {featuredImages.slice(1, 5).map((img, i) => (
-              <Link
-                key={img.id || i}
-                href="/gallery"
-                className="block relative aspect-square rounded-lg overflow-hidden group bg-slate-water/50"
-              >
-                {img.src ? (
-                  <>
-                    <Image
-                      src={img.src}
-                      alt={img.caption || "Gallery image"}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                      sizes="(max-width: 768px) 50vw, 25vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-deep-ocean/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-mist">
-                    <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                )}
-              </Link>
-            ))}
-          </div>
+          ) : (
+            <div className="bg-slate-water/30 rounded-lg py-12">
+              <MissingContent label="No gallery images in Sanity" size="lg" />
+            </div>
+          )}
 
           <div className="mt-8 text-center sm:hidden">
             <Button href="/gallery" variant="ghost">

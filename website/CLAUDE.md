@@ -94,14 +94,42 @@ The site uses a dark nautical theme. Key colors (defined in `tailwind.config.ts`
 
 ## Sanity Schema Types
 
-- `crew` - Crew members (name, role, photo, bio, order)
-- `voyage` - Voyages (title, slug, dates, status, heroImage, gallery)
+- `crew` - Crew members (name, role, photo, bio, sortOrder)
+- `voyage` - Voyages (title, slug, dates, status, heroImage, gallery, showExpeditionSchedule)
 - `logEntry` - Log entries (title, slug, body, heroImage, category)
 - `galleryImage` - Gallery images
 - `video` - Video content
-- `vessel` - Vessel details
+- `vessel` - Vessel details (descriptionSections for multi-section content)
 - `siteSettings` - Global settings
 - `position` - Position tracking data
+
+## CMS-Driven Feature Flags
+
+### Use Sanity Fields Instead of Hardcoded Slug Checks
+
+**Bad practice** - hardcoding slug checks:
+```typescript
+// DON'T do this
+const isExpeditionVoyage = slug.includes("fiordland");
+```
+
+**Good practice** - using CMS boolean flags:
+```typescript
+// DO this - use Sanity field
+const showExpeditionSchedule = voyage.showExpeditionSchedule === true;
+```
+
+### Available Feature Flags
+
+- `voyage.showExpeditionSchedule` - Shows expedition schedule component on voyage pages
+- `crew.sortOrder` - Controls display order of crew members
+
+### Migration Notes
+
+Some content is still hardcoded and should eventually be migrated to Sanity:
+
+1. **Expedition Plan Log Entry** - Currently a hardcoded entry in `log/page.tsx` and `voyages/[slug]/page.tsx`
+2. **Expedition Schedule Component** - Static React component that could be CMS-driven in the future
 
 ## Common Issues
 

@@ -1,6 +1,5 @@
 import { Header, Footer, Section } from "@/components/layout";
-import { SectionLabel } from "@/components/ui";
-import { galleryImages as mockGalleryImages } from "@/lib/data/mock";
+import { SectionLabel, MissingContent } from "@/components/ui";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { ALL_GALLERY_QUERY, ALL_VIDEOS_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
@@ -117,18 +116,6 @@ export default async function GalleryPage() {
   // Combine images and videos (videos first if featured)
   const allMedia: GalleryItem[] = [...videos, ...images];
 
-  // Fall back to mock data if no Sanity content
-  if (allMedia.length === 0) {
-    const mockImages = mockGalleryImages.map((img) => ({
-      id: img.id,
-      src: img.src,
-      caption: img.caption,
-      category: img.category,
-      type: "image" as const,
-    }));
-    allMedia.push(...mockImages);
-  }
-
   return (
     <>
       <Header />
@@ -159,7 +146,13 @@ export default async function GalleryPage() {
           </div>
 
           {/* Gallery Grid */}
-          <GalleryGrid items={allMedia} />
+          {allMedia.length > 0 ? (
+            <GalleryGrid items={allMedia} />
+          ) : (
+            <div className="bg-slate-water/30 rounded-lg py-12">
+              <MissingContent label="No gallery images in Sanity" size="lg" />
+            </div>
+          )}
         </Section>
       </main>
       <Footer />
