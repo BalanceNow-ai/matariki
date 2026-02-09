@@ -6,6 +6,9 @@ import { ALL_GALLERY_QUERY, ALL_VIDEOS_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 import { GalleryGrid } from "@/components/gallery/GalleryGrid";
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {
   if (!projectId || !dataset || !source) return null;

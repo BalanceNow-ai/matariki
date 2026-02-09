@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   description: "Explore the voyages of Matariki III around New Zealand and the Pacific.",
 };
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {
   if (!projectId || !dataset || !source) return null;

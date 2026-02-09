@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   description: "Matariki III is an Oyster 68 blue-water cruising yacht designed for long-distance voyaging.",
 };
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 type VesselData = {
   _id: string;
   name: string;
