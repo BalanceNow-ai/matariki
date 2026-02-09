@@ -10,6 +10,14 @@ export const metadata: Metadata = {
   description: "Matariki III is an Oyster 68 blue-water cruising yacht designed for long-distance voyaging.",
 };
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
+type DescriptionSection = {
+  title?: string;
+  content: string;
+};
+
 type VesselData = {
   _id: string;
   name: string;
@@ -19,6 +27,7 @@ type VesselData = {
   year: number;
   flag: string;
   description?: string;
+  descriptionSections?: DescriptionSection[];
   dimensions?: {
     loa?: string;
     lwl?: string;
@@ -63,6 +72,7 @@ export default async function YachtPage() {
   const engine = specs.engine || {};
   const tanks = specs.tanks || {};
   const electronics = specs.electronics || [];
+  const descriptionSections = specs.descriptionSections || [];
 
   return (
     <>
@@ -77,11 +87,28 @@ export default async function YachtPage() {
                 {specs.name}
               </h1>
               <p className="text-2xl text-copper-accent mb-6">{specs.type}</p>
-              <p className="text-mist leading-relaxed">
-                {specs.description || `Built by ${specs.builder} in the UK and designed by ${specs.designer},
-                Matariki III is a blue-water cruising yacht designed for long-distance voyaging
-                in comfort and safety. Flying the ${specs.flag} flag since ${specs.year}.`}
-              </p>
+
+              {/* Description Sections */}
+              {descriptionSections.length > 0 ? (
+                <div className="space-y-6">
+                  {descriptionSections.map((section, index) => (
+                    <div key={index}>
+                      {section.title && (
+                        <h3 className="text-lg text-salt-white font-medium mb-2">{section.title}</h3>
+                      )}
+                      <p className="text-mist leading-relaxed">{section.content}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : specs.description ? (
+                <p className="text-mist leading-relaxed">{specs.description}</p>
+              ) : (
+                <p className="text-mist leading-relaxed">
+                  Built by {specs.builder} in the UK and designed by {specs.designer},
+                  Matariki III is a blue-water cruising yacht designed for long-distance voyaging
+                  in comfort and safety. Flying the {specs.flag} flag since {specs.year}.
+                </p>
+              )}
             </div>
           </div>
         </section>

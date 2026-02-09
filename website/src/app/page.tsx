@@ -15,6 +15,9 @@ import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { RECENT_POSTS_QUERY, SITE_SETTINGS_QUERY, FEATURED_GALLERY_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function urlFor(source: any) {
   if (!projectId || !dataset || !source) return null;

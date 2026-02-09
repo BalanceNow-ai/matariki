@@ -10,6 +10,9 @@ export const metadata: Metadata = {
     "Track the live position of Matariki III as we sail around New Zealand and the Pacific.",
 };
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 // Fallback position when no data is available
 const FALLBACK_POSITION = {
   lat: -36.428167,

@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   description: "Read the voyage log entries from Matariki III's adventures around New Zealand and the Pacific.",
 };
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 type SanityLogEntry = {
   _id: string;
   title: string;

@@ -11,6 +11,9 @@ import { formatDate, formatCoordinates } from "@/lib/utils";
 import { client, projectId, dataset } from "@/sanity/client";
 import type { Metadata } from "next";
 
+// Force dynamic rendering to always fetch fresh data from Sanity
+export const dynamic = "force-dynamic";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SanityImageSource = any;
 
