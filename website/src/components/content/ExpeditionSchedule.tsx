@@ -4,77 +4,75 @@ export function ExpeditionSchedule() {
   const scheduleHtml = `
 <style>
   .expedition-schedule {
-    --deep-sea: #0B1D26;
-    --fiord-blue: #1A3A4A;
+    --deep-ocean: #0a1628;
+    --midnight-blue: #162742;
+    --slate-water: #1e3a5f;
+    --storm-grey: #4a6274;
+    --mist: #8fa3b3;
+    --salt-white: #f7f9fb;
+    --copper-accent: #c17f59;
+    --copper-light: #d4a574;
+    --sea-green: #3d7a6e;
     --kelp: #2E5A3A;
-    --tussock: #8B7D3C;
-    --mist: #C8D5D0;
-    --shell: #F0EBE3;
-    --cream: #FAF8F4;
-    --rock: #4A4A4A;
-    --rating-a: #1B5E20;
-    --rating-a-bg: #E8F5E9;
-    --rating-b: #33691E;
-    --rating-b-bg: #F1F8E9;
-    --rating-c: #7B6B2E;
-    --rating-c-bg: #FFF8E1;
-    --rating-d: #8B3A3A;
-    --rating-d-bg: #FFEBEE;
-    --accent-hunt: #5D4037;
-    --accent-dive: #0D47A1;
-    --accent-fish: #1B5E20;
-    --stewart: #4A148C;
-    --stewart-light: #F3E5F5;
+    --stewart: #6B4A8C;
+    --rating-a: #3d7a6e;
+    --rating-a-bg: rgba(61, 122, 110, 0.15);
+    --rating-b: #5a8a5e;
+    --rating-b-bg: rgba(90, 138, 94, 0.15);
+    --rating-c: #8B7D3C;
+    --rating-c-bg: rgba(139, 125, 60, 0.15);
+    --rating-d: #8B5A5A;
+    --rating-d-bg: rgba(139, 90, 90, 0.15);
+    --accent-hunt: #a67c52;
+    --accent-dive: #5a7a9a;
+    --accent-fish: #5a8a6e;
   }
 
   .expedition-schedule * { margin: 0; padding: 0; box-sizing: border-box; }
 
   .expedition-schedule {
-    font-family: 'Source Sans 3', system-ui, sans-serif;
-    background: var(--cream);
-    color: var(--rock);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: transparent;
+    color: var(--mist);
     line-height: 1.6;
     max-width: 1100px;
-    margin: 2rem auto;
-    padding: 2rem;
-    border-radius: 12px;
+    margin: 0 auto;
+    padding: 0;
   }
 
   .expedition-schedule .header {
     text-align: center;
     margin-bottom: 2.5rem;
     padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--mist);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
   }
 
   .expedition-schedule .header-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--fiord-blue);
-    opacity: 0.7;
+    color: var(--copper-accent);
     margin-bottom: 0.75rem;
   }
 
   .expedition-schedule .header h2 {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Cormorant Garamond', Georgia, serif;
     font-size: 2rem;
-    font-weight: 700;
-    color: var(--deep-sea);
+    font-weight: 400;
+    color: var(--salt-white);
     line-height: 1.2;
     margin-bottom: 0.5rem;
   }
 
   .expedition-schedule .header h2 em {
     font-style: italic;
-    color: var(--fiord-blue);
+    color: var(--copper-accent);
   }
 
   .expedition-schedule .header .subtitle {
     font-size: 1rem;
-    color: var(--rock);
-    opacity: 0.7;
+    color: var(--mist);
     font-weight: 300;
   }
 
@@ -88,12 +86,12 @@ export function ExpeditionSchedule() {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
-    color: var(--fiord-blue);
-    opacity: 0.6;
+    color: var(--mist);
+    opacity: 0.7;
   }
 
   .expedition-schedule .route-summary .arrow {
-    color: var(--tussock);
+    color: var(--copper-accent);
     font-size: 0.65rem;
   }
 
@@ -108,7 +106,7 @@ export function ExpeditionSchedule() {
     margin: 0 auto 2rem;
     font-size: 1rem;
     line-height: 1.75;
-    color: var(--rock);
+    color: var(--mist);
   }
 
   .expedition-schedule .intro p {
@@ -128,7 +126,8 @@ export function ExpeditionSchedule() {
     align-items: center;
     gap: 0.4rem;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 500;
+    color: var(--salt-white);
   }
 
   .expedition-schedule .legend-dot {
@@ -155,24 +154,22 @@ export function ExpeditionSchedule() {
     right: 0;
     top: 50%;
     height: 1px;
-    background: var(--mist);
+    background: rgba(255,255,255,0.1);
   }
 
   .expedition-schedule .section-divider span {
     position: relative;
-    background: var(--cream);
+    background: var(--deep-ocean);
     padding: 0 1.5rem;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--fiord-blue);
-    opacity: 0.6;
+    color: var(--copper-accent);
   }
 
   .expedition-schedule .section-divider.stewart span {
     color: var(--stewart);
-    opacity: 0.8;
   }
 
   .expedition-schedule .schedule {
@@ -189,8 +186,8 @@ export function ExpeditionSchedule() {
     top: 30px;
     bottom: 30px;
     width: 2px;
-    background: linear-gradient(to bottom, var(--fiord-blue), var(--kelp), var(--tussock), var(--stewart));
-    opacity: 0.25;
+    background: linear-gradient(to bottom, var(--copper-accent), var(--sea-green), var(--stewart));
+    opacity: 0.4;
   }
 
   .expedition-schedule .stop {
@@ -213,16 +210,16 @@ export function ExpeditionSchedule() {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--fiord-blue);
-    border: 3px solid var(--cream);
-    box-shadow: 0 0 0 1px var(--fiord-blue);
+    background: var(--slate-water);
+    border: 3px solid var(--deep-ocean);
+    box-shadow: 0 0 0 1px var(--copper-accent);
   }
 
   .expedition-schedule .stop.major .node-dot {
     width: 18px;
     height: 18px;
-    background: var(--kelp);
-    box-shadow: 0 0 0 2px var(--kelp), 0 0 0 5px rgba(46, 90, 58, 0.15);
+    background: var(--sea-green);
+    box-shadow: 0 0 0 2px var(--sea-green), 0 0 0 5px rgba(61, 122, 110, 0.2);
   }
 
   .expedition-schedule .stop.stewart .node-dot {
@@ -234,15 +231,14 @@ export function ExpeditionSchedule() {
     width: 18px;
     height: 18px;
     background: var(--stewart);
-    box-shadow: 0 0 0 2px var(--stewart), 0 0 0 5px rgba(74, 20, 140, 0.15);
+    box-shadow: 0 0 0 2px var(--stewart), 0 0 0 5px rgba(107, 74, 140, 0.2);
   }
 
   .expedition-schedule .node-num {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
-    color: var(--fiord-blue);
+    color: var(--storm-grey);
     margin-top: 0.3rem;
-    opacity: 0.5;
   }
 
   .expedition-schedule .stop.stewart .node-num {
@@ -250,31 +246,31 @@ export function ExpeditionSchedule() {
   }
 
   .expedition-schedule .exp-card {
-    background: white;
+    background: rgba(22, 39, 66, 0.5);
     border-radius: 12px;
     padding: 1.4rem 1.6rem;
     margin: 0.5rem 0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
-    border: 1px solid rgba(0,0,0,0.05);
-    transition: box-shadow 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.3s ease;
   }
 
   .expedition-schedule .exp-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05);
+    border-color: var(--copper-accent);
+    transform: translateY(-2px);
   }
 
   .expedition-schedule .stop.major .exp-card {
-    border-left: 3px solid var(--kelp);
-    background: linear-gradient(135deg, white 0%, #f7faf8 100%);
+    border-left: 3px solid var(--sea-green);
+    background: rgba(22, 39, 66, 0.7);
   }
 
   .expedition-schedule .stop.stewart .exp-card {
-    border: 1px solid rgba(74, 20, 140, 0.1);
+    border: 1px solid rgba(107, 74, 140, 0.2);
   }
 
   .expedition-schedule .stop.stewart.major .exp-card {
     border-left: 3px solid var(--stewart);
-    background: linear-gradient(135deg, white 0%, #faf7fc 100%);
+    background: rgba(30, 25, 45, 0.5);
   }
 
   .expedition-schedule .card-top {
@@ -287,18 +283,18 @@ export function ExpeditionSchedule() {
   }
 
   .expedition-schedule .card-title {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--deep-sea);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--salt-white);
     line-height: 1.3;
   }
 
   .expedition-schedule .card-title .maori-name {
     font-weight: 400;
     font-style: italic;
-    color: var(--fiord-blue);
-    font-size: 1rem;
+    color: var(--copper-accent);
+    font-size: 1.1rem;
   }
 
   .expedition-schedule .stop.stewart .card-title .maori-name {
@@ -307,50 +303,52 @@ export function ExpeditionSchedule() {
 
   .expedition-schedule .card-meta {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     align-items: center;
     flex-shrink: 0;
   }
 
   .expedition-schedule .meta-badge {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     padding: 0.25rem 0.65rem;
     border-radius: 20px;
     letter-spacing: 0.03em;
   }
 
   .expedition-schedule .badge-dates {
-    background: var(--shell);
-    color: var(--rock);
+    background: rgba(255,255,255,0.08);
+    color: var(--mist);
   }
 
   .expedition-schedule .badge-days {
-    background: var(--fiord-blue);
-    color: white;
-    font-weight: 500;
+    background: var(--copper-accent);
+    color: var(--deep-ocean);
+    font-weight: 600;
   }
 
   .expedition-schedule .stop.major .badge-days {
-    background: var(--kelp);
+    background: var(--sea-green);
+    color: white;
   }
 
   .expedition-schedule .stop.stewart .badge-days {
     background: var(--stewart);
+    color: white;
   }
 
   .expedition-schedule .ratings {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
     margin-bottom: 1rem;
   }
 
   .expedition-schedule .rating-group {
-    padding: 0.8rem 1rem;
+    padding: 0.7rem 0.9rem;
     border-radius: 8px;
-    background: #fafafa;
-    border: 1px solid rgba(0,0,0,0.04);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
   }
 
   .expedition-schedule .rating-group-label {
@@ -376,19 +374,18 @@ export function ExpeditionSchedule() {
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 
   .expedition-schedule .rating-item .label {
-    color: var(--rock);
-    opacity: 0.7;
-    font-size: 0.78rem;
+    color: var(--mist);
+    font-size: 0.75rem;
   }
 
   .expedition-schedule .rating-pill {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    font-weight: 500;
+    font-size: 0.7rem;
+    font-weight: 600;
     padding: 0.1rem 0.45rem;
     border-radius: 4px;
     letter-spacing: 0.02em;
@@ -402,15 +399,14 @@ export function ExpeditionSchedule() {
   .expedition-schedule .card-description {
     font-size: 0.9rem;
     line-height: 1.65;
-    color: var(--rock);
-    opacity: 0.85;
+    color: var(--mist);
   }
 
   .expedition-schedule .highlight-tag {
     display: inline-block;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    font-weight: 500;
+    font-size: 0.65rem;
+    font-weight: 600;
     letter-spacing: 0.05em;
     padding: 0.15rem 0.5rem;
     border-radius: 3px;
@@ -419,13 +415,13 @@ export function ExpeditionSchedule() {
   }
 
   .expedition-schedule .highlight-tag.primary {
-    background: var(--kelp);
+    background: var(--sea-green);
     color: white;
   }
 
   .expedition-schedule .highlight-tag.secondary {
-    background: var(--fiord-blue);
-    color: white;
+    background: var(--copper-accent);
+    color: var(--deep-ocean);
   }
 
   .expedition-schedule .highlight-tag.stewart {
@@ -435,7 +431,7 @@ export function ExpeditionSchedule() {
 
   .expedition-schedule .passage-note {
     text-align: center;
-    padding: 1rem 0;
+    padding: 1.5rem 0;
     position: relative;
     grid-column: 1 / -1;
   }
@@ -444,8 +440,7 @@ export function ExpeditionSchedule() {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
     letter-spacing: 0.05em;
-    color: var(--tussock);
-    opacity: 0.7;
+    color: var(--copper-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -455,41 +450,15 @@ export function ExpeditionSchedule() {
   .expedition-schedule .passage-note-inner .passage-line {
     width: 40px;
     height: 1px;
-    background: var(--tussock);
+    background: var(--copper-accent);
     opacity: 0.4;
   }
 
-  .expedition-schedule .footer {
-    margin-top: 2rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--mist);
-    text-align: center;
-  }
-
-  .expedition-schedule .footer-notes {
-    max-width: 700px;
-    margin: 0 auto;
-    font-size: 0.85rem;
-    line-height: 1.7;
-    color: var(--rock);
-    opacity: 0.6;
-  }
-
-  .expedition-schedule .footer-notes h3 {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    margin-bottom: 0.75rem;
-    opacity: 0.8;
-  }
-
   @media (max-width: 768px) {
-    .expedition-schedule { padding: 1rem; }
     .expedition-schedule .header h2 { font-size: 1.5rem; }
-    .expedition-schedule .ratings { grid-template-columns: 1fr; gap: 0.6rem; }
+    .expedition-schedule .ratings { grid-template-columns: 1fr; gap: 0.5rem; }
     .expedition-schedule .exp-card { padding: 1rem; }
-    .expedition-schedule .card-title { font-size: 1.1rem; }
+    .expedition-schedule .card-title { font-size: 1.15rem; }
     .expedition-schedule .card-meta { width: 100%; justify-content: flex-start; }
     .expedition-schedule .schedule::before { left: 20px; }
     .expedition-schedule .stop { grid-template-columns: 40px 1fr; }
@@ -500,7 +469,7 @@ export function ExpeditionSchedule() {
 <div class="expedition-schedule">
   <header class="header">
     <div class="header-label">Expedition Plan — Season 2026</div>
-    <h2>Fiordland &amp; Stewart Island: Hunting, Diving &amp; Fishing Aboard <em>Matariki III</em></h2>
+    <h2>Hunting, Diving &amp; Fishing Aboard <em>Matariki III</em></h2>
     <div class="subtitle">9 weeks through New Zealand's wildest coastline — Milford Sound to Stewart Island</div>
     <div class="route-summary">
       <span>Milford</span><span class="arrow">→</span>
@@ -920,13 +889,6 @@ export function ExpeditionSchedule() {
           <span class="highlight-tag stewart">EXPEDITION FINALE</span> The most remote anchorage in New Zealand. Port Pegasus is a vast natural harbour on Stewart Island's southern coast — almost nobody goes here by yacht. The whitetail hunting is the best in the country: virtually unhunted coastal bush with deer feeding on the shoreline at dawn and dusk. The diving is exceptional — fully oceanic reefs with big crayfish and dense paua populations on the outer coast and around the harbour entrance. Blue cod are enormous and abundant. The harbour itself is well-sheltered with multiple anchorage options in the inner arms — North Arm, South Arm, and behind the islands. This is where the entire expedition reaches its crescendo: the most remote, the most productive, and the most unforgettable.
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="footer">
-    <div class="footer-notes">
-      <h3>Notes</h3>
-      Ratings assess each location for boat-based operations from <em>Matariki III</em> (Oyster 68) with a 4.3m Avon tender. Dates are approximate and will flex with weather — the Foveaux Strait crossing in particular requires a settled window. Fiordland hunting is red deer (peak roar mid-March to mid-April); Stewart Island is whitetail deer. Diving ratings reflect crayfish and paua specifically. All locations are subject to unpredictable weather; layered planning between outer coast and sheltered activities is essential throughout.
     </div>
   </div>
 </div>
