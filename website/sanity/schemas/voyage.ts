@@ -59,21 +59,6 @@ export const voyage = defineType({
         hotspot: true,
       },
     }),
-    defineField({
-      name: "showExpeditionSchedule",
-      title: "Show Expedition Schedule",
-      type: "boolean",
-      description: "Enable to display the expedition schedule component on this voyage page",
-      initialValue: false,
-    }),
-    defineField({
-      name: "expeditionHtml",
-      title: "Expedition Schedule HTML",
-      type: "text",
-      rows: 30,
-      description: "Raw HTML for the expedition schedule (requires 'Show Expedition Schedule' to be enabled)",
-      hidden: ({ document }) => !document?.showExpeditionSchedule,
-    }),
   ],
   preview: {
     select: {

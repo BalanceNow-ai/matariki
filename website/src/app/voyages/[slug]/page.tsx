@@ -34,6 +34,7 @@ type VoyageLogEntry = {
   category: string;
   excerpt?: string;
   heroImage?: { asset: { _ref: string } };
+  expeditionHtml?: string;
 };
 
 type Voyage = {
@@ -45,8 +46,6 @@ type Voyage = {
   endDate?: string;
   status?: string;
   heroImage?: { asset: { _ref: string } };
-  showExpeditionSchedule?: boolean;
-  expeditionHtml?: string;
   gallery?: Array<{ asset: { _ref: string }; caption?: string }>;
   galleryImages?: VoyageImage[];
   logEntries?: VoyageLogEntry[];
@@ -99,11 +98,12 @@ export default async function VoyagePage({ params }: PageProps) {
     ...(voyage.galleryImages || []),
   ];
 
-  // Check if this voyage should show the expedition schedule (controlled via Sanity CMS)
-  const showExpeditionSchedule = voyage.showExpeditionSchedule === true;
-
   // Use Sanity log entries directly
   const allLogEntries = voyage.logEntries || [];
+
+  // Find the first log entry with expedition HTML
+  const expeditionEntry = allLogEntries.find(entry => entry.expeditionHtml);
+  const expeditionHtml = expeditionEntry?.expeditionHtml;
 
   return (
       <>
@@ -160,17 +160,17 @@ export default async function VoyagePage({ params }: PageProps) {
             </div>
           </section>
 
-          {/* Expedition Schedule - controlled via Sanity CMS */}
-          {showExpeditionSchedule && (
+          {/* Expedition Schedule - from log entry */}
+          {expeditionHtml && (
             <Section>
               <SectionLabel label="Expedition Schedule" className="mb-8" />
-              <ExpeditionSchedule html={voyage.expeditionHtml} />
+              <ExpeditionSchedule html={expeditionHtml} />
             </Section>
           )}
 
           {/* Log Entries */}
           {allLogEntries.length > 0 && (
-            <Section background={showExpeditionSchedule ? "dark" : undefined}>
+            <Section background={expeditionHtml ? "dark" : undefined}>
               <SectionLabel label="Log Entries" className="mb-8" />
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {allLogEntries.map((entry) => (
@@ -250,7 +250,7 @@ export default async function VoyagePage({ params }: PageProps) {
           )}
 
           {/* Empty State - only show if no expedition schedule, no log entries, and no gallery */}
-          {!showExpeditionSchedule && allLogEntries.length === 0 && allImages.length === 0 && (
+          {!expeditionHtml && allLogEntries.length === 0 && allImages.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>
