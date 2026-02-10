@@ -51,6 +51,13 @@ export const logEntry = defineType({
       initialValue: "general",
     }),
     defineField({
+      name: "expeditionHtml",
+      title: "Expedition Schedule HTML",
+      type: "text",
+      rows: 30,
+      description: "Raw HTML for the expedition schedule section",
+    }),
+    defineField({
       name: "location",
       title: "Location",
       type: "object",
