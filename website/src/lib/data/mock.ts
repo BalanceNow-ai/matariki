@@ -79,7 +79,7 @@ export const logEntries: LogEntry[] = [
     heroImage: "/images/fiordland-expedition.jpg",
     excerpt:
       "Nine weeks through New Zealand's wildest coastline — from Milford Sound to Stewart Island. A comprehensive plan for hunting, diving, and fishing aboard Matariki III, timed to hit the roar in Fiordland's most remote country.",
-    body: "Full expedition schedule available in post...",
+    contentHtml: "<p>Full expedition schedule available in post...</p>",
   },
   {
     id: "1",
@@ -95,13 +95,7 @@ export const logEntries: LogEntry[] = [
     heroImage: "/images/doubtful-sound.jpg",
     excerpt:
       "After weeks of preparation, we finally entered the ethereal waters of Doubtful Sound. The sheer granite walls rose dramatically from the inky depths...",
-    body: "Full article content here...",
-    gallery: ["/images/gallery-1.jpg", "/images/gallery-2.jpg"],
-    weather: {
-      conditions: "overcast",
-      windSpeed: 10,
-      windDirection: 180,
-    },
+    contentHtml: "<p>Full article content here...</p>",
   },
   {
     id: "2",
@@ -117,12 +111,7 @@ export const logEntries: LogEntry[] = [
     heroImage: "/images/hunting-dawn.jpg",
     excerpt:
       "The pre-dawn mist hung low over the native bush as I made my way up the ridge. The silence was broken only by the calls of bellbirds...",
-    body: "Full article content here...",
-    weather: {
-      conditions: "misty",
-      windSpeed: 5,
-      windDirection: 90,
-    },
+    contentHtml: "<p>Full article content here...</p>",
   },
   {
     id: "3",
@@ -138,8 +127,7 @@ export const logEntries: LogEntry[] = [
     heroImage: "/images/diving-cove.jpg",
     excerpt:
       "The unique conditions of Fiordland create a diving experience unlike anywhere else on Earth. The freshwater layer creates darkness that allows deep-water species to thrive near the surface...",
-    body: "Full article content here...",
-    gallery: ["/images/underwater-1.jpg", "/images/underwater-2.jpg"],
+    contentHtml: "<p>Full article content here...</p>",
   },
 ];
 
