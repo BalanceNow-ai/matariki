@@ -110,7 +110,7 @@ export default async function VoyagePage({ params }: PageProps) {
         <Header />
         <main className="pt-20">
           {/* Hero */}
-          <section className="relative pt-32 pb-24 bg-midnight-blue">
+          <section className="relative pt-40 pb-24 bg-midnight-blue">
             {voyage.heroImage?.asset && (
               <div className="absolute inset-0">
                 <Image
@@ -126,27 +126,27 @@ export default async function VoyagePage({ params }: PageProps) {
             <div className="container-site relative z-10">
               <Link
                 href="/voyages"
-                className="inline-flex items-center gap-2 text-mist hover:text-salt-white transition-colors mb-8"
+                className="inline-flex items-center gap-2 text-sm text-mist/80 hover:text-salt-white transition-colors mb-6"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
                 All Voyages
               </Link>
+              {voyage.status && (
+                <div className="mb-4">
+                  <span className={`inline-block px-3 py-1 text-xs font-medium uppercase tracking-wider rounded-full ${
+                    voyage.status === "active"
+                      ? "bg-sea-green/20 text-sea-green border border-sea-green/30"
+                      : voyage.status === "completed"
+                      ? "bg-copper-accent/20 text-copper-accent border border-copper-accent/30"
+                      : "bg-mist/20 text-mist border border-mist/30"
+                  }`}>
+                    {voyage.status}
+                  </span>
+                </div>
+              )}
               <div className="max-w-3xl">
-                {voyage.status && (
-                  <div className="mb-4">
-                    <span className={`inline-block px-3 py-1 text-xs font-medium uppercase tracking-wider rounded-full ${
-                      voyage.status === "active"
-                        ? "bg-sea-green/20 text-sea-green border border-sea-green/30"
-                        : voyage.status === "completed"
-                        ? "bg-copper-accent/20 text-copper-accent border border-copper-accent/30"
-                        : "bg-mist/20 text-mist border border-mist/30"
-                    }`}>
-                      {voyage.status}
-                    </span>
-                  </div>
-                )}
                 <h1 className="text-display text-salt-white mb-4">{voyage.title}</h1>
                 {(voyage.startDate || voyage.endDate) && (
                   <p className="text-copper-accent text-lg mb-6">

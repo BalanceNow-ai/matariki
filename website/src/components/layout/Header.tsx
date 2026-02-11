@@ -31,7 +31,7 @@ export function Header() {
         "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
         isScrolled
           ? "bg-deep-ocean/95 backdrop-blur-md border-b border-white/5"
-          : "bg-transparent"
+          : "bg-gradient-to-b from-deep-ocean/90 via-deep-ocean/50 to-transparent"
       )}
     >
       <div className="container-site">
