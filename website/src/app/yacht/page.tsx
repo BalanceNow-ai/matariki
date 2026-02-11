@@ -1,7 +1,9 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, MissingContent } from "@/components/ui";
-import { client, fetchOptions } from "@/sanity/client";
+import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { VESSEL_QUERY } from "@/sanity/queries";
+import imageUrlBuilder from "@sanity/image-url";
+import { GalleryGrid } from "@/components/gallery/GalleryGrid";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,6 +13,18 @@ export const metadata: Metadata = {
 
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function urlFor(source: any) {
+  if (!projectId || !dataset || !source) return null;
+  return imageUrlBuilder({ projectId, dataset }).image(source);
+}
+
+type GalleryImage = {
+  _key: string;
+  asset: { _ref: string };
+  caption?: string;
+};
 
 type DescriptionSection = {
   title?: string;
@@ -53,6 +67,7 @@ type VesselData = {
     holding?: string;
   };
   electronics?: string[];
+  gallery?: GalleryImage[];
 } | null;
 
 export default async function YachtPage() {
@@ -92,6 +107,17 @@ export default async function YachtPage() {
   const tanks = vessel.tanks || {};
   const electronics = vessel.electronics || [];
   const descriptionSections = vessel.descriptionSections || [];
+
+  // Transform gallery images for GalleryGrid component
+  const galleryItems = (vessel.gallery || [])
+    .filter((img) => img.asset)
+    .map((img) => ({
+      id: img._key,
+      src: urlFor(img)?.width(800).height(800).url() || "",
+      caption: img.caption || "",
+      category: "yacht",
+      type: "image" as const,
+    }));
 
   return (
     <>
@@ -211,18 +237,16 @@ export default async function YachtPage() {
           </Section>
         )}
 
-        {/* Image Gallery Placeholder */}
+        {/* Image Gallery */}
         <Section background="dark">
           <SectionLabel label="Gallery" className="mb-8" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="aspect-square bg-slate-water/50 rounded-lg flex items-center justify-center">
-                <svg className="w-12 h-12 text-mist/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-            ))}
-          </div>
+          {galleryItems.length > 0 ? (
+            <GalleryGrid items={galleryItems} />
+          ) : (
+            <div className="bg-slate-water/30 rounded-lg py-12">
+              <MissingContent label="No gallery images in Sanity vessel document" size="lg" />
+            </div>
+          )}
         </Section>
       </main>
       <Footer />
