@@ -82,16 +82,19 @@ type SanityPost = {
   title: string;
   slug: { current: string };
   publishedAt: string;
-  category: string;
-  excerpt: string;
+  category?: string;
+  excerpt?: string;
   body?: PortableTextBlock[];
   pageHtml?: string;
-  location?: string;
+  location?: {
+    name?: string;
+    coordinates?: { lat: number; lng: number };
+  };
   heroImage?: SanityImageSource;
   weather?: {
-    conditions: string;
-    windSpeed: number;
-    windDirection: number;
+    conditions?: string;
+    windSpeed?: number;
+    windDirection?: number;
   };
 };
 
@@ -150,17 +153,17 @@ export default async function LogEntryPage({ params }: Props) {
             <Container className="relative">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-4 mb-6">
-                  <Badge variant={sanityPost.category as "sailing" | "hunting" | "diving" | "fishing" | "general"}>
-                    {sanityPost.category}
+                  <Badge variant={(sanityPost.category || "general") as "sailing" | "hunting" | "diving" | "fishing" | "general"}>
+                    {sanityPost.category || "general"}
                   </Badge>
                   <span className="text-caption text-mist">
                     {formatDate(sanityPost.publishedAt)}
                   </span>
                 </div>
                 <h1 className="text-h1 text-salt-white mb-6">{sanityPost.title}</h1>
-                {sanityPost.location && (
+                {sanityPost.location?.name && (
                   <div className="flex items-center gap-4 text-sm text-mist">
-                    <span className="font-mono">{sanityPost.location}</span>
+                    <span className="font-mono">{sanityPost.location.name}</span>
                   </div>
                 )}
               </div>
@@ -204,26 +207,30 @@ export default async function LogEntryPage({ params }: Props) {
               <aside className="lg:col-span-1">
                 <div className="sticky top-24 space-y-8">
                   {/* Location Card */}
-                  {sanityPost.location && (
+                  {sanityPost.location?.name && (
                     <div className="card p-6 rounded-lg">
                       <h3 className="text-caption text-copper-accent mb-4">Location</h3>
-                      <div className="text-salt-white font-medium">{sanityPost.location}</div>
+                      <div className="text-salt-white font-medium">{sanityPost.location.name}</div>
                     </div>
                   )}
 
                   {/* Weather Card */}
-                  {sanityPost.weather && (
+                  {sanityPost.weather && (sanityPost.weather.conditions || sanityPost.weather.windSpeed) && (
                     <div className="card p-6 rounded-lg">
                       <h3 className="text-caption text-copper-accent mb-4">Conditions</h3>
                       <div className="space-y-3 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-mist">Weather</span>
-                          <span className="text-salt-white capitalize">{sanityPost.weather.conditions}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-mist">Wind</span>
-                          <span className="text-salt-white">{sanityPost.weather.windSpeed} kts</span>
-                        </div>
+                        {sanityPost.weather.conditions && (
+                          <div className="flex justify-between">
+                            <span className="text-mist">Weather</span>
+                            <span className="text-salt-white capitalize">{sanityPost.weather.conditions}</span>
+                          </div>
+                        )}
+                        {sanityPost.weather.windSpeed !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-mist">Wind</span>
+                            <span className="text-salt-white">{sanityPost.weather.windSpeed} kts</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
