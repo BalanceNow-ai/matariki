@@ -1,10 +1,19 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, MissingContent } from "@/components/ui";
 import { PostCard } from "@/components/content";
-import { client, fetchOptions } from "@/sanity/client";
+import { client, fetchOptions, projectId, dataset } from "@/sanity/client";
 import { ALL_POSTS_QUERY } from "@/sanity/queries";
+import imageUrlBuilder from "@sanity/image-url";
 import type { Metadata } from "next";
 import type { LogEntry } from "@/types";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SanityImageSource = any;
+
+const urlFor = (source: SanityImageSource) =>
+  projectId && dataset
+    ? imageUrlBuilder({ projectId, dataset }).image(source)
+    : null;
 
 export const metadata: Metadata = {
   title: "Voyage Log",
@@ -50,7 +59,9 @@ export default async function LogPage() {
           name: post.location || "Unknown",
           coordinates: [0, 0] as [number, number],
         },
-        heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
+        heroImage: post.heroImage
+          ? urlFor(post.heroImage)?.width(800).height(500).url() || undefined
+          : undefined,
         body: "",
       }));
     }
