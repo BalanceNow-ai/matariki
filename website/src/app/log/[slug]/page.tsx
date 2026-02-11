@@ -124,7 +124,7 @@ export default async function LogEntryPage({ params }: Props) {
           </section>
 
           {/* Article Content */}
-          <Section>
+          <Section className="pb-24 md:pb-32">
             <div className="grid lg:grid-cols-3 gap-12">
               {/* Main Content */}
               <article className="lg:col-span-2">
