@@ -91,7 +91,7 @@ export default async function LogEntryPage({ params }: Props) {
         <Header />
         <main className="pt-20">
           {/* Hero */}
-          <section className="relative pt-40 pb-24 bg-midnight-blue">
+          <section className="relative z-10 pt-40 pb-24 bg-midnight-blue">
             {heroImageUrl && (
               <div className="absolute inset-0">
                 <Image
