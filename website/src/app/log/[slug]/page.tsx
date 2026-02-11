@@ -22,6 +22,7 @@ const POST_QUERY = `*[_type == "logEntry" && slug.current == $slug][0]{
   category,
   excerpt,
   body,
+  pageHtml,
   location,
   heroImage,
   weather
@@ -84,6 +85,7 @@ type SanityPost = {
   category: string;
   excerpt: string;
   body?: PortableTextBlock[];
+  pageHtml?: string;
   location?: string;
   heroImage?: SanityImageSource;
   weather?: {
@@ -180,7 +182,12 @@ export default async function LogEntryPage({ params }: Props) {
                       <MissingContent label="Excerpt missing" size="sm" />
                     </div>
                   )}
-                  {Array.isArray(sanityPost.body) && sanityPost.body.length > 0 ? (
+                  {sanityPost.pageHtml ? (
+                    <div
+                      className="not-prose"
+                      dangerouslySetInnerHTML={{ __html: sanityPost.pageHtml }}
+                    />
+                  ) : Array.isArray(sanityPost.body) && sanityPost.body.length > 0 ? (
                     <PortableText
                       value={sanityPost.body}
                       components={portableTextComponents}

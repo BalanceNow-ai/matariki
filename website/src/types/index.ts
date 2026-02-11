@@ -35,6 +35,7 @@ export interface LogEntry {
   heroImage: string;
   excerpt: string;
   body: string;
+  pageHtml?: string;
   gallery?: string[];
   weather?: {
     conditions: string;
