@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import imageUrlBuilder from "@sanity/image-url";
 import { Header, Footer, Section, Container } from "@/components/layout";
-import { Badge, Button, MissingContent } from "@/components/ui";
+import { Badge, MissingContent } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { client, projectId, dataset } from "@/sanity/client";
 import type { Metadata } from "next";
@@ -91,7 +91,7 @@ export default async function LogEntryPage({ params }: Props) {
         <Header />
         <main className="pt-20">
           {/* Hero */}
-          <section className="relative pt-40 pb-24 bg-midnight-blue">
+          <section className="relative z-10 pt-40 pb-24 bg-midnight-blue">
             {heroImageUrl && (
               <div className="absolute inset-0">
                 <Image
@@ -124,51 +124,30 @@ export default async function LogEntryPage({ params }: Props) {
           </section>
 
           {/* Article Content */}
-          <Section>
-            <div className="grid lg:grid-cols-3 gap-12">
-              {/* Main Content */}
-              <article className="lg:col-span-2">
-                <div className="prose prose-invert prose-lg max-w-none prose-p:text-mist prose-headings:text-salt-white prose-a:text-copper-accent">
-                  {sanityPost.excerpt ? (
-                    <p className="text-xl text-mist leading-relaxed first-letter:text-5xl first-letter:font-display first-letter:text-copper-accent first-letter:float-left first-letter:mr-3 first-letter:mt-1">
-                      {sanityPost.excerpt}
-                    </p>
-                  ) : (
-                    <div className="not-prose mb-8">
-                      <MissingContent label="Excerpt missing" size="sm" />
-                    </div>
-                  )}
-                  {sanityPost.contentHtml ? (
-                    <div
-                      className="not-prose"
-                      dangerouslySetInnerHTML={{ __html: sanityPost.contentHtml }}
-                    />
-                  ) : (
-                    <div className="not-prose bg-slate-water/30 rounded-lg py-8">
-                      <MissingContent label="Content missing" size="md" />
-                    </div>
-                  )}
-                </div>
-              </article>
-
-              {/* Sidebar */}
-              <aside className="lg:col-span-1">
-                <div className="sticky top-24 space-y-8">
-                  {/* Location Card */}
-                  {sanityPost.location?.name && (
-                    <div className="card p-6 rounded-lg">
-                      <h3 className="text-caption text-copper-accent mb-4">Location</h3>
-                      <div className="text-salt-white font-medium">{sanityPost.location.name}</div>
-                    </div>
-                  )}
-
-                  {/* Back Link */}
-                  <Button href="/log" variant="ghost" className="w-full">
-                    ← Back to Log
-                  </Button>
-                </div>
-              </aside>
-            </div>
+          <Section className="pb-24 md:pb-32">
+            <article>
+              <div className="prose prose-invert prose-lg max-w-none prose-p:text-mist prose-headings:text-salt-white prose-a:text-copper-accent">
+                {sanityPost.excerpt ? (
+                  <p className="text-xl text-mist leading-relaxed first-letter:text-5xl first-letter:font-display first-letter:text-copper-accent first-letter:float-left first-letter:mr-3 first-letter:mt-1">
+                    {sanityPost.excerpt}
+                  </p>
+                ) : (
+                  <div className="not-prose mb-8">
+                    <MissingContent label="Excerpt missing" size="sm" />
+                  </div>
+                )}
+                {sanityPost.contentHtml ? (
+                  <div
+                    className="not-prose"
+                    dangerouslySetInnerHTML={{ __html: sanityPost.contentHtml }}
+                  />
+                ) : (
+                  <div className="not-prose bg-slate-water/30 rounded-lg py-8">
+                    <MissingContent label="Content missing" size="md" />
+                  </div>
+                )}
+              </div>
+            </article>
           </Section>
         </main>
         <Footer />
