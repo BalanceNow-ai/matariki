@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { PortableText, PortableTextComponents } from "next-sanity";
 import imageUrlBuilder from "@sanity/image-url";
 import { Header, Footer, Section, Container } from "@/components/layout";
 import { Badge, Button, MissingContent } from "@/components/ui";
@@ -21,11 +20,9 @@ const POST_QUERY = `*[_type == "logEntry" && slug.current == $slug][0]{
   publishedAt,
   category,
   excerpt,
-  body,
-  pageHtml,
+  contentHtml,
   location,
-  heroImage,
-  weather
+  heroImage
 }`;
 
 const urlFor = (source: SanityImageSource) =>
@@ -33,49 +30,11 @@ const urlFor = (source: SanityImageSource) =>
     ? imageUrlBuilder({ projectId, dataset }).image(source)
     : null;
 
-// Portable Text components for custom block types
-const portableTextComponents: PortableTextComponents = {
-  types: {
-    image: ({ value }: { value: SanityImageSource & { caption?: string; alt?: string } }) => {
-      const imageUrl = urlFor(value)?.width(800).url();
-      if (!imageUrl) return null;
-      return (
-        <figure className="my-8">
-          <Image
-            src={imageUrl}
-            alt={value.alt || ""}
-            width={800}
-            height={450}
-            className="rounded-lg w-full"
-          />
-          {value.caption && (
-            <figcaption className="text-center text-sm text-mist mt-2">
-              {value.caption}
-            </figcaption>
-          )}
-        </figure>
-      );
-    },
-    htmlEmbed: ({ value }: { value: { html: string } }) => (
-      <div
-        className="my-8"
-        dangerouslySetInnerHTML={{ __html: value.html }}
-      />
-    ),
-  },
-};
-
 const options = { next: { revalidate: 30 } };
 
 interface Props {
   params: Promise<{ slug: string }>;
 }
-
-type PortableTextBlock = {
-  _type: string;
-  _key: string;
-  [key: string]: unknown;
-};
 
 type SanityPost = {
   _id: string;
@@ -84,18 +43,12 @@ type SanityPost = {
   publishedAt: string;
   category?: string;
   excerpt?: string;
-  body?: PortableTextBlock[];
-  pageHtml?: string;
+  contentHtml?: string;
   location?: {
     name?: string;
     coordinates?: { lat: number; lng: number };
   };
   heroImage?: SanityImageSource;
-  weather?: {
-    conditions?: string;
-    windSpeed?: number;
-    windDirection?: number;
-  };
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -185,19 +138,14 @@ export default async function LogEntryPage({ params }: Props) {
                       <MissingContent label="Excerpt missing" size="sm" />
                     </div>
                   )}
-                  {sanityPost.pageHtml ? (
+                  {sanityPost.contentHtml ? (
                     <div
                       className="not-prose"
-                      dangerouslySetInnerHTML={{ __html: sanityPost.pageHtml }}
-                    />
-                  ) : Array.isArray(sanityPost.body) && sanityPost.body.length > 0 ? (
-                    <PortableText
-                      value={sanityPost.body}
-                      components={portableTextComponents}
+                      dangerouslySetInnerHTML={{ __html: sanityPost.contentHtml }}
                     />
                   ) : (
                     <div className="not-prose bg-slate-water/30 rounded-lg py-8">
-                      <MissingContent label="Body content missing" size="md" />
+                      <MissingContent label="Content missing" size="md" />
                     </div>
                   )}
                 </div>
@@ -211,27 +159,6 @@ export default async function LogEntryPage({ params }: Props) {
                     <div className="card p-6 rounded-lg">
                       <h3 className="text-caption text-copper-accent mb-4">Location</h3>
                       <div className="text-salt-white font-medium">{sanityPost.location.name}</div>
-                    </div>
-                  )}
-
-                  {/* Weather Card */}
-                  {sanityPost.weather && (sanityPost.weather.conditions || sanityPost.weather.windSpeed) && (
-                    <div className="card p-6 rounded-lg">
-                      <h3 className="text-caption text-copper-accent mb-4">Conditions</h3>
-                      <div className="space-y-3 text-sm">
-                        {sanityPost.weather.conditions && (
-                          <div className="flex justify-between">
-                            <span className="text-mist">Weather</span>
-                            <span className="text-salt-white capitalize">{sanityPost.weather.conditions}</span>
-                          </div>
-                        )}
-                        {sanityPost.weather.windSpeed !== undefined && (
-                          <div className="flex justify-between">
-                            <span className="text-mist">Wind</span>
-                            <span className="text-salt-white">{sanityPost.weather.windSpeed} kts</span>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   )}
 

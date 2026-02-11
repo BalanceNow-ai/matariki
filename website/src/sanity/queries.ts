@@ -41,11 +41,9 @@ export const POST_BY_SLUG_QUERY = groq`*[
   publishedAt,
   category,
   excerpt,
-  body,
+  contentHtml,
   heroImage,
-  gallery,
   location,
-  weather,
   "voyage": voyage->title
 }`;
 
@@ -189,7 +187,6 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
     publishedAt,
     category,
     excerpt,
-    heroImage,
-    expeditionHtml
+    heroImage
   }
 }`;

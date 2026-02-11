@@ -1,5 +1,4 @@
 import { defineType, defineField } from "sanity";
-import { CodeIcon } from "@sanity/icons";
 
 export const logEntry = defineType({
   name: "logEntry",
@@ -23,10 +22,19 @@ export const logEntry = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
-      name: "publishedAt",
-      title: "Published At",
-      type: "datetime",
-      initialValue: () => new Date().toISOString(),
+      name: "heroImage",
+      title: "Hero Image",
+      type: "image",
+      options: {
+        hotspot: true,
+      },
+    }),
+    defineField({
+      name: "contentHtml",
+      title: "Content HTML",
+      type: "text",
+      rows: 30,
+      description: "Paste HTML content for the log entry",
     }),
     defineField({
       name: "voyage",
@@ -51,13 +59,6 @@ export const logEntry = defineType({
       initialValue: "general",
     }),
     defineField({
-      name: "expeditionHtml",
-      title: "Expedition Schedule HTML",
-      type: "text",
-      rows: 30,
-      description: "Raw HTML for the expedition schedule section",
-    }),
-    defineField({
       name: "location",
       title: "Location",
       type: "object",
@@ -75,14 +76,6 @@ export const logEntry = defineType({
       ],
     }),
     defineField({
-      name: "heroImage",
-      title: "Hero Image",
-      type: "image",
-      options: {
-        hotspot: true,
-      },
-    }),
-    defineField({
       name: "excerpt",
       title: "Excerpt",
       type: "text",
@@ -90,132 +83,10 @@ export const logEntry = defineType({
       description: "A brief summary for previews (2-3 sentences)",
     }),
     defineField({
-      name: "body",
-      title: "Body",
-      type: "array",
-      of: [
-        {
-          type: "block",
-          styles: [
-            { title: "Normal", value: "normal" },
-            { title: "H2", value: "h2" },
-            { title: "H3", value: "h3" },
-            { title: "Quote", value: "blockquote" },
-          ],
-          marks: {
-            decorators: [
-              { title: "Bold", value: "strong" },
-              { title: "Italic", value: "em" },
-            ],
-            annotations: [
-              {
-                name: "link",
-                type: "object",
-                title: "Link",
-                fields: [
-                  {
-                    name: "href",
-                    type: "url",
-                    title: "URL",
-                  },
-                ],
-              },
-            ],
-          },
-        },
-        {
-          type: "image",
-          options: {
-            hotspot: true,
-          },
-          fields: [
-            {
-              name: "caption",
-              type: "string",
-              title: "Caption",
-            },
-            {
-              name: "alt",
-              type: "string",
-              title: "Alt Text",
-            },
-          ],
-        },
-        {
-          type: "object",
-          name: "htmlEmbed",
-          title: "HTML Embed",
-          icon: CodeIcon,
-          fields: [
-            {
-              name: "html",
-              title: "HTML Code",
-              type: "text",
-              rows: 15,
-              description: "Raw HTML to embed in the post",
-            },
-          ],
-          preview: {
-            select: { html: "html" },
-            prepare({ html }: { html?: string }) {
-              return {
-                title: "HTML Embed",
-                subtitle: html ? html.substring(0, 60) + "..." : "Empty",
-              };
-            },
-          },
-        },
-      ],
-    }),
-    defineField({
-      name: "pageHtml",
-      title: "Full Page HTML",
-      type: "text",
-      rows: 30,
-      description:
-        "Optional: If provided, this HTML will be rendered as the entire log page content (replaces body)",
-    }),
-    defineField({
-      name: "gallery",
-      title: "Gallery",
-      type: "array",
-      of: [
-        {
-          type: "image",
-          options: {
-            hotspot: true,
-          },
-          fields: [
-            {
-              name: "caption",
-              type: "string",
-              title: "Caption",
-            },
-          ],
-        },
-      ],
-    }),
-    defineField({
-      name: "weather",
-      title: "Weather Conditions",
-      type: "object",
-      fields: [
-        {
-          name: "conditions",
-          title: "Conditions",
-          type: "string",
-        },
-        {
-          name: "windSpeed",
-          title: "Wind Speed (kts)",
-          type: "number",
-        },
-        {
-          name: "windDirection",
-          title: "Wind Direction (°)",
-          type: "number",
-        },
-      ],
+      name: "publishedAt",
+      title: "Published At",
+      type: "datetime",
+      initialValue: () => new Date().toISOString(),
     }),
   ],
   preview: {

@@ -28,20 +28,13 @@ export interface LogEntry {
   publishedAt: string;
   voyageId: string;
   category: "sailing" | "hunting" | "diving" | "fishing" | "general";
-  location: {
+  location?: {
     name: string;
     coordinates: [number, number];
   };
-  heroImage: string;
-  excerpt: string;
-  body: string;
-  pageHtml?: string;
-  gallery?: string[];
-  weather?: {
-    conditions: string;
-    windSpeed: number;
-    windDirection: number;
-  };
+  heroImage?: string;
+  excerpt?: string;
+  contentHtml?: string;
 }
 
 export interface GalleryImage {
