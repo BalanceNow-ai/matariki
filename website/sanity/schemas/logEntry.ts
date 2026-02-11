@@ -168,6 +168,14 @@ export const logEntry = defineType({
       ],
     }),
     defineField({
+      name: "pageHtml",
+      title: "Full Page HTML",
+      type: "text",
+      rows: 30,
+      description:
+        "Optional: If provided, this HTML will be rendered as the entire log page content (replaces body)",
+    }),
+    defineField({
       name: "gallery",
       title: "Gallery",
       type: "array",
