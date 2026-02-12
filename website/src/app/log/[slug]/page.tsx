@@ -89,9 +89,10 @@ export default async function LogEntryPage({ params }: Props) {
     return (
       <>
         <Header />
-        <main className="pt-20">
-          {/* Hero */}
-          <section className="relative z-10 pt-40 pb-24 bg-midnight-blue">
+        <main>
+          {/* Hero with transparent spacer for fixed nav */}
+          <section className="relative bg-midnight-blue">
+            {/* Background image */}
             {heroImageUrl && (
               <div className="absolute inset-0">
                 <Image
@@ -100,10 +101,15 @@ export default async function LogEntryPage({ params }: Props) {
                   fill
                   className="object-cover opacity-30"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-midnight-blue to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-midnight-blue via-midnight-blue/80 to-transparent" />
               </div>
             )}
-            <Container className="relative">
+
+            {/* Transparent spacer for fixed header */}
+            <div className="h-24" aria-hidden="true" />
+
+            {/* Hero content */}
+            <Container className="relative pt-16 pb-24">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-4 mb-6">
                   <Badge variant={(sanityPost.category || "general") as "sailing" | "hunting" | "diving" | "fishing" | "general"}>

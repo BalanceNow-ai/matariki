@@ -22,7 +22,6 @@ const FALLBACK_POSITION = {
   region: "Auckland Region, NZ",
 };
 
-const SAILLOGGER_URL = "https://saillogger.com/svmatariki-iii";
 
 type SanityPosition = {
   _id: string;
@@ -61,7 +60,7 @@ export default async function TrackPage() {
     <>
       <Header />
       <main className="pt-20 min-h-screen flex flex-col">
-        <LiveTracker fallback={fallback} sailloggerUrl={SAILLOGGER_URL} />
+        <LiveTracker fallback={fallback} />
       </main>
     </>
   );
