@@ -50,6 +50,7 @@ export type GalleryItem = {
   src: string;
   caption: string;
   category: string;
+  voyage?: string;
   type: "image" | "video";
   videoUrl?: string;
   duration?: string;
@@ -73,6 +74,7 @@ export default async function GalleryPage() {
           src: urlFor(img.image)?.width(800).height(800).url() || "",
           caption: img.caption || "",
           category: img.category || "general",
+          voyage: img.voyage,
           type: "image" as const,
         }));
     }
@@ -102,6 +104,7 @@ export default async function GalleryPage() {
             src: thumbnailUrl,
             caption: video.title || "",
             category: video.category || "general",
+            voyage: video.voyage,
             type: "video" as const,
             videoUrl,
             duration: video.duration,
@@ -116,6 +119,10 @@ export default async function GalleryPage() {
   // Combine images and videos (videos first if featured)
   const allMedia: GalleryItem[] = [...videos, ...images];
 
+  // Extract unique categories and voyages for filters
+  const categories = [...new Set(allMedia.map((item) => item.category).filter(Boolean))];
+  const voyages = [...new Set(allMedia.map((item) => item.voyage).filter(Boolean))] as string[];
+
   return (
     <>
       <Header />
@@ -129,25 +136,9 @@ export default async function GalleryPage() {
             </p>
           </div>
 
-          {/* Filter Bar */}
-          <div className="flex flex-wrap gap-4 mb-12 pb-8 border-b border-white/5">
-            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
-              <option>All Categories</option>
-              <option>Landscapes</option>
-              <option>Sailing</option>
-              <option>Wildlife</option>
-              <option>Diving</option>
-            </select>
-            <select className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white">
-              <option>All Voyages</option>
-              <option>Fiordland 2026</option>
-              <option>Bay of Islands 2025</option>
-            </select>
-          </div>
-
-          {/* Gallery Grid */}
+          {/* Gallery Grid with Filters */}
           {allMedia.length > 0 ? (
-            <GalleryGrid items={allMedia} />
+            <GalleryGrid items={allMedia} categories={categories} voyages={voyages} />
           ) : (
             <div className="bg-slate-water/30 rounded-lg py-12">
               <MissingContent label="No gallery images in Sanity" size="lg" />

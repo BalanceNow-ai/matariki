@@ -8,6 +8,7 @@ type GalleryItem = {
   src: string;
   caption: string;
   category: string;
+  voyage?: string;
   type?: "image" | "video";
   videoUrl?: string;
   duration?: string;
@@ -15,6 +16,8 @@ type GalleryItem = {
 
 interface GalleryGridProps {
   items: GalleryItem[];
+  categories?: string[];
+  voyages?: string[];
   // Legacy support
   images?: GalleryItem[];
 }
@@ -29,10 +32,19 @@ function getVimeoEmbedUrl(url: string): string | null {
   return match ? `https://player.vimeo.com/video/${match[1]}?autoplay=1` : null;
 }
 
-export function GalleryGrid({ items, images }: GalleryGridProps) {
+export function GalleryGrid({ items, images, categories = [], voyages = [] }: GalleryGridProps) {
   // Support both new items prop and legacy images prop
   const mediaItems = items || images || [];
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedVoyage, setSelectedVoyage] = useState<string>("");
+
+  // Filter items based on selected filters
+  const filteredItems = mediaItems.filter((item) => {
+    if (selectedCategory && item.category !== selectedCategory) return false;
+    if (selectedVoyage && item.voyage !== selectedVoyage) return false;
+    return true;
+  });
 
   const handleItemClick = (item: GalleryItem) => {
     if (item.type === "video" && item.videoUrl) {
@@ -56,9 +68,43 @@ export function GalleryGrid({ items, images }: GalleryGridProps) {
 
   return (
     <>
+      {/* Filter Bar */}
+      {(categories.length > 0 || voyages.length > 0) && (
+        <div className="flex flex-wrap gap-4 mb-12 pb-8 border-b border-white/5">
+          {categories.length > 0 && (
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </option>
+              ))}
+            </select>
+          )}
+          {voyages.length > 0 && (
+            <select
+              value={selectedVoyage}
+              onChange={(e) => setSelectedVoyage(e.target.value)}
+              className="px-4 py-2 bg-deep-ocean border border-mist/30 text-salt-white text-sm rounded cursor-pointer hover:border-copper-accent/50 focus:border-copper-accent focus:outline-none transition-colors [&>option]:bg-deep-ocean [&>option]:text-salt-white"
+            >
+              <option value="">All Voyages</option>
+              {voyages.map((voyage) => (
+                <option key={voyage} value={voyage}>
+                  {voyage}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {/* Gallery Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {mediaItems.map((item) => (
+        {filteredItems.map((item) => (
           <button
             key={item.id}
             onClick={() => handleItemClick(item)}
