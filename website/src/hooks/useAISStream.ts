@@ -90,7 +90,16 @@ export function useAISStream(apiKey: string | undefined) {
 
       socket.onmessage = (event) => {
         try {
-          const data: AISMessage = JSON.parse(event.data);
+          const data = JSON.parse(event.data);
+
+          // Check for error messages from AIS Stream
+          if (data.error || data.Error) {
+            const errorMsg = data.error || data.Error;
+            console.error("[AIS] Server error:", errorMsg);
+            setError(`AIS error: ${errorMsg}`);
+            setIsConnected(false);
+            return;
+          }
 
           if (data.Message?.PositionReport) {
             const report = data.Message.PositionReport;
@@ -110,24 +119,39 @@ export function useAISStream(apiKey: string | undefined) {
         }
       };
 
-      socket.onerror = () => {
-        setError("AIS service unavailable");
+      socket.onerror = (event) => {
+        console.error("[AIS] WebSocket error:", event);
+        setError("Connection failed - check browser console");
         setIsConnected(false);
       };
 
       socket.onclose = (e) => {
-        console.log("[AIS] WebSocket closed:", e.code);
+        console.log("[AIS] WebSocket closed - code:", e.code, "reason:", e.reason);
         setIsConnected(false);
         reconnectAttemptsRef.current++;
+
+        // Provide specific error messages based on close code
+        let closeError = "";
+        if (e.code === 1006) {
+          closeError = "Connection lost (code 1006)";
+        } else if (e.code === 1008) {
+          closeError = "Invalid API key (code 1008)";
+        } else if (e.code === 1011) {
+          closeError = "Server error (code 1011)";
+        } else if (e.code !== 1000) {
+          closeError = `Disconnected (code ${e.code})`;
+        }
 
         if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
           // Exponential backoff: 10s, 20s, 40s
           const delay = 10000 * Math.pow(2, reconnectAttemptsRef.current - 1);
+          console.log(`[AIS] Reconnecting in ${delay/1000}s...`);
+          setError(closeError ? `${closeError} - reconnecting...` : null);
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, delay);
         } else {
-          setError("AIS service unavailable");
+          setError(closeError || "AIS service unavailable after 3 attempts");
         }
       };
     } catch (e) {

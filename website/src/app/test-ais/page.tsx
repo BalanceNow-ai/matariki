@@ -40,6 +40,9 @@ export default function TestAISPage() {
               Error: {error}
             </div>
           )}
+          <p className="mt-3 text-xs text-gray-500">
+            Open browser DevTools (F12) → Console tab to see detailed connection logs
+          </p>
         </div>
 
         {/* Position Data */}
