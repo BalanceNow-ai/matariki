@@ -11,21 +11,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // In production, this would integrate with Buttondown or ConvertKit
-    // For now, just simulate a successful subscription
-    console.log(`New subscriber: ${email}`);
+    const apiKey = process.env.BUTTONDOWN_API_KEY;
 
-    // Example Buttondown integration:
-    // const res = await fetch('https://api.buttondown.email/v1/subscribers', {
-    //   method: 'POST',
-    //   headers: {
-    //     Authorization: `Token ${process.env.BUTTONDOWN_API_KEY}`,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({ email }),
-    // });
+    if (!apiKey) {
+      console.error("BUTTONDOWN_API_KEY is not configured");
+      return NextResponse.json(
+        { error: "Newsletter service is not configured" },
+        { status: 503 }
+      );
+    }
 
-    return NextResponse.json({ success: true });
+    const res = await fetch("https://api.buttondown.email/v1/subscribers", {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (res.ok) {
+      return NextResponse.json({ success: true });
+    }
+
+    const data = await res.json();
+
+    if (res.status === 409) {
+      return NextResponse.json({ success: true, alreadySubscribed: true });
+    }
+
+    console.error("Buttondown API error:", res.status, data);
+    return NextResponse.json(
+      { error: "Failed to subscribe" },
+      { status: 500 }
+    );
   } catch (error) {
     console.error("Subscribe error:", error);
     return NextResponse.json(

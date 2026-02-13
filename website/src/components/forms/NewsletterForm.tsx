@@ -20,12 +20,18 @@ export function NewsletterForm() {
         body: JSON.stringify({ email }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         setStatus("success");
-        setMessage("Thanks for subscribing! Check your email to confirm.");
+        setMessage(
+          data.alreadySubscribed
+            ? "You're already subscribed! Thanks for your support."
+            : "Thanks for subscribing! Check your email to confirm."
+        );
         setEmail("");
       } else {
-        throw new Error("Subscription failed");
+        throw new Error(data.error || "Subscription failed");
       }
     } catch {
       setStatus("error");
