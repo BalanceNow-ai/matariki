@@ -101,7 +101,9 @@ export default async function HomePage() {
           name: post.location || "Unknown",
           coordinates: [0, 0] as [number, number],
         },
-        heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
+        heroImage: post.heroImage
+          ? urlFor(post.heroImage)?.width(800).height(500).url() || ""
+          : "",
         body: "",
       }));
     }
