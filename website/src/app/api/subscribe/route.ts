@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const res = await fetch("https://api.buttondown.email/v1/subscribers", {
+    const res = await fetch("https://api.buttondown.com/v1/subscribers", {
       method: "POST",
       headers: {
         Authorization: `Token ${apiKey}`,
@@ -34,13 +34,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    const data = await res.json();
-
     if (res.status === 409) {
       return NextResponse.json({ success: true, alreadySubscribed: true });
     }
 
-    console.error("Buttondown API error:", res.status, data);
+    const errorBody = await res.text().catch(() => "No response body");
+    console.error("Buttondown API error:", res.status, errorBody);
     return NextResponse.json(
       { error: "Failed to subscribe" },
       { status: 500 }
