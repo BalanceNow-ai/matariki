@@ -113,6 +113,7 @@ export default async function VoyagePage({ params }: PageProps) {
                   fill
                   className="object-cover opacity-30"
                   priority
+                  sizes="100vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-blue via-midnight-blue/80 to-transparent" />
               </div>
