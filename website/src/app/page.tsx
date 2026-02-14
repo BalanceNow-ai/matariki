@@ -197,13 +197,13 @@ export default async function HomePage() {
             {/* Vessel Images */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <div className="relative aspect-[16/10] rounded-lg overflow-hidden bg-slate-water/50">
+                <div className="relative aspect-[4/3] rounded-lg overflow-hidden bg-slate-water/50">
                   {vessel?.heroImage?.asset ? (
                     <Image
-                      src={urlFor(vessel.heroImage)?.width(800).height(500).url() || ""}
+                      src={urlFor(vessel.heroImage)?.width(800).height(600).url() || ""}
                       alt={vessel.name || "Matariki III"}
                       fill
-                      className="object-cover"
+                      className="object-cover object-top"
                       sizes="(min-width: 1024px) 50vw, 100vw"
                     />
                   ) : (
