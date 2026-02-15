@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Track", href: "/track" },
-  { name: "AIS Test", href: "/test-ais" },
   { name: "Voyages", href: "/voyages" },
   { name: "Log", href: "/log" },
   { name: "Gallery", href: "/gallery" },
