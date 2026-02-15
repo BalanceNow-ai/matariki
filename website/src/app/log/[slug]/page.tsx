@@ -143,6 +143,7 @@ export default async function LogEntryPage({ params }: Props) {
                     <MissingContent label="Excerpt missing" size="sm" />
                   </div>
                 )}
+                <hr className="my-10 border-white/10" />
                 {sanityPost.contentHtml ? (
                   <div
                     className="not-prose"
