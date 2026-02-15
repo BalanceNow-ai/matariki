@@ -200,10 +200,10 @@ export default async function HomePage() {
                 <div className="relative aspect-[3/2] rounded-lg overflow-hidden bg-slate-water/50">
                   {vessel?.heroImage?.asset ? (
                     <Image
-                      src={urlFor(vessel.heroImage)?.width(800).url() || ""}
+                      src={urlFor(vessel.heroImage)?.fit("max").width(800).url() || ""}
                       alt={vessel.name || "Matariki III"}
                       fill
-                      className="object-cover object-top"
+                      className="object-contain"
                       sizes="(min-width: 1024px) 50vw, 100vw"
                     />
                   ) : (
