@@ -197,7 +197,7 @@ export default async function HomePage() {
             {/* Vessel Images */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-slate-water/50">
                   {vessel?.heroImage?.asset ? (
                     <Image
                       src={urlFor(vessel.heroImage)?.fit("max").width(800).url() || ""}
