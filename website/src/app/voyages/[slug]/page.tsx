@@ -1,5 +1,6 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
+import { GalleryGrid } from "@/components/gallery/GalleryGrid";
 import { client, fetchOptions, projectId, dataset } from "@/sanity/client";
 import { VOYAGE_BY_SLUG_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
@@ -17,12 +18,29 @@ function urlFor(source: any) {
   return imageUrlBuilder({ projectId, dataset }).image(source);
 }
 
+function getYouTubeId(url: string): string | null {
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  return match ? match[1] : null;
+}
+
 type VoyageImage = {
   _id: string;
   image?: { asset: { _ref: string } };
   caption?: string;
   category?: string;
   takenAt?: string;
+};
+
+type VoyageVideo = {
+  _id: string;
+  title: string;
+  description?: string;
+  videoType: "youtube" | "vimeo" | "file";
+  youtubeUrl?: string;
+  vimeoUrl?: string;
+  thumbnail?: { asset: { _ref: string } };
+  category?: string;
+  duration?: string;
 };
 
 type VoyageLogEntry = {
@@ -46,6 +64,7 @@ type Voyage = {
   heroImage?: { asset: { _ref: string } };
   gallery?: Array<{ asset: { _ref: string }; caption?: string }>;
   galleryImages?: VoyageImage[];
+  videos?: VoyageVideo[];
   logEntries?: VoyageLogEntry[];
 } | null;
 
@@ -87,14 +106,54 @@ export default async function VoyagePage({ params }: PageProps) {
     notFound();
   }
 
-  const allImages = [
+  // Build unified gallery items for GalleryGrid
+  const imageItems = [
     ...(voyage.gallery || []).map((img, i) => ({
-      _id: `gallery-${i}`,
-      image: img,
-      caption: img.caption,
+      id: `gallery-${i}`,
+      src: urlFor(img)?.width(800).height(800).url() || "",
+      caption: img.caption || "",
+      category: "general",
+      type: "image" as const,
     })),
-    ...(voyage.galleryImages || []),
+    ...(voyage.galleryImages || [])
+      .filter((img) => img.image?.asset)
+      .map((img) => ({
+        id: img._id,
+        src: urlFor(img.image)?.width(800).height(800).url() || "",
+        caption: img.caption || "",
+        category: img.category || "general",
+        type: "image" as const,
+      })),
   ];
+
+  const videoItems = (voyage.videos || [])
+    .map((video) => {
+      let thumbnailUrl = "";
+      let videoUrl = "";
+
+      if (video.thumbnail?.asset) {
+        thumbnailUrl = urlFor(video.thumbnail)?.width(800).height(450).url() || "";
+      } else if (video.videoType === "youtube" && video.youtubeUrl) {
+        const ytId = getYouTubeId(video.youtubeUrl);
+        if (ytId) thumbnailUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+      }
+
+      if (video.youtubeUrl) videoUrl = video.youtubeUrl;
+      else if (video.vimeoUrl) videoUrl = video.vimeoUrl;
+
+      return {
+        id: video._id,
+        src: thumbnailUrl,
+        caption: video.title || "",
+        category: video.category || "general",
+        type: "video" as const,
+        videoUrl,
+        duration: video.duration,
+      };
+    })
+    .filter((v) => v.videoUrl);
+
+  const allMedia = [...videoItems, ...imageItems];
 
   // Use Sanity log entries directly
   const allLogEntries = voyage.logEntries || [];
@@ -205,41 +264,16 @@ export default async function VoyagePage({ params }: PageProps) {
             </Section>
           )}
 
-          {/* Photo Gallery */}
-          {allImages.length > 0 && (
+          {/* Gallery (Photos & Videos) */}
+          {allMedia.length > 0 && (
             <Section background="dark">
               <SectionLabel label="Gallery" className="mb-8" />
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {allImages.map((img) => (
-                  <div key={img._id} className="group relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
-                    {img.image?.asset ? (
-                      <Image
-                        src={urlFor(img.image)?.width(400).height(400).url() || ""}
-                        alt={img.caption || "Voyage photo"}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-mist">
-                        <svg className="w-8 h-8 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
-                    {img.caption && (
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-                        <p className="text-salt-white text-sm">{img.caption}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <GalleryGrid items={allMedia} />
             </Section>
           )}
 
           {/* Empty State - only show if no log entries and no gallery */}
-          {allLogEntries.length === 0 && allImages.length === 0 && (
+          {allLogEntries.length === 0 && allMedia.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>
