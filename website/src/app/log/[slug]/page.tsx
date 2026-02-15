@@ -99,7 +99,7 @@ export default async function LogEntryPage({ params }: Props) {
                   src={heroImageUrl}
                   alt={sanityPost.title}
                   fill
-                  className="object-cover opacity-30"
+                  className="object-cover object-top opacity-30"
                   sizes="100vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-blue via-midnight-blue/80 to-transparent" />
