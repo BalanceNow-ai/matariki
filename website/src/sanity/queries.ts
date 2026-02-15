@@ -180,7 +180,7 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
     category,
     takenAt
   },
-  "logEntries": *[_type == "logEntry" && references(^._id)]|order(publishedAt desc){
+  "logEntries": *[_type == "logEntry" && references(^._id) && defined(slug.current)]|order(publishedAt desc){
     _id,
     title,
     slug,
