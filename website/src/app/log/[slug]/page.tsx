@@ -135,7 +135,7 @@ export default async function LogEntryPage({ params }: Props) {
             <article>
               <div className="prose prose-invert prose-lg max-w-none prose-p:text-mist prose-headings:text-salt-white prose-a:text-copper-accent">
                 {sanityPost.excerpt ? (
-                  <p className="text-xl text-mist leading-relaxed first-letter:text-5xl first-letter:font-display first-letter:text-copper-accent first-letter:float-left first-letter:mr-3 first-letter:mt-1">
+                  <p className="text-xl text-mist leading-relaxed">
                     {sanityPost.excerpt}
                   </p>
                 ) : (
