@@ -1,11 +1,11 @@
-// Create: src/app/terms/page.tsx
+// src/app/terms/page.tsx
 
 export const metadata = {
   title: "Terms of Use",
   description: "Terms of use for Matariki Yacht website.",
 };
 
-const CONTACT_EMAIL = "contact@yourdomain.com"; // TODO: change
+const CONTACT_EMAIL = "gpwoolley@gmail.com";
 
 export default function TermsPage() {
   return (
