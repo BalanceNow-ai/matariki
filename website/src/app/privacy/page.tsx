@@ -1,12 +1,11 @@
-// If you use the Next.js App Router (recommended path):
-// Create: src/app/privacy/page.tsx
+// src/app/privacy/page.tsx
 
 export const metadata = {
   title: "Privacy Policy",
   description: "Privacy policy for Matariki Yacht website.",
 };
 
-const CONTACT_EMAIL = "contact@yourdomain.com"; // TODO: change
+const CONTACT_EMAIL = "gpwoolley@gmail.com";
 
 export default function PrivacyPage() {
   return (
