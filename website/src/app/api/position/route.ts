@@ -52,15 +52,77 @@ export async function POST(request: NextRequest) {
   };
 
   // Verify secret token - support multiple auth methods
-  // 1. Authorization header (Bearer token)
+  // 1. Authorization header (Bearer token or Basic auth)
   // 2. X-Auth-Token header (msp-webhook style)
-  // 3. Query parameter (?token=xxx)
+  // 3. X-API-Key header (common API pattern)
+  // 4. API-Key header (alternative)
+  // 5. Query parameter (?token=xxx or ?secret=xxx or ?api_key=xxx)
   const authHeader = request.headers.get("authorization");
   const xAuthToken = request.headers.get("x-auth-token");
+  const xApiKey = request.headers.get("x-api-key");
+  const apiKey = request.headers.get("api-key");
   const queryToken = request.nextUrl.searchParams.get("token");
+  const querySecret = request.nextUrl.searchParams.get("secret");
+  const queryApiKey = request.nextUrl.searchParams.get("api_key");
+  const queryAuthKey = request.nextUrl.searchParams.get("auth_key"); // msp-webhook default
 
-  const token = authHeader?.replace("Bearer ", "") || xAuthToken || queryToken;
+  // Extract token from various formats
+  let token: string | null = null;
+  let authMethod = "none";
+
+  if (authHeader) {
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+      authMethod = "bearer";
+    } else if (authHeader.startsWith("Basic ")) {
+      // Decode Basic auth and use password as token
+      try {
+        const decoded = atob(authHeader.substring(6));
+        const [, password] = decoded.split(":");
+        token = password || null;
+        authMethod = "basic";
+      } catch {
+        authMethod = "basic-invalid";
+      }
+    } else {
+      // Raw Authorization header value
+      token = authHeader;
+      authMethod = "authorization-raw";
+    }
+  } else if (xAuthToken) {
+    token = xAuthToken;
+    authMethod = "x-auth-token";
+  } else if (xApiKey) {
+    token = xApiKey;
+    authMethod = "x-api-key";
+  } else if (apiKey) {
+    token = apiKey;
+    authMethod = "api-key";
+  } else if (queryToken) {
+    token = queryToken;
+    authMethod = "query-token";
+  } else if (querySecret) {
+    token = querySecret;
+    authMethod = "query-secret";
+  } else if (queryApiKey) {
+    token = queryApiKey;
+    authMethod = "query-api_key";
+  } else if (queryAuthKey) {
+    token = queryAuthKey;
+    authMethod = "query-auth_key";
+  }
+
+  // Log auth details for debugging
   logEntry.tokenPreview = token ? `${token.substring(0, 8)}...` : undefined;
+  logEntry.authMethod = authMethod;
+
+  // Log all received headers for debugging (only auth-related ones)
+  logEntry.receivedAuthHeaders = {
+    authorization: authHeader ? `${authHeader.substring(0, 20)}...` : null,
+    "x-auth-token": xAuthToken ? `${xAuthToken.substring(0, 8)}...` : null,
+    "x-api-key": xApiKey ? `${xApiKey.substring(0, 8)}...` : null,
+    "api-key": apiKey ? `${apiKey.substring(0, 8)}...` : null,
+  };
 
   if (SIGNALK_SECRET && token !== SIGNALK_SECRET) {
     logEntry.authStatus = "failed";
@@ -72,7 +134,7 @@ export async function POST(request: NextRequest) {
     logEntry.processingTimeMs = Date.now() - startTime;
     await addRequestLogAsync(logEntry as RequestLogEntry);
 
-    console.log("[Signal K] Auth failed - received token:", token?.substring(0, 8) + "...");
+    console.log("[Signal K] Auth failed - method:", authMethod, "token:", token?.substring(0, 8) + "...", "expected:", SIGNALK_SECRET?.substring(0, 8) + "...");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
