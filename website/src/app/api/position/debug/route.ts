@@ -33,6 +33,13 @@ export async function GET() {
       noSecret: requestLog.filter((r) => r.authStatus === "no-secret").length,
     };
 
+    // Count auth methods used
+    const authMethods: Record<string, number> = {};
+    for (const r of requestLog) {
+      const method = (r as { authMethod?: string }).authMethod || "none";
+      authMethods[method] = (authMethods[method] || 0) + 1;
+    }
+
     const formatStats = {
       signalkDelta: requestLog.filter((r) => r.payloadFormat === "signalk-delta").length,
       simplified: requestLog.filter((r) => r.payloadFormat === "simplified").length,
@@ -60,11 +67,28 @@ export async function GET() {
         requestsLast5Min: last5Minutes.length,
         historySize: history.length,
         authStats,
+        authMethods,
         formatStats,
         avgProcessingTimeMs: Math.round(avgProcessingTime * 100) / 100,
       },
       requestLog,
       webhookConfigured: !!process.env.SIGNALK_WEBHOOK_SECRET,
+      supportedAuthFormats: {
+        note: "Configure your webhook to use one of these authentication methods",
+        headers: [
+          "Authorization: Bearer <your-secret>",
+          "Authorization: Basic base64(username:your-secret)",
+          "X-Auth-Token: <your-secret>",
+          "X-API-Key: <your-secret>",
+          "API-Key: <your-secret>",
+        ],
+        queryParams: [
+          "?auth_key=<your-secret> (msp-webhook default)",
+          "?token=<your-secret>",
+          "?secret=<your-secret>",
+          "?api_key=<your-secret>",
+        ],
+      },
     });
   } catch (error) {
     console.error("[Debug API] Error:", error);

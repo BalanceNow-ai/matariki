@@ -33,7 +33,9 @@ export type RequestLogEntry = {
   timestamp: string;
   method: string;
   authStatus: "success" | "failed" | "no-secret";
+  authMethod?: string;
   tokenPreview?: string;
+  receivedAuthHeaders?: Record<string, string | null>;
   payloadFormat: "signalk-delta" | "simplified" | "invalid" | "unknown";
   payloadSize: number;
   rawPayload: unknown;
