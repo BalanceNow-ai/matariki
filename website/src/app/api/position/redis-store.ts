@@ -10,11 +10,14 @@ import type { SignalKPosition, RequestLogEntry } from "./store";
 const KEYS = {
   latestPosition: "matariki:position:latest",
   positionHistory: "matariki:position:history",
+  permanentTrack: "matariki:track:permanent",
+  lastTrackPosition: "matariki:track:last-position",
   requestLog: "matariki:debug:request-log",
 };
 
 const MAX_HISTORY_SIZE = 1000;
 const MAX_REQUEST_LOG_SIZE = 50;
+const MIN_TRACK_DISTANCE_METERS = 200; // Minimum distance change to store in permanent track
 
 // Initialize Redis client if env vars are present
 let redis: Redis | null = null;
@@ -48,7 +51,32 @@ const FALLBACK_POSITION: SignalKPosition = {
 // In-memory fallback stores
 let memoryPosition: SignalKPosition | null = null;
 const memoryHistory: SignalKPosition[] = [];
+const memoryPermanentTrack: SignalKPosition[] = [];
+let memoryLastTrackPosition: SignalKPosition | null = null;
 const memoryRequestLog: RequestLogEntry[] = [];
+
+/**
+ * Calculate distance between two coordinates using Haversine formula
+ * @returns Distance in meters
+ */
+function calculateDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 /**
  * Get the latest position from Redis or memory
@@ -68,6 +96,7 @@ export async function getLatestPositionAsync(): Promise<SignalKPosition> {
 
 /**
  * Set the latest position in Redis or memory
+ * Also stores to permanent track if position changed by more than 200m
  */
 export async function setLatestPositionAsync(position: SignalKPosition): Promise<void> {
   const r = getRedis();
@@ -79,6 +108,22 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
       // Add to history (LPUSH + LTRIM to keep bounded)
       await r.lpush(KEYS.positionHistory, position);
       await r.ltrim(KEYS.positionHistory, 0, MAX_HISTORY_SIZE - 1);
+
+      // Check if we should add to permanent track (distance > 200m from last track point)
+      const lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
+      const shouldAddToTrack = !lastTrackPos ||
+        calculateDistanceMeters(
+          lastTrackPos.latitude,
+          lastTrackPos.longitude,
+          position.latitude,
+          position.longitude
+        ) >= MIN_TRACK_DISTANCE_METERS;
+
+      if (shouldAddToTrack) {
+        await r.lpush(KEYS.permanentTrack, position);
+        await r.set(KEYS.lastTrackPosition, position);
+        console.log("[Redis] Position added to permanent track:", position.latitude, position.longitude);
+      }
 
       console.log("[Redis] Position saved:", position.latitude, position.longitude);
       return;
@@ -92,6 +137,21 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
   memoryHistory.unshift({ ...position });
   if (memoryHistory.length > MAX_HISTORY_SIZE) {
     memoryHistory.pop();
+  }
+
+  // Check if we should add to permanent track (memory fallback)
+  const shouldAddToTrack = !memoryLastTrackPosition ||
+    calculateDistanceMeters(
+      memoryLastTrackPosition.latitude,
+      memoryLastTrackPosition.longitude,
+      position.latitude,
+      position.longitude
+    ) >= MIN_TRACK_DISTANCE_METERS;
+
+  if (shouldAddToTrack) {
+    memoryPermanentTrack.unshift({ ...position });
+    memoryLastTrackPosition = { ...position };
+    console.log("[Memory] Position added to permanent track:", position.latitude, position.longitude);
   }
 }
 
@@ -108,6 +168,22 @@ export async function getPositionHistoryAsync(): Promise<SignalKPosition[]> {
     }
   }
   return [...memoryHistory];
+}
+
+/**
+ * Get permanent track from Redis or memory
+ * This contains positions where the vessel moved > 200m from the previous track point
+ */
+export async function getPermanentTrackAsync(): Promise<SignalKPosition[]> {
+  const r = getRedis();
+  if (r) {
+    try {
+      return await r.lrange<SignalKPosition>(KEYS.permanentTrack, 0, -1);
+    } catch (error) {
+      console.error("[Redis] Error getting permanent track:", error);
+    }
+  }
+  return [...memoryPermanentTrack];
 }
 
 /**

@@ -114,7 +114,7 @@ describe('POST /api/subscribe', () => {
       await POST(request)
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.buttondown.email/v1/subscribers',
+        'https://api.buttondown.com/v1/subscribers',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
