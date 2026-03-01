@@ -28,6 +28,7 @@ interface RequestLogEntry {
 
 interface DebugData {
   timestamp: string;
+  storage: "redis" | "memory";
   currentPosition: {
     hasLiveData: boolean;
     source: string;
@@ -358,7 +359,8 @@ export default function ApiDebugPage() {
                 )}
               </div>
               <div className="mt-3 text-xs text-storm-grey">
-                data: {data ? "loaded" : "null"} | loading: {String(loading)} | error: {error ? "yes" : "null"}
+                data: {data ? "loaded" : "null"} | loading: {String(loading)} | error: {error ? "yes" : "null"} |{" "}
+                storage: <span className={data?.storage === "redis" ? "text-sea-green" : "text-copper-accent"}>{data?.storage || "unknown"}</span>
               </div>
             </div>
 

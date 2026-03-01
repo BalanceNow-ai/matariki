@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getLatestPosition,
-  getPositionHistory,
-  getRequestLog,
-  clearRequestLog,
-  hasLatestPosition,
-} from "../store";
+  getLatestPositionAsync,
+  getPositionHistoryAsync,
+  getRequestLogAsync,
+  clearRequestLogAsync,
+  hasLatestPositionAsync,
+  isRedisConfigured,
+} from "../redis-store";
 
 /**
  * GET /api/position/debug
@@ -13,55 +14,58 @@ import {
  */
 export async function GET() {
   try {
-    const position = getLatestPosition();
-    const history = getPositionHistory();
-    const requestLog = getRequestLog();
-    const hasLive = hasLatestPosition();
+    const [position, history, requestLog, hasLive] = await Promise.all([
+      getLatestPositionAsync(),
+      getPositionHistoryAsync(),
+      getRequestLogAsync(),
+      hasLatestPositionAsync(),
+    ]);
 
-  // Calculate stats
-  const last5Minutes = requestLog.filter((r) => {
-    const age = Date.now() - new Date(r.timestamp).getTime();
-    return age < 5 * 60 * 1000;
-  });
+    // Calculate stats
+    const last5Minutes = requestLog.filter((r) => {
+      const age = Date.now() - new Date(r.timestamp).getTime();
+      return age < 5 * 60 * 1000;
+    });
 
-  const authStats = {
-    success: requestLog.filter((r) => r.authStatus === "success").length,
-    failed: requestLog.filter((r) => r.authStatus === "failed").length,
-    noSecret: requestLog.filter((r) => r.authStatus === "no-secret").length,
-  };
+    const authStats = {
+      success: requestLog.filter((r) => r.authStatus === "success").length,
+      failed: requestLog.filter((r) => r.authStatus === "failed").length,
+      noSecret: requestLog.filter((r) => r.authStatus === "no-secret").length,
+    };
 
-  const formatStats = {
-    signalkDelta: requestLog.filter((r) => r.payloadFormat === "signalk-delta").length,
-    simplified: requestLog.filter((r) => r.payloadFormat === "simplified").length,
-    invalid: requestLog.filter((r) => r.payloadFormat === "invalid").length,
-  };
+    const formatStats = {
+      signalkDelta: requestLog.filter((r) => r.payloadFormat === "signalk-delta").length,
+      simplified: requestLog.filter((r) => r.payloadFormat === "simplified").length,
+      invalid: requestLog.filter((r) => r.payloadFormat === "invalid").length,
+    };
 
-  const avgProcessingTime =
-    requestLog.length > 0
-      ? requestLog.reduce((acc, r) => acc + r.processingTimeMs, 0) / requestLog.length
-      : 0;
+    const avgProcessingTime =
+      requestLog.length > 0
+        ? requestLog.reduce((acc, r) => acc + r.processingTimeMs, 0) / requestLog.length
+        : 0;
 
-  return NextResponse.json({
-    timestamp: new Date().toISOString(),
-    currentPosition: {
-      hasLiveData: hasLive && position.source === "signalk",
-      source: position.source,
-      latitude: position.latitude,
-      longitude: position.longitude,
-      lastUpdate: position.timestamp,
-      ageMs: Date.now() - new Date(position.timestamp).getTime(),
-    },
-    stats: {
-      totalRequests: requestLog.length,
-      requestsLast5Min: last5Minutes.length,
-      historySize: history.length,
-      authStats,
-      formatStats,
-      avgProcessingTimeMs: Math.round(avgProcessingTime * 100) / 100,
-    },
-    requestLog,
-    webhookConfigured: !!process.env.SIGNALK_WEBHOOK_SECRET,
-  });
+    return NextResponse.json({
+      timestamp: new Date().toISOString(),
+      storage: isRedisConfigured() ? "redis" : "memory",
+      currentPosition: {
+        hasLiveData: hasLive && position.source === "signalk",
+        source: position.source,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        lastUpdate: position.timestamp,
+        ageMs: Date.now() - new Date(position.timestamp).getTime(),
+      },
+      stats: {
+        totalRequests: requestLog.length,
+        requestsLast5Min: last5Minutes.length,
+        historySize: history.length,
+        authStats,
+        formatStats,
+        avgProcessingTimeMs: Math.round(avgProcessingTime * 100) / 100,
+      },
+      requestLog,
+      webhookConfigured: !!process.env.SIGNALK_WEBHOOK_SECRET,
+    });
   } catch (error) {
     console.error("[Debug API] Error:", error);
     return NextResponse.json(
@@ -80,7 +84,7 @@ export async function GET() {
  * Clears the request log
  */
 export async function DELETE() {
-  clearRequestLog();
+  await clearRequestLogAsync();
   return NextResponse.json({ success: true, message: "Request log cleared" });
 }
 
