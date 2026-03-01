@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  SignalKPosition,
+  getLatestPosition,
+  setLatestPosition,
+  hasLatestPosition,
+} from "./store";
 
-// In-memory store (for demo - use Vercel KV or Sanity in production)
-// This will persist across requests in the same serverless instance
-let latestPosition: SignalKPosition | null = null;
-
-export type SignalKPosition = {
-  latitude: number;
-  longitude: number;
-  altitude?: number;
-  timestamp: string;
-  source: "signalk";
-  // Navigation data from Signal K
-  courseOverGround?: number; // degrees
-  speedOverGround?: number; // m/s
-  heading?: number; // degrees
-  // Vessel info
-  name?: string;
-  mmsi?: string;
-};
+// Re-export type for consumers
+export type { SignalKPosition } from "./store";
 
 // Secret token to authenticate position updates from Signal K
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
@@ -27,19 +17,7 @@ const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
  * Returns the latest position of Matariki III
  */
 export async function GET() {
-  if (!latestPosition) {
-    // Return fallback position (Whangarei Marina)
-    return NextResponse.json({
-      latitude: -35.7275,
-      longitude: 174.3278,
-      timestamp: new Date().toISOString(),
-      source: "fallback" as const,
-      name: "Matariki III",
-      location: "Whangarei, New Zealand",
-    });
-  }
-
-  return NextResponse.json(latestPosition);
+  return NextResponse.json(getLatestPosition());
 }
 
 /**
@@ -87,29 +65,42 @@ export async function POST(request: NextRequest) {
     if (body.updates && Array.isArray(body.updates)) {
       const position = parseSignalKDelta(body);
       if (position) {
-        latestPosition = position;
+        setLatestPosition(position);
         console.log("[Signal K] Position updated:", position.latitude, position.longitude);
         return NextResponse.json({ success: true, position });
       }
     }
 
-    // Handle simplified format
+    // Handle simplified format (including Morvargh/MSP webhook format)
     if (body.latitude !== undefined && body.longitude !== undefined) {
-      latestPosition = {
+      const position: SignalKPosition = {
         latitude: body.latitude,
         longitude: body.longitude,
         altitude: body.altitude,
         timestamp: body.timestamp || new Date().toISOString(),
         source: "signalk",
+        // Navigation data
         courseOverGround: body.courseOverGround || body.cog,
         speedOverGround: body.speedOverGround || body.sog,
-        heading: body.heading,
+        heading: body.heading || body.trueHeading,
+        tripLog: body.tripLog,
+        depth: body.depth,
+        // Wind data
+        apparentWindSpeed: body.apparentWindSpeed || body.aws,
+        apparentWindAngle: body.apparentWindAngle || body.awa,
+        // Environment data
+        waterTemperature: body.waterTemperature || body.waterTemp,
+        barometricPressure: body.barometricPressure || body.pressure,
+        // Vessel info
         name: body.name || "Matariki III",
         mmsi: body.mmsi || "512004962",
       };
 
-      console.log("[Signal K] Position updated:", latestPosition.latitude, latestPosition.longitude);
-      return NextResponse.json({ success: true, position: latestPosition });
+      setLatestPosition(position);
+
+      console.log("[Signal K] Position updated:", position.latitude, position.longitude,
+        "SOG:", position.speedOverGround, "AWS:", position.apparentWindSpeed);
+      return NextResponse.json({ success: true, position });
     }
 
     return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
