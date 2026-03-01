@@ -65,11 +65,18 @@ export async function GET() {
  * }
  */
 export async function POST(request: NextRequest) {
-  // Verify secret token
+  // Verify secret token - support multiple auth methods
+  // 1. Authorization header (Bearer token)
+  // 2. X-Auth-Token header (msp-webhook style)
+  // 3. Query parameter (?token=xxx)
   const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
+  const xAuthToken = request.headers.get("x-auth-token");
+  const queryToken = request.nextUrl.searchParams.get("token");
+
+  const token = authHeader?.replace("Bearer ", "") || xAuthToken || queryToken;
 
   if (SIGNALK_SECRET && token !== SIGNALK_SECRET) {
+    console.log("[Signal K] Auth failed - received token:", token?.substring(0, 8) + "...");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

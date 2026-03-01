@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Map, Marker } from "mapbox-gl";
 import { useSignalK, formatCoordinates, toKnots, timeSince } from "@/hooks/useSignalK";
 
-// Mapbox CSS needs to be imported in layout or here
-// import 'mapbox-gl/dist/mapbox-gl.css';
+import "mapbox-gl/dist/mapbox-gl.css";
 
 interface SignalKMapProps {
   className?: string;
@@ -30,8 +30,8 @@ export function SignalKMap({
   style = "satellite",
 }: SignalKMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const mapRef = useRef<Map | null>(null);
+  const markerRef = useRef<Marker | null>(null);
 
   const { position, isLoading, error, lastUpdated } = useSignalK({
     pollInterval: 30000, // Update every 30 seconds
@@ -54,7 +54,6 @@ export function SignalKMap({
     const initMap = async () => {
       try {
         const mapboxgl = (await import("mapbox-gl")).default;
-        await import("mapbox-gl/dist/mapbox-gl.css");
 
         mapboxgl.accessToken = token;
 
