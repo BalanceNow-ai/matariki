@@ -3,7 +3,8 @@ import {
   SignalKPosition,
   getLatestPosition,
   setLatestPosition,
-  hasLatestPosition,
+  addRequestLog,
+  type RequestLogEntry,
 } from "./store";
 
 // Re-export type for consumers
@@ -43,6 +44,13 @@ export async function GET() {
  * }
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  const logEntry: Partial<RequestLogEntry> = {
+    id: `req_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    timestamp: new Date().toISOString(),
+    method: "POST",
+  };
+
   // Verify secret token - support multiple auth methods
   // 1. Authorization header (Bearer token)
   // 2. X-Auth-Token header (msp-webhook style)
@@ -52,20 +60,54 @@ export async function POST(request: NextRequest) {
   const queryToken = request.nextUrl.searchParams.get("token");
 
   const token = authHeader?.replace("Bearer ", "") || xAuthToken || queryToken;
+  logEntry.tokenPreview = token ? `${token.substring(0, 8)}...` : undefined;
 
   if (SIGNALK_SECRET && token !== SIGNALK_SECRET) {
+    logEntry.authStatus = "failed";
+    logEntry.responseStatus = 401;
+    logEntry.responseBody = { error: "Unauthorized" };
+    logEntry.payloadFormat = "unknown";
+    logEntry.payloadSize = 0;
+    logEntry.rawPayload = "(not parsed - auth failed)";
+    logEntry.processingTimeMs = Date.now() - startTime;
+    addRequestLog(logEntry as RequestLogEntry);
+
     console.log("[Signal K] Auth failed - received token:", token?.substring(0, 8) + "...");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  logEntry.authStatus = SIGNALK_SECRET ? "success" : "no-secret";
+
   try {
-    const body = await request.json();
+    const bodyText = await request.text();
+    logEntry.payloadSize = bodyText.length;
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(bodyText);
+      logEntry.rawPayload = body;
+    } catch {
+      logEntry.payloadFormat = "invalid";
+      logEntry.responseStatus = 400;
+      logEntry.responseBody = { error: "Invalid JSON" };
+      logEntry.error = "JSON parse failed";
+      logEntry.processingTimeMs = Date.now() - startTime;
+      addRequestLog(logEntry as RequestLogEntry);
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
     // Handle Signal K delta format
     if (body.updates && Array.isArray(body.updates)) {
-      const position = parseSignalKDelta(body);
+      logEntry.payloadFormat = "signalk-delta";
+      const position = parseSignalKDelta(body as { updates: Array<{ values: Array<{ path: string; value: unknown }> }> });
       if (position) {
         setLatestPosition(position);
+        logEntry.parsedPosition = position;
+        logEntry.responseStatus = 200;
+        logEntry.responseBody = { success: true, position };
+        logEntry.processingTimeMs = Date.now() - startTime;
+        addRequestLog(logEntry as RequestLogEntry);
+
         console.log("[Signal K] Position updated:", position.latitude, position.longitude);
         return NextResponse.json({ success: true, position });
       }
@@ -73,38 +115,57 @@ export async function POST(request: NextRequest) {
 
     // Handle simplified format (including Morvargh/MSP webhook format)
     if (body.latitude !== undefined && body.longitude !== undefined) {
+      logEntry.payloadFormat = "simplified";
       const position: SignalKPosition = {
-        latitude: body.latitude,
-        longitude: body.longitude,
-        altitude: body.altitude,
-        timestamp: body.timestamp || new Date().toISOString(),
+        latitude: body.latitude as number,
+        longitude: body.longitude as number,
+        altitude: body.altitude as number | undefined,
+        timestamp: (body.timestamp as string) || new Date().toISOString(),
         source: "signalk",
         // Navigation data
-        courseOverGround: body.courseOverGround || body.cog,
-        speedOverGround: body.speedOverGround || body.sog,
-        heading: body.heading || body.trueHeading,
-        tripLog: body.tripLog,
-        depth: body.depth,
+        courseOverGround: (body.courseOverGround || body.cog) as number | undefined,
+        speedOverGround: (body.speedOverGround || body.sog) as number | undefined,
+        heading: (body.heading || body.trueHeading) as number | undefined,
+        tripLog: body.tripLog as number | undefined,
+        depth: body.depth as number | undefined,
         // Wind data
-        apparentWindSpeed: body.apparentWindSpeed || body.aws,
-        apparentWindAngle: body.apparentWindAngle || body.awa,
+        apparentWindSpeed: (body.apparentWindSpeed || body.aws) as number | undefined,
+        apparentWindAngle: (body.apparentWindAngle || body.awa) as number | undefined,
         // Environment data
-        waterTemperature: body.waterTemperature || body.waterTemp,
-        barometricPressure: body.barometricPressure || body.pressure,
+        waterTemperature: (body.waterTemperature || body.waterTemp) as number | undefined,
+        barometricPressure: (body.barometricPressure || body.pressure) as number | undefined,
         // Vessel info
-        name: body.name || "Matariki III",
-        mmsi: body.mmsi || "512004962",
+        name: (body.name as string) || "Matariki III",
+        mmsi: (body.mmsi as string) || "512004962",
       };
 
       setLatestPosition(position);
+      logEntry.parsedPosition = position;
+      logEntry.responseStatus = 200;
+      logEntry.responseBody = { success: true, position };
+      logEntry.processingTimeMs = Date.now() - startTime;
+      addRequestLog(logEntry as RequestLogEntry);
 
       console.log("[Signal K] Position updated:", position.latitude, position.longitude,
         "SOG:", position.speedOverGround, "AWS:", position.apparentWindSpeed);
       return NextResponse.json({ success: true, position });
     }
 
+    logEntry.payloadFormat = "invalid";
+    logEntry.responseStatus = 400;
+    logEntry.responseBody = { error: "Invalid payload format" };
+    logEntry.error = "No latitude/longitude or Signal K delta found";
+    logEntry.processingTimeMs = Date.now() - startTime;
+    addRequestLog(logEntry as RequestLogEntry);
+
     return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
   } catch (error) {
+    logEntry.responseStatus = 400;
+    logEntry.responseBody = { error: "Invalid JSON" };
+    logEntry.error = String(error);
+    logEntry.processingTimeMs = Date.now() - startTime;
+    addRequestLog(logEntry as RequestLogEntry);
+
     console.error("[Signal K] Error processing position:", error);
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }

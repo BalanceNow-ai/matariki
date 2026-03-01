@@ -27,10 +27,31 @@ export type SignalKPosition = {
   location?: string;
 };
 
+// Request log entry for debugging
+export type RequestLogEntry = {
+  id: string;
+  timestamp: string;
+  method: string;
+  authStatus: "success" | "failed" | "no-secret";
+  tokenPreview?: string;
+  payloadFormat: "signalk-delta" | "simplified" | "invalid" | "unknown";
+  payloadSize: number;
+  rawPayload: unknown;
+  parsedPosition?: Partial<SignalKPosition>;
+  responseStatus: number;
+  responseBody: unknown;
+  processingTimeMs: number;
+  error?: string;
+};
+
 // In-memory stores
 let latestPosition: SignalKPosition | null = null;
 const positionHistory: SignalKPosition[] = [];
 const MAX_HISTORY_SIZE = 1000;
+
+// Request log for debugging
+const requestLog: RequestLogEntry[] = [];
+const MAX_REQUEST_LOG_SIZE = 50;
 
 // Fallback position (Whangarei Marina)
 const FALLBACK_POSITION: SignalKPosition = {
@@ -62,4 +83,20 @@ export function getPositionHistory(): SignalKPosition[] {
 
 export function hasLatestPosition(): boolean {
   return latestPosition !== null;
+}
+
+// Request log functions
+export function addRequestLog(entry: RequestLogEntry): void {
+  requestLog.unshift(entry);
+  if (requestLog.length > MAX_REQUEST_LOG_SIZE) {
+    requestLog.pop();
+  }
+}
+
+export function getRequestLog(): RequestLogEntry[] {
+  return [...requestLog];
+}
+
+export function clearRequestLog(): void {
+  requestLog.length = 0;
 }
