@@ -7,6 +7,7 @@ import {
   hasLatestPositionAsync,
   isRedisConfigured,
 } from "../redis-store";
+import { calculatePositionAgeMs } from "../store";
 
 /**
  * GET /api/position/debug
@@ -60,7 +61,7 @@ export async function GET() {
         latitude: position.latitude,
         longitude: position.longitude,
         lastUpdate: position.timestamp,
-        ageMs: Date.now() - new Date(position.timestamp).getTime(),
+        ageMs: calculatePositionAgeMs(position),
       },
       stats: {
         totalRequests: requestLog.length,

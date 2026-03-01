@@ -3,6 +3,7 @@ import {
   getLatestPosition,
   hasLatestPosition,
   getPositionHistory,
+  calculatePositionAgeMs,
 } from "../store";
 
 interface DiagnosticResult {
@@ -56,7 +57,7 @@ export async function GET() {
   const history = getPositionHistory();
 
   if (hasLive && position.source === "signalk") {
-    const ageMs = Date.now() - new Date(position.timestamp).getTime();
+    const ageMs = calculatePositionAgeMs(position);
     const ageMinutes = Math.floor(ageMs / 60000);
 
     if (ageMinutes < 5) {
@@ -144,7 +145,7 @@ export async function GET() {
   }
 
   // Calculate age string
-  const ageMs = Date.now() - new Date(position.timestamp).getTime();
+  const ageMs = calculatePositionAgeMs(position);
   let ageString: string;
   if (ageMs < 60000) {
     ageString = "Just now";

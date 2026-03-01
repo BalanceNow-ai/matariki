@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPositionHistory } from "../store";
+import { getPositionHistory, parseLocalTimestampToUtc } from "../store";
 
 /**
  * GET /api/position/history
@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
   // Filter by timestamp if provided
   if (since) {
     const sinceDate = new Date(since);
-    history = history.filter((p) => new Date(p.timestamp) >= sinceDate);
+    history = history.filter(
+      (p) => parseLocalTimestampToUtc(p.timestamp, p.timezone) >= sinceDate
+    );
   }
 
   // Limit results
