@@ -219,34 +219,51 @@ export async function POST(request: NextRequest) {
     if (nestedPosition?.value?.latitude !== undefined && nestedPosition?.value?.longitude !== undefined) {
       logEntry.payloadFormat = "nested-position";
 
+      // Helper to extract numeric value from various formats
+      const extractNumber = (data: unknown): number | undefined => {
+        if (typeof data === 'number') return data;
+        if (typeof data === 'object' && data !== null && 'value' in data) {
+          const val = (data as { value?: unknown }).value;
+          return typeof val === 'number' ? val : undefined;
+        }
+        return undefined;
+      };
+
       // Extract speed value (comes as m/s, convert to knots)
-      const speedData = body.speed as { value?: number; unit?: string } | undefined;
-      const speedMs = speedData?.value;
+      const speedMs = extractNumber(body.speed);
       const speedKnots = speedMs !== undefined ? speedMs * 1.94384 : undefined; // m/s to knots
 
-      // Extract heading value
-      const headingData = body.heading as { value?: number } | number | null | undefined;
-      const headingValue = typeof headingData === 'object' && headingData !== null
-        ? headingData.value
-        : (typeof headingData === 'number' ? headingData : undefined);
+      // Extract course over ground (comes as radians, convert to degrees)
+      const cogRadians = extractNumber(body.cog) ?? extractNumber(body.courseOverGround);
+      const cogDegrees = cogRadians !== undefined ? cogRadians * (180 / Math.PI) : undefined;
+
+      // Extract heading value (comes as radians, convert to degrees)
+      const headingRadians = extractNumber(body.heading);
+      const headingDegrees = headingRadians !== undefined ? headingRadians * (180 / Math.PI) : undefined;
+
+      // Extract depth value
+      const depthValue = extractNumber(body.depth) ?? extractNumber(body.depthBelowTransducer);
 
       // Extract water temperature
-      const wTempData = body.wTemp as { value?: number } | number | null | undefined;
-      const waterTemp = typeof wTempData === 'object' && wTempData !== null
-        ? wTempData.value
-        : (typeof wTempData === 'number' ? wTempData : undefined);
+      const waterTemp = extractNumber(body.wTemp) ?? extractNumber(body.waterTemperature);
 
-      // Extract wind data
-      const windSpeedData = body.windSpeed as { value?: number } | number | null | undefined;
-      const windSpeed = typeof windSpeedData === 'object' && windSpeedData !== null
-        ? windSpeedData.value
-        : (typeof windSpeedData === 'number' ? windSpeedData : undefined);
+      // Extract barometric pressure (convert from Pa to hPa if needed)
+      let pressureValue = extractNumber(body.pressure) ?? extractNumber(body.barometricPressure);
+      if (pressureValue !== undefined && pressureValue > 10000) {
+        // If value > 10000, it's likely in Pa, convert to hPa
+        pressureValue = pressureValue / 100;
+      }
+
+      // Extract wind speed (convert m/s to knots)
+      const windSpeedMs = extractNumber(body.windSpeed) ?? extractNumber(body.apparentWindSpeed);
+      const windSpeedKnots = windSpeedMs !== undefined ? windSpeedMs * 1.94384 : undefined;
+
+      // Extract wind angle (comes as radians, convert to degrees)
+      const windAngleRadians = extractNumber(body.windAngle) ?? extractNumber(body.apparentWindAngle);
+      const windAngleDegrees = windAngleRadians !== undefined ? windAngleRadians * (180 / Math.PI) : undefined;
 
       // Extract log (trip distance)
-      const logData = body.log as { value?: number } | number | null | undefined;
-      const tripLog = typeof logData === 'object' && logData !== null
-        ? logData.value
-        : (typeof logData === 'number' ? logData : undefined);
+      const tripLog = extractNumber(body.log) ?? extractNumber(body.tripLog);
 
       const position: SignalKPosition = {
         latitude: nestedPosition.value.latitude,
@@ -255,12 +272,16 @@ export async function POST(request: NextRequest) {
         source: "signalk",
         // Navigation data
         speedOverGround: speedKnots,
-        heading: headingValue,
+        courseOverGround: cogDegrees,
+        heading: headingDegrees,
+        depth: depthValue,
         tripLog: tripLog,
-        // Wind data (convert m/s to knots if needed)
-        apparentWindSpeed: windSpeed !== undefined ? windSpeed * 1.94384 : undefined,
+        // Wind data
+        apparentWindSpeed: windSpeedKnots,
+        apparentWindAngle: windAngleDegrees,
         // Environment data
         waterTemperature: waterTemp,
+        barometricPressure: pressureValue,
         // Vessel info
         name: "Matariki III",
         mmsi: "512004962",
