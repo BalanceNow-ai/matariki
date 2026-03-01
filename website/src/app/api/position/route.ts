@@ -215,7 +215,21 @@ export async function POST(request: NextRequest) {
 
     // Handle nested position format from msp-webhook/Signal K
     // Format: { position: { value: { latitude, longitude } }, speed: { value, unit }, ... }
-    const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | undefined;
+    const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | null | undefined;
+
+    // If position is explicitly null (msp-webhook sends this when GPS has no fix),
+    // acknowledge the request but don't update position
+    if (body.position === null || (nestedPosition && nestedPosition.value === undefined)) {
+      logEntry.payloadFormat = "nested-position";
+      logEntry.responseStatus = 200;
+      logEntry.responseBody = { success: true, message: "No position data in payload, skipped update" };
+      logEntry.processingTimeMs = Date.now() - startTime;
+      await addRequestLogAsync(logEntry as RequestLogEntry);
+
+      console.log("[Signal K] Received request with null position, skipping update");
+      return NextResponse.json({ success: true, message: "No position data in payload, skipped update" });
+    }
+
     if (nestedPosition?.value?.latitude !== undefined && nestedPosition?.value?.longitude !== undefined) {
       logEntry.payloadFormat = "nested-position";
 
