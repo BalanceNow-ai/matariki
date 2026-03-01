@@ -99,7 +99,8 @@ export default async function LogEntryPage({ params }: Props) {
                   src={heroImageUrl}
                   alt={sanityPost.title}
                   fill
-                  className="object-cover opacity-30"
+                  className="object-cover object-top opacity-30"
+                  sizes="100vw"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight-blue via-midnight-blue/80 to-transparent" />
               </div>
@@ -134,7 +135,7 @@ export default async function LogEntryPage({ params }: Props) {
             <article>
               <div className="prose prose-invert prose-lg max-w-none prose-p:text-mist prose-headings:text-salt-white prose-a:text-copper-accent">
                 {sanityPost.excerpt ? (
-                  <p className="text-xl text-mist leading-relaxed first-letter:text-5xl first-letter:font-display first-letter:text-copper-accent first-letter:float-left first-letter:mr-3 first-letter:mt-1">
+                  <p className="text-xl text-mist leading-relaxed">
                     {sanityPost.excerpt}
                   </p>
                 ) : (
@@ -142,6 +143,7 @@ export default async function LogEntryPage({ params }: Props) {
                     <MissingContent label="Excerpt missing" size="sm" />
                   </div>
                 )}
+                <hr className="my-10 border-white/10" />
                 {sanityPost.contentHtml ? (
                   <div
                     className="not-prose"

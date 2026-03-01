@@ -57,6 +57,8 @@ type VesselData = {
     displacement?: string;
     ballast?: string;
   };
+  heroImage?: { asset: { _ref: string } };
+  gallery?: Array<{ asset: { _ref: string }; caption?: string }>;
 } | null;
 
 type RecentPost = {
@@ -101,7 +103,9 @@ export default async function HomePage() {
           name: post.location || "Unknown",
           coordinates: [0, 0] as [number, number],
         },
-        heroImage: post.heroImage?.asset?._ref || "/placeholder.jpg",
+        heroImage: post.heroImage
+          ? urlFor(post.heroImage)?.width(800).height(500).url() || ""
+          : "",
         body: "",
       }));
     }
@@ -190,31 +194,56 @@ export default async function HomePage() {
         {/* The Yacht Section */}
         <Section id="yacht">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Image Placeholder */}
+            {/* Vessel Images */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <div className="relative aspect-[16/10] rounded-lg overflow-hidden bg-slate-water/50">
+                <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-slate-water/50">
+                  {vessel?.heroImage?.asset ? (
+                    <Image
+                      src={urlFor(vessel.heroImage)?.fit("max").width(800).url() || ""}
+                      alt={vessel.name || "Matariki III"}
+                      fill
+                      className="object-cover object-top"
+                      sizes="(min-width: 1024px) 50vw, 100vw"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-mist">
+                      <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {(vessel?.gallery || []).slice(0, 2).map((img, i) => (
+                <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
+                  {img.asset ? (
+                    <Image
+                      src={urlFor(img)?.width(400).height(400).url() || ""}
+                      alt={img.caption || `${vessel?.name || "Matariki III"} photo ${i + 1}`}
+                      fill
+                      className="object-cover"
+                      sizes="(min-width: 1024px) 25vw, 50vw"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-mist">
+                      <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {/* Show placeholders if fewer than 2 gallery images */}
+              {Array.from({ length: Math.max(0, 2 - (vessel?.gallery?.length || 0)) }).map((_, i) => (
+                <div key={`placeholder-${i}`} className="relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
                   <div className="absolute inset-0 flex items-center justify-center text-mist">
-                    <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
                 </div>
-              </div>
-              <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
-                <div className="absolute inset-0 flex items-center justify-center text-mist">
-                  <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-water/50">
-                <div className="absolute inset-0 flex items-center justify-center text-mist">
-                  <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* Content */}

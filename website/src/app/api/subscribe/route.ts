@@ -27,20 +27,19 @@ export async function POST(request: Request) {
         Authorization: `Token ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email_address: email }),
     });
 
     if (res.ok) {
       return NextResponse.json({ success: true });
     }
 
-    const data = await res.json();
-
     if (res.status === 409) {
       return NextResponse.json({ success: true, alreadySubscribed: true });
     }
 
-    console.error("Buttondown API error:", res.status, data);
+    const errorBody = await res.text().catch(() => "No response body");
+    console.error("Buttondown API error:", res.status, errorBody);
     return NextResponse.json(
       { error: "Failed to subscribe" },
       { status: 500 }

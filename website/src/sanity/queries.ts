@@ -227,7 +227,18 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
     category,
     takenAt
   },
-  "logEntries": *[_type == "logEntry" && references(^._id)]|order(publishedAt desc){
+  "videos": *[_type == "video" && references(^._id)]|order(publishedAt desc){
+    _id,
+    title,
+    description,
+    videoType,
+    youtubeUrl,
+    vimeoUrl,
+    thumbnail,
+    category,
+    duration
+  },
+  "logEntries": *[_type == "logEntry" && references(^._id) && defined(slug.current)]|order(publishedAt desc){
     _id,
     title,
     slug,

@@ -19,7 +19,8 @@ export function PostCard({ post }: PostCardProps) {
               src={post.heroImage}
               alt={post.title}
               fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
+              sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-mist">

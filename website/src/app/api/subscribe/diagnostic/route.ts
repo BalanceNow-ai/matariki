@@ -107,7 +107,7 @@ export async function GET() {
   checks.endpointConfig = {
     status: "pass",
     message: "Subscribe route uses current Buttondown API domain",
-    detail: "Using api.buttondown.com (current API endpoint)",
+    detail: "Endpoint: https://api.buttondown.com/v1/subscribers",
   };
 
   // 4. Test subscription endpoint (dry-run with invalid email to verify route works)
