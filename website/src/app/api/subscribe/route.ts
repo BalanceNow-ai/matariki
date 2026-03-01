@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const res = await fetch("https://api.buttondown.email/v1/subscribers", {
+    const res = await fetch("https://api.buttondown.com/v1/subscribers", {
       method: "POST",
       headers: {
         Authorization: `Token ${apiKey}`,

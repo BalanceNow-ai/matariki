@@ -103,13 +103,11 @@ export async function GET() {
     };
   }
 
-  // 3. Check legacy domain usage in subscribe route
+  // 3. Check endpoint configuration
   checks.endpointConfig = {
-    status: "warn",
-    message:
-      "Subscribe route uses legacy domain api.buttondown.email",
-    detail:
-      "Buttondown now uses api.buttondown.com. The legacy domain still works but may be deprecated. Consider updating src/app/api/subscribe/route.ts.",
+    status: "pass",
+    message: "Subscribe route uses current Buttondown API domain",
+    detail: "Using api.buttondown.com (current API endpoint)",
   };
 
   // 4. Test subscription endpoint (dry-run with invalid email to verify route works)
