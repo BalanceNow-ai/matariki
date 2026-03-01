@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SignalKPosition, type RequestLogEntry } from "./store";
 import {
-  SignalKPosition,
-  getLatestPosition,
-  setLatestPosition,
-  addRequestLog,
-  type RequestLogEntry,
-} from "./store";
+  getLatestPositionAsync,
+  setLatestPositionAsync,
+  addRequestLogAsync,
+} from "./redis-store";
 
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
@@ -18,7 +17,8 @@ const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
  * Returns the latest position of Matariki III
  */
 export async function GET() {
-  return NextResponse.json(getLatestPosition());
+  const position = await getLatestPositionAsync();
+  return NextResponse.json(position);
 }
 
 /**
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     logEntry.payloadSize = 0;
     logEntry.rawPayload = "(not parsed - auth failed)";
     logEntry.processingTimeMs = Date.now() - startTime;
-    addRequestLog(logEntry as RequestLogEntry);
+    await addRequestLogAsync(logEntry as RequestLogEntry);
 
     console.log("[Signal K] Auth failed - received token:", token?.substring(0, 8) + "...");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       logEntry.responseBody = { error: "Invalid JSON" };
       logEntry.error = "JSON parse failed";
       logEntry.processingTimeMs = Date.now() - startTime;
-      addRequestLog(logEntry as RequestLogEntry);
+      await addRequestLogAsync(logEntry as RequestLogEntry);
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
@@ -101,12 +101,12 @@ export async function POST(request: NextRequest) {
       logEntry.payloadFormat = "signalk-delta";
       const position = parseSignalKDelta(body as { updates: Array<{ values: Array<{ path: string; value: unknown }> }> });
       if (position) {
-        setLatestPosition(position);
+        await setLatestPositionAsync(position);
         logEntry.parsedPosition = position;
         logEntry.responseStatus = 200;
         logEntry.responseBody = { success: true, position };
         logEntry.processingTimeMs = Date.now() - startTime;
-        addRequestLog(logEntry as RequestLogEntry);
+        await addRequestLogAsync(logEntry as RequestLogEntry);
 
         console.log("[Signal K] Position updated:", position.latitude, position.longitude);
         return NextResponse.json({ success: true, position });
@@ -139,12 +139,12 @@ export async function POST(request: NextRequest) {
         mmsi: (body.mmsi as string) || "512004962",
       };
 
-      setLatestPosition(position);
+      await setLatestPositionAsync(position);
       logEntry.parsedPosition = position;
       logEntry.responseStatus = 200;
       logEntry.responseBody = { success: true, position };
       logEntry.processingTimeMs = Date.now() - startTime;
-      addRequestLog(logEntry as RequestLogEntry);
+      await addRequestLogAsync(logEntry as RequestLogEntry);
 
       console.log("[Signal K] Position updated:", position.latitude, position.longitude,
         "SOG:", position.speedOverGround, "AWS:", position.apparentWindSpeed);
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     logEntry.responseBody = { error: "Invalid payload format" };
     logEntry.error = "No latitude/longitude or Signal K delta found";
     logEntry.processingTimeMs = Date.now() - startTime;
-    addRequestLog(logEntry as RequestLogEntry);
+    await addRequestLogAsync(logEntry as RequestLogEntry);
 
     return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
   } catch (error) {
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     logEntry.responseBody = { error: "Invalid JSON" };
     logEntry.error = String(error);
     logEntry.processingTimeMs = Date.now() - startTime;
-    addRequestLog(logEntry as RequestLogEntry);
+    await addRequestLogAsync(logEntry as RequestLogEntry);
 
     console.error("[Signal K] Error processing position:", error);
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
