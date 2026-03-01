@@ -179,7 +179,7 @@ function RequestRow({
 
 export default function ApiDebugPage() {
   const [data, setData] = useState<DebugData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -188,11 +188,16 @@ export default function ApiDebugPage() {
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/position/debug");
+      if (!res.ok) {
+        const errorText = await res.text();
+        setError(`API error (${res.status}): ${errorText || res.statusText}`);
+        return;
+      }
       const json = await res.json();
       setData(json);
       setError(null);
-    } catch {
-      setError("Failed to fetch debug data");
+    } catch (err) {
+      setError(`Failed to fetch debug data: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -228,7 +233,6 @@ export default function ApiDebugPage() {
   };
 
   useEffect(() => {
-    setLoading(true);
     fetchData();
   }, [fetchData]);
 
@@ -253,6 +257,18 @@ export default function ApiDebugPage() {
             {error && (
               <div className="card p-4 rounded-lg border border-red-500/30 mb-6">
                 <p className="text-red-400 text-sm">{error}</p>
+                <button
+                  onClick={fetchData}
+                  className="mt-2 text-xs text-copper-accent hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {loading && !data && (
+              <div className="card p-8 rounded-lg text-center">
+                <div className="animate-pulse text-mist">Loading debug data...</div>
               </div>
             )}
 
