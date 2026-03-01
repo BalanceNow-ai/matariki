@@ -184,7 +184,8 @@ export const VOYAGES_FOR_SELECTOR_QUERY = groq`*[_type == "voyage"]|order(startD
 // Fetch log entries with coordinates for waypoints on map
 export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   _type == "logEntry"
-  && defined(location.coordinates)
+  && defined(location.coordinates.lat)
+  && defined(location.coordinates.lng)
   && defined(slug.current)
 ]|order(publishedAt desc){
   _id,
@@ -193,7 +194,13 @@ export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   publishedAt,
   category,
   excerpt,
-  location,
+  "location": {
+    "name": location.name,
+    "coordinates": {
+      "lat": location.coordinates.lat,
+      "lng": location.coordinates.lng
+    }
+  },
   heroImage,
   "voyageId": voyage->_id,
   "voyageTitle": voyage->title

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export type Voyage = {
   _id: string;
@@ -51,10 +51,13 @@ export function VoyageContextPanel({
   distanceStats,
   className = "",
 }: VoyageContextPanelProps) {
-  const [selectedVoyageId, setSelectedVoyageId] = useState<string | null>(
-    activeVoyage?._id ?? null
-  );
+  const [selectedVoyageId, setSelectedVoyageId] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Sync initial selection with parent - start with "All Voyages" to show all waypoints
+  useEffect(() => {
+    onVoyageChange?.(null);
+  }, []);
 
   const dayCount = activeVoyage ? calculateDayCount(activeVoyage.startDate) : 0;
 
