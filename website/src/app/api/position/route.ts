@@ -213,6 +213,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, position });
     }
 
+    // Handle nested position format from msp-webhook/Signal K
+    // Format: { position: { value: { latitude, longitude } }, speed: { value, unit }, ... }
+    const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | undefined;
+    if (nestedPosition?.value?.latitude !== undefined && nestedPosition?.value?.longitude !== undefined) {
+      logEntry.payloadFormat = "nested-position";
+
+      // Extract speed value (comes as m/s, convert to knots)
+      const speedData = body.speed as { value?: number; unit?: string } | undefined;
+      const speedMs = speedData?.value;
+      const speedKnots = speedMs !== undefined ? speedMs * 1.94384 : undefined; // m/s to knots
+
+      // Extract heading value
+      const headingData = body.heading as { value?: number } | number | null | undefined;
+      const headingValue = typeof headingData === 'object' && headingData !== null
+        ? headingData.value
+        : (typeof headingData === 'number' ? headingData : undefined);
+
+      // Extract water temperature
+      const wTempData = body.wTemp as { value?: number } | number | null | undefined;
+      const waterTemp = typeof wTempData === 'object' && wTempData !== null
+        ? wTempData.value
+        : (typeof wTempData === 'number' ? wTempData : undefined);
+
+      // Extract wind data
+      const windSpeedData = body.windSpeed as { value?: number } | number | null | undefined;
+      const windSpeed = typeof windSpeedData === 'object' && windSpeedData !== null
+        ? windSpeedData.value
+        : (typeof windSpeedData === 'number' ? windSpeedData : undefined);
+
+      // Extract log (trip distance)
+      const logData = body.log as { value?: number } | number | null | undefined;
+      const tripLog = typeof logData === 'object' && logData !== null
+        ? logData.value
+        : (typeof logData === 'number' ? logData : undefined);
+
+      const position: SignalKPosition = {
+        latitude: nestedPosition.value.latitude,
+        longitude: nestedPosition.value.longitude,
+        timestamp: (body.datetime as string) || new Date().toISOString(),
+        source: "signalk",
+        // Navigation data
+        speedOverGround: speedKnots,
+        heading: headingValue,
+        tripLog: tripLog,
+        // Wind data (convert m/s to knots if needed)
+        apparentWindSpeed: windSpeed !== undefined ? windSpeed * 1.94384 : undefined,
+        // Environment data
+        waterTemperature: waterTemp,
+        // Vessel info
+        name: "Matariki III",
+        mmsi: "512004962",
+      };
+
+      await setLatestPositionAsync(position);
+      logEntry.parsedPosition = position;
+      logEntry.responseStatus = 200;
+      logEntry.responseBody = { success: true, position };
+      logEntry.processingTimeMs = Date.now() - startTime;
+      await addRequestLogAsync(logEntry as RequestLogEntry);
+
+      console.log("[Signal K] Position updated (nested format):", position.latitude, position.longitude,
+        "SOG:", position.speedOverGround?.toFixed(1), "kts");
+      return NextResponse.json({ success: true, position });
+    }
+
     logEntry.payloadFormat = "invalid";
     logEntry.responseStatus = 400;
     logEntry.responseBody = { error: "Invalid payload format" };

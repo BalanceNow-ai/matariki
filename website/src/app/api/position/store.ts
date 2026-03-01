@@ -36,7 +36,7 @@ export type RequestLogEntry = {
   authMethod?: string;
   tokenPreview?: string;
   receivedAuthHeaders?: Record<string, string | null>;
-  payloadFormat: "signalk-delta" | "simplified" | "invalid" | "unknown";
+  payloadFormat: "signalk-delta" | "simplified" | "nested-position" | "invalid" | "unknown";
   payloadSize: number;
   rawPayload: unknown;
   parsedPosition?: Partial<SignalKPosition>;
