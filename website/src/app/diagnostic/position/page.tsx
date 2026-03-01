@@ -156,7 +156,7 @@ export default function PositionDiagnosticPage() {
               <Button onClick={runDiagnostic} disabled={loading}>
                 {loading ? "Checking..." : "Run Diagnostic"}
               </Button>
-              <Button variant="secondary" onClick={sendTestPosition} disabled={testLoading}>
+              <Button variant="ghost" onClick={sendTestPosition} disabled={testLoading}>
                 {testLoading ? "Sending..." : "Send Test Position"}
               </Button>
               <label className="flex items-center gap-2 text-mist text-sm cursor-pointer">
