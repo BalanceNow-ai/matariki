@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { OpenSeaMap, VesselPosition } from "@/components/map/OpenSeaMap";
+import { OpenSeaMap, VesselPosition, LogEntryWaypoint } from "@/components/map/OpenSeaMap";
 import { VesselDataPanel } from "./VesselDataPanel";
+import { VoyageContextPanel, Voyage } from "./VoyageContextPanel";
+import { WeatherConditionsPanel } from "./WeatherConditionsPanel";
 import { SignalKPosition } from "@/app/api/position/store";
 
 type FallbackPosition = {
@@ -15,15 +17,30 @@ type FallbackPosition = {
 
 type LiveTrackerProps = {
   fallback: FallbackPosition;
+  activeVoyage?: Voyage | null;
+  allVoyages?: Voyage[];
+  waypoints?: LogEntryWaypoint[];
 };
 
-export function LiveTracker({ fallback }: LiveTrackerProps) {
+export function LiveTracker({
+  fallback,
+  activeVoyage = null,
+  allVoyages = [],
+  waypoints = [],
+}: LiveTrackerProps) {
   const [position, setPosition] = useState<SignalKPosition | null>(null);
   const [trackHistory, setTrackHistory] = useState<VesselPosition[]>([]);
   const [showTrack, setShowTrack] = useState(true);
+  const [showWaypoints, setShowWaypoints] = useState(true);
+  const [selectedVoyageId, setSelectedVoyageId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter waypoints by selected voyage
+  const filteredWaypoints = selectedVoyageId
+    ? waypoints.filter((wp) => wp.voyageTitle === allVoyages.find((v) => v._id === selectedVoyageId)?.title)
+    : waypoints;
 
   // Fetch current position
   const fetchPosition = useCallback(async () => {
@@ -105,7 +122,9 @@ export function LiveTracker({ fallback }: LiveTrackerProps) {
           <OpenSeaMap
             position={mapPosition}
             trackHistory={trackHistory}
+            waypoints={filteredWaypoints}
             showTrack={showTrack}
+            showWaypoints={showWaypoints}
             zoom={11}
           />
         </div>
@@ -113,6 +132,19 @@ export function LiveTracker({ fallback }: LiveTrackerProps) {
 
       {/* Data Panel - Sidebar */}
       <div className="lg:w-80 xl:w-96 bg-midnight-blue/50 p-4 space-y-4 overflow-y-auto">
+        {/* Voyage Context */}
+        {(activeVoyage || allVoyages.length > 0) && (
+          <VoyageContextPanel
+            activeVoyage={activeVoyage}
+            allVoyages={allVoyages}
+            onVoyageChange={setSelectedVoyageId}
+            distanceStats={{
+              totalNm: position?.tripLog ?? 0,
+              voyageNm: position?.tripLog ?? 0,
+            }}
+          />
+        )}
+
         {/* Vessel Data */}
         <VesselDataPanel
           position={position}
@@ -120,15 +152,23 @@ export function LiveTracker({ fallback }: LiveTrackerProps) {
           lastUpdated={lastUpdated}
         />
 
-        {/* Track History Toggle */}
-        <div className="bg-deep-ocean/95 backdrop-blur-sm border border-mist/20 rounded-xl p-4">
+        {/* Weather & Conditions */}
+        <WeatherConditionsPanel position={position} />
+
+        {/* Map Display Options */}
+        <div className="bg-deep-ocean/95 backdrop-blur-sm border border-mist/20 rounded-xl p-4 space-y-3">
+          <h4 className="text-xs text-copper-accent uppercase tracking-wider font-mono mb-2">
+            Map Options
+          </h4>
+
+          {/* Track History Toggle */}
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-medium text-salt-white">
-                Show Track History
-              </h4>
+              <span className="text-sm font-medium text-salt-white">
+                Track History
+              </span>
               <p className="text-xs text-mist/60">
-                {trackHistory.length} positions recorded
+                {trackHistory.length} positions
               </p>
             </div>
             <button
@@ -140,6 +180,30 @@ export function LiveTracker({ fallback }: LiveTrackerProps) {
               <span
                 className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
                   showTrack ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Waypoints Toggle */}
+          <div className="flex items-center justify-between pt-2 border-t border-mist/10">
+            <div>
+              <span className="text-sm font-medium text-salt-white">
+                Log Entry Waypoints
+              </span>
+              <p className="text-xs text-mist/60">
+                {filteredWaypoints.length} locations
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWaypoints(!showWaypoints)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                showWaypoints ? "bg-copper-accent" : "bg-mist/30"
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  showWaypoints ? "left-7" : "left-1"
                 }`}
               />
             </button>

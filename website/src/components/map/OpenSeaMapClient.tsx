@@ -22,31 +22,134 @@ export type VesselPosition = {
   speedOverGround?: number;
 };
 
+// Log entry waypoint type
+export type LogEntryWaypoint = {
+  _id: string;
+  title: string;
+  slug: { current: string };
+  publishedAt: string;
+  category?: string;
+  excerpt?: string;
+  location: {
+    name?: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  voyageTitle?: string;
+};
+
 type OpenSeaMapClientProps = {
   position: VesselPosition;
   trackHistory?: VesselPosition[];
+  waypoints?: LogEntryWaypoint[];
   showTrack?: boolean;
+  showWaypoints?: boolean;
   zoom?: number;
   className?: string;
 };
 
-// Create custom vessel icon (boat shape pointing in direction of travel)
+// Create custom vessel icon (boat shape pointing in direction of travel) with pulsing animation
 function createVesselIcon(heading?: number): L.DivIcon {
   const rotation = heading ?? 0;
 
   return L.divIcon({
     className: "vessel-marker",
     html: `
-      <div style="transform: rotate(${rotation}deg); transform-origin: center center;">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M16 2L8 28L16 24L24 28L16 2Z" fill="#D97706" stroke="#FCD34D" stroke-width="1.5"/>
-          <circle cx="16" cy="14" r="3" fill="#FCD34D"/>
+      <div class="vessel-icon-container" style="position: relative; width: 48px; height: 48px;">
+        <!-- Pulsing rings -->
+        <div class="pulse-ring pulse-ring-1" style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 48px;
+          height: 48px;
+          border: 2px solid #D97706;
+          border-radius: 50%;
+          animation: pulse-expand 2s ease-out infinite;
+          opacity: 0;
+        "></div>
+        <div class="pulse-ring pulse-ring-2" style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 48px;
+          height: 48px;
+          border: 2px solid #D97706;
+          border-radius: 50%;
+          animation: pulse-expand 2s ease-out infinite 0.6s;
+          opacity: 0;
+        "></div>
+        <!-- Vessel icon -->
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(${rotation}deg);
+          transform-origin: center center;
+        ">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 2L8 28L16 24L24 28L16 2Z" fill="#D97706" stroke="#FCD34D" stroke-width="1.5"/>
+            <circle cx="16" cy="14" r="3" fill="#FCD34D"/>
+          </svg>
+        </div>
+      </div>
+      <style>
+        @keyframes pulse-expand {
+          0% {
+            transform: translate(-50%, -50%) scale(0.5);
+            opacity: 0.8;
+          }
+          100% {
+            transform: translate(-50%, -50%) scale(1.5);
+            opacity: 0;
+          }
+        }
+      </style>
+    `,
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -24],
+  });
+}
+
+// Create waypoint icon for log entries
+function createWaypointIcon(category?: string): L.DivIcon {
+  // Color based on category
+  const colors: Record<string, { bg: string; border: string }> = {
+    sailing: { bg: "#3d7a6e", border: "#5fa89a" },
+    hunting: { bg: "#a63d3d", border: "#c45c5c" },
+    diving: { bg: "#3d5a7a", border: "#5c7a9a" },
+    fishing: { bg: "#7a6e3d", border: "#9a8e5c" },
+    general: { bg: "#6b7280", border: "#9ca3af" },
+  };
+  const { bg, border } = colors[category || "general"] || colors.general;
+
+  return L.divIcon({
+    className: "waypoint-marker",
+    html: `
+      <div style="
+        width: 24px;
+        height: 24px;
+        background: ${bg};
+        border: 2px solid ${border};
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         </svg>
       </div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -16],
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -24],
   });
 }
 
@@ -72,12 +175,23 @@ function MapViewController({
 export function OpenSeaMapClient({
   position,
   trackHistory = [],
+  waypoints = [],
   showTrack = true,
+  showWaypoints = true,
   zoom = 12,
   className = "",
 }: OpenSeaMapClientProps) {
   const [autoCenter, setAutoCenter] = useState(true);
   const mapRef = useRef<L.Map | null>(null);
+
+  // Format date for waypoint popup
+  const formatWaypointDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("en-NZ", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   // Convert track history to polyline coordinates
   const trackCoords: [number, number][] = showTrack
@@ -131,6 +245,68 @@ export function OpenSeaMapClient({
             }}
           />
         )}
+
+        {/* Waypoint markers for log entries */}
+        {showWaypoints &&
+          waypoints
+            .filter((wp) => wp.location?.coordinates?.lat && wp.location?.coordinates?.lng)
+            .map((waypoint) => (
+              <Marker
+                key={waypoint._id}
+                position={[
+                  waypoint.location.coordinates!.lat,
+                  waypoint.location.coordinates!.lng,
+                ]}
+                icon={createWaypointIcon(waypoint.category)}
+              >
+                <Popup>
+                  <div className="text-sm max-w-[250px]">
+                    <div className="flex items-center gap-2 mb-1">
+                      {waypoint.category && (
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded capitalize"
+                          style={{
+                            backgroundColor:
+                              waypoint.category === "sailing"
+                                ? "#3d7a6e"
+                                : waypoint.category === "hunting"
+                                ? "#a63d3d"
+                                : waypoint.category === "diving"
+                                ? "#3d5a7a"
+                                : waypoint.category === "fishing"
+                                ? "#7a6e3d"
+                                : "#6b7280",
+                            color: "white",
+                          }}
+                        >
+                          {waypoint.category}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500">
+                        {formatWaypointDate(waypoint.publishedAt)}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-base mb-1">{waypoint.title}</h3>
+                    {waypoint.location.name && (
+                      <p className="text-xs text-gray-600 mb-1">
+                        📍 {waypoint.location.name}
+                      </p>
+                    )}
+                    {waypoint.excerpt && (
+                      <p className="text-xs text-gray-600 line-clamp-2 mb-2">
+                        {waypoint.excerpt}
+                      </p>
+                    )}
+                    <a
+                      href={`/log/${waypoint.slug.current}`}
+                      className="inline-block text-xs font-medium text-amber-600 hover:text-amber-700"
+                    >
+                      Read full entry →
+                    </a>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
 
         {/* Vessel marker */}
         <Marker
