@@ -12,10 +12,11 @@ import {
  * Returns request logs and current position state for debugging
  */
 export async function GET() {
-  const position = getLatestPosition();
-  const history = getPositionHistory();
-  const requestLog = getRequestLog();
-  const hasLive = hasLatestPosition();
+  try {
+    const position = getLatestPosition();
+    const history = getPositionHistory();
+    const requestLog = getRequestLog();
+    const hasLive = hasLatestPosition();
 
   // Calculate stats
   const last5Minutes = requestLog.filter((r) => {
@@ -61,6 +62,17 @@ export async function GET() {
     requestLog,
     webhookConfigured: !!process.env.SIGNALK_WEBHOOK_SECRET,
   });
+  } catch (error) {
+    console.error("[Debug API] Error:", error);
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      { status: 500 }
+    );
+  }
 }
 
 /**
