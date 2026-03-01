@@ -159,6 +159,46 @@ export const LATEST_POSITION_QUERY = groq`*[_type == "position"]|order(timestamp
   "voyage": voyage->title
 }`;
 
+// Fetch active voyage with stats for tracking page
+export const ACTIVE_VOYAGE_QUERY = groq`*[_type == "voyage" && status == "active"][0]{
+  _id,
+  title,
+  slug,
+  description,
+  startDate,
+  endDate,
+  status,
+  heroImage
+}`;
+
+// Fetch all voyages for voyage selector
+export const VOYAGES_FOR_SELECTOR_QUERY = groq`*[_type == "voyage"]|order(startDate desc){
+  _id,
+  title,
+  slug,
+  status,
+  startDate,
+  endDate
+}`;
+
+// Fetch log entries with coordinates for waypoints on map
+export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
+  _type == "logEntry"
+  && defined(location.coordinates)
+  && defined(slug.current)
+]|order(publishedAt desc){
+  _id,
+  title,
+  slug,
+  publishedAt,
+  category,
+  excerpt,
+  location,
+  heroImage,
+  "voyageId": voyage->_id,
+  "voyageTitle": voyage->title
+}`;
+
 // Fetch single voyage by slug with gallery
 export const VOYAGE_BY_SLUG_QUERY = groq`*[
   _type == "voyage"

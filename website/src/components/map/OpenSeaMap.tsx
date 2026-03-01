@@ -12,10 +12,30 @@ export type VesselPosition = {
   speedOverGround?: number;
 };
 
+// Re-export LogEntryWaypoint type
+export type LogEntryWaypoint = {
+  _id: string;
+  title: string;
+  slug: { current: string };
+  publishedAt: string;
+  category?: string;
+  excerpt?: string;
+  location: {
+    name?: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  voyageTitle?: string;
+};
+
 type OpenSeaMapProps = {
   position: VesselPosition;
   trackHistory?: VesselPosition[];
+  waypoints?: LogEntryWaypoint[];
   showTrack?: boolean;
+  showWaypoints?: boolean;
   zoom?: number;
   className?: string;
 };

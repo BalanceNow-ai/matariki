@@ -1,8 +1,15 @@
 import { Header } from "@/components/layout";
 import { LiveTracker } from "@/components/tracking/LiveTracker";
 import { client, fetchOptions } from "@/sanity/client";
-import { LATEST_POSITION_QUERY } from "@/sanity/queries";
+import {
+  LATEST_POSITION_QUERY,
+  ACTIVE_VOYAGE_QUERY,
+  VOYAGES_FOR_SELECTOR_QUERY,
+  LOG_ENTRIES_WITH_COORDS_QUERY,
+} from "@/sanity/queries";
 import type { Metadata } from "next";
+import type { Voyage } from "@/components/tracking/VoyageContextPanel";
+import type { LogEntryWaypoint } from "@/components/map/OpenSeaMap";
 
 export const metadata: Metadata = {
   title: "Track",
@@ -32,11 +39,25 @@ type SanityPosition = {
 
 export default async function TrackPage() {
   let sanityPosition: SanityPosition = null;
+  let activeVoyage: Voyage | null = null;
+  let allVoyages: Voyage[] = [];
+  let waypoints: LogEntryWaypoint[] = [];
 
   try {
-    sanityPosition = await client.fetch<SanityPosition>(LATEST_POSITION_QUERY, {}, fetchOptions);
+    // Fetch all data in parallel
+    const [positionData, voyageData, voyagesData, waypointsData] = await Promise.all([
+      client.fetch<SanityPosition>(LATEST_POSITION_QUERY, {}, fetchOptions),
+      client.fetch<Voyage | null>(ACTIVE_VOYAGE_QUERY, {}, fetchOptions),
+      client.fetch<Voyage[]>(VOYAGES_FOR_SELECTOR_QUERY, {}, fetchOptions),
+      client.fetch<LogEntryWaypoint[]>(LOG_ENTRIES_WITH_COORDS_QUERY, {}, fetchOptions),
+    ]);
+
+    sanityPosition = positionData;
+    activeVoyage = voyageData;
+    allVoyages = voyagesData || [];
+    waypoints = waypointsData || [];
   } catch (error) {
-    console.error("Failed to fetch position from Sanity:", error);
+    console.error("Failed to fetch tracking data from Sanity:", error);
   }
 
   // Build fallback from Sanity data or use defaults
@@ -60,7 +81,12 @@ export default async function TrackPage() {
     <>
       <Header />
       <main className="pt-20 min-h-screen flex flex-col">
-        <LiveTracker fallback={fallback} />
+        <LiveTracker
+          fallback={fallback}
+          activeVoyage={activeVoyage}
+          allVoyages={allVoyages}
+          waypoints={waypoints}
+        />
       </main>
     </>
   );
