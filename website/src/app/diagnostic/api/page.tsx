@@ -177,31 +177,84 @@ function RequestRow({
   );
 }
 
+// Debug log entry
+interface DebugLogEntry {
+  time: string;
+  event: string;
+  details?: string;
+}
+
 export default function ApiDebugPage() {
   const [data, setData] = useState<DebugData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false); // Disabled for debugging
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [testLoading, setTestLoading] = useState(false);
 
+  // Debug state
+  const [debugLog, setDebugLog] = useState<DebugLogEntry[]>([]);
+  const [fetchState, setFetchState] = useState<string>("idle");
+  const [lastFetchTime, setLastFetchTime] = useState<number | null>(null);
+
+  const addDebugLog = useCallback((event: string, details?: string) => {
+    const entry: DebugLogEntry = {
+      time: new Date().toISOString().split("T")[1].slice(0, 12),
+      event,
+      details,
+    };
+    setDebugLog((prev) => [entry, ...prev].slice(0, 20));
+    console.log(`[DEBUG] ${event}`, details || "");
+  }, []);
+
   const fetchData = useCallback(async () => {
+    const startTime = Date.now();
+    addDebugLog("fetch:start", "Starting fetch to /api/position/debug");
+    setFetchState("fetching");
+
     try {
-      const res = await fetch("/api/position/debug");
+      addDebugLog("fetch:request", "Sending GET request...");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        addDebugLog("fetch:timeout", "Request timed out after 10s");
+      }, 10000);
+
+      const res = await fetch("/api/position/debug", {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const elapsed = Date.now() - startTime;
+      setLastFetchTime(elapsed);
+      addDebugLog("fetch:response", `Status: ${res.status}, Time: ${elapsed}ms`);
+      setFetchState("parsing");
+
       if (!res.ok) {
         const errorText = await res.text();
+        addDebugLog("fetch:error", `HTTP ${res.status}: ${errorText.slice(0, 200)}`);
         setError(`API error (${res.status}): ${errorText || res.statusText}`);
+        setFetchState("error");
         return;
       }
+
+      addDebugLog("fetch:parsing", "Parsing JSON response...");
       const json = await res.json();
+      addDebugLog("fetch:success", `Got data with ${json.requestLog?.length || 0} log entries`);
+
       setData(json);
       setError(null);
+      setFetchState("success");
     } catch (err) {
-      setError(`Failed to fetch debug data: ${err instanceof Error ? err.message : String(err)}`);
+      const elapsed = Date.now() - startTime;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      addDebugLog("fetch:exception", `After ${elapsed}ms: ${errMsg}`);
+      setError(`Failed to fetch: ${errMsg}`);
+      setFetchState("error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addDebugLog]);
 
   const sendTestRequest = async (format: string, fail: boolean = false) => {
     setTestLoading(true);
@@ -233,8 +286,9 @@ export default function ApiDebugPage() {
   };
 
   useEffect(() => {
+    addDebugLog("mount", "Component mounted, starting initial fetch");
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, addDebugLog]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -266,9 +320,52 @@ export default function ApiDebugPage() {
               </div>
             )}
 
+            {/* Debug Panel - Always visible */}
+            <div className="card p-4 rounded-lg border border-yellow-500/30 mb-6 bg-yellow-500/5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-yellow-400 font-medium">🔧 Fetch Debugger</h3>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-storm-grey">
+                    State: <span className="text-yellow-400 font-mono">{fetchState}</span>
+                  </span>
+                  {lastFetchTime !== null && (
+                    <span className="text-storm-grey">
+                      Last fetch: <span className="text-mist">{lastFetchTime}ms</span>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setLoading(true);
+                      fetchData();
+                    }}
+                    className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded hover:bg-yellow-500/30"
+                  >
+                    Manual Fetch
+                  </button>
+                </div>
+              </div>
+              <div className="bg-deep-ocean rounded p-3 max-h-40 overflow-y-auto font-mono text-xs">
+                {debugLog.length === 0 ? (
+                  <div className="text-storm-grey">No events yet...</div>
+                ) : (
+                  debugLog.map((entry, i) => (
+                    <div key={i} className="flex gap-2 py-0.5">
+                      <span className="text-storm-grey">{entry.time}</span>
+                      <span className="text-yellow-400">{entry.event}</span>
+                      {entry.details && <span className="text-mist">{entry.details}</span>}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-3 text-xs text-storm-grey">
+                data: {data ? "loaded" : "null"} | loading: {String(loading)} | error: {error ? "yes" : "null"}
+              </div>
+            </div>
+
             {loading && !data && (
               <div className="card p-8 rounded-lg text-center">
                 <div className="animate-pulse text-mist">Loading debug data...</div>
+                <div className="text-xs text-storm-grey mt-2">Check the debug panel above for details</div>
               </div>
             )}
 
