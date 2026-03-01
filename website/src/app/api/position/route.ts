@@ -5,12 +5,62 @@ import {
   setLatestPositionAsync,
   addRequestLogAsync,
 } from "./redis-store";
+import { find as findTimezone } from "geo-tz";
 
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
 
 // Secret token to authenticate position updates from Signal K
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
+
+/**
+ * Convert a datetime string to local time based on GPS coordinates
+ * @param datetime - Input datetime string (assumed UTC if no timezone)
+ * @param latitude - GPS latitude
+ * @param longitude - GPS longitude
+ * @returns Object with local timestamp string and timezone name
+ */
+function convertToLocalTime(
+  datetime: string | undefined,
+  latitude: number,
+  longitude: number
+): { timestamp: string; timezone: string } {
+  // Detect timezone from GPS coordinates
+  const timezones = findTimezone(latitude, longitude);
+  const timezone = timezones[0] || "UTC";
+
+  // Parse the input datetime
+  let date: Date;
+  if (!datetime) {
+    date = new Date();
+  } else if (datetime.includes("T") || datetime.includes("Z")) {
+    // ISO format - parse directly
+    date = new Date(datetime);
+  } else {
+    // Format like "2026-03-01 23:08:30" - assume UTC
+    date = new Date(datetime + "Z");
+  }
+
+  // Format in local timezone
+  const formatter = new Intl.DateTimeFormat("en-NZ", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || "";
+
+  // Build ISO-like local time string with timezone
+  const localTimestamp = `${getPart("year")}-${getPart("month")}-${getPart("day")} ${getPart("hour")}:${getPart("minute")}:${getPart("second")}`;
+
+  return { timestamp: localTimestamp, timezone };
+}
 
 /**
  * GET /api/position
@@ -178,11 +228,19 @@ export async function POST(request: NextRequest) {
     // Handle simplified format (including Morvargh/MSP webhook format)
     if (body.latitude !== undefined && body.longitude !== undefined) {
       logEntry.payloadFormat = "simplified";
+      const lat = body.latitude as number;
+      const lon = body.longitude as number;
+      const { timestamp, timezone } = convertToLocalTime(
+        body.timestamp as string | undefined,
+        lat,
+        lon
+      );
       const position: SignalKPosition = {
-        latitude: body.latitude as number,
-        longitude: body.longitude as number,
+        latitude: lat,
+        longitude: lon,
         altitude: body.altitude as number | undefined,
-        timestamp: (body.timestamp as string) || new Date().toISOString(),
+        timestamp,
+        timezone,
         source: "signalk",
         // Navigation data
         courseOverGround: (body.courseOverGround || body.cog) as number | undefined,
@@ -215,7 +273,21 @@ export async function POST(request: NextRequest) {
 
     // Handle nested position format from msp-webhook/Signal K
     // Format: { position: { value: { latitude, longitude } }, speed: { value, unit }, ... }
-    const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | undefined;
+    const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | null | undefined;
+
+    // If position is explicitly null (msp-webhook sends this when GPS has no fix),
+    // acknowledge the request but don't update position
+    if (body.position === null || (nestedPosition && nestedPosition.value === undefined)) {
+      logEntry.payloadFormat = "nested-position";
+      logEntry.responseStatus = 200;
+      logEntry.responseBody = { success: true, message: "No position data in payload, skipped update" };
+      logEntry.processingTimeMs = Date.now() - startTime;
+      await addRequestLogAsync(logEntry as RequestLogEntry);
+
+      console.log("[Signal K] Received request with null position, skipping update");
+      return NextResponse.json({ success: true, message: "No position data in payload, skipped update" });
+    }
+
     if (nestedPosition?.value?.latitude !== undefined && nestedPosition?.value?.longitude !== undefined) {
       logEntry.payloadFormat = "nested-position";
 
@@ -265,10 +337,20 @@ export async function POST(request: NextRequest) {
       // Extract log (trip distance)
       const tripLog = extractNumber(body.log) ?? extractNumber(body.tripLog);
 
+      // Convert to local time based on GPS coordinates
+      const lat = nestedPosition.value.latitude;
+      const lon = nestedPosition.value.longitude;
+      const { timestamp, timezone } = convertToLocalTime(
+        body.datetime as string | undefined,
+        lat,
+        lon
+      );
+
       const position: SignalKPosition = {
-        latitude: nestedPosition.value.latitude,
-        longitude: nestedPosition.value.longitude,
-        timestamp: (body.datetime as string) || new Date().toISOString(),
+        latitude: lat,
+        longitude: lon,
+        timestamp,
+        timezone,
         source: "signalk",
         // Navigation data
         speedOverGround: speedKnots,
@@ -295,7 +377,8 @@ export async function POST(request: NextRequest) {
       await addRequestLogAsync(logEntry as RequestLogEntry);
 
       console.log("[Signal K] Position updated (nested format):", position.latitude, position.longitude,
-        "SOG:", position.speedOverGround?.toFixed(1), "kts");
+        "SOG:", position.speedOverGround?.toFixed(1), "kts",
+        "Local time:", position.timestamp, position.timezone);
       return NextResponse.json({ success: true, position });
     }
 
@@ -323,37 +406,52 @@ export async function POST(request: NextRequest) {
  * Parse Signal K delta format to extract position
  */
 function parseSignalKDelta(delta: { updates: Array<{ values: Array<{ path: string; value: unknown }> }> }): SignalKPosition | null {
-  let position: Partial<SignalKPosition> = {
-    timestamp: new Date().toISOString(),
-    source: "signalk",
-    name: "Matariki III",
-    mmsi: "512004962",
-  };
+  let lat: number | undefined;
+  let lon: number | undefined;
+  let altitude: number | undefined;
+  let courseOverGround: number | undefined;
+  let speedOverGround: number | undefined;
+  let heading: number | undefined;
 
   for (const update of delta.updates) {
     for (const item of update.values) {
       switch (item.path) {
         case "navigation.position":
           const pos = item.value as { latitude: number; longitude: number; altitude?: number };
-          position.latitude = pos.latitude;
-          position.longitude = pos.longitude;
-          position.altitude = pos.altitude;
+          lat = pos.latitude;
+          lon = pos.longitude;
+          altitude = pos.altitude;
           break;
         case "navigation.courseOverGroundTrue":
-          position.courseOverGround = (item.value as number) * (180 / Math.PI); // radians to degrees
+          courseOverGround = (item.value as number) * (180 / Math.PI); // radians to degrees
           break;
         case "navigation.speedOverGround":
-          position.speedOverGround = item.value as number; // m/s
+          speedOverGround = item.value as number; // m/s
           break;
         case "navigation.headingTrue":
-          position.heading = (item.value as number) * (180 / Math.PI);
+          heading = (item.value as number) * (180 / Math.PI);
           break;
       }
     }
   }
 
-  if (position.latitude !== undefined && position.longitude !== undefined) {
-    return position as SignalKPosition;
+  if (lat !== undefined && lon !== undefined) {
+    // Convert to local time based on GPS coordinates
+    const { timestamp, timezone } = convertToLocalTime(undefined, lat, lon);
+
+    return {
+      latitude: lat,
+      longitude: lon,
+      altitude,
+      timestamp,
+      timezone,
+      source: "signalk",
+      courseOverGround,
+      speedOverGround,
+      heading,
+      name: "Matariki III",
+      mmsi: "512004962",
+    };
   }
 
   return null;

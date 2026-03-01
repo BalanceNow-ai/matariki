@@ -8,6 +8,7 @@ export type SignalKPosition = {
   longitude: number;
   altitude?: number;
   timestamp: string;
+  timezone?: string; // IANA timezone name (e.g., "Pacific/Auckland")
   source: "signalk" | "fallback";
   // Navigation data from Signal K
   courseOverGround?: number; // degrees
