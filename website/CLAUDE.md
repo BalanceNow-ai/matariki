@@ -2,7 +2,54 @@
 
 ## Project Overview
 
-Next.js 16 website for Matariki III yacht, using Sanity CMS as headless content management system.
+Next.js 16 website for Matariki III yacht (Oyster 68), using Sanity CMS as headless content management system. The site documents sailing adventures around New Zealand and the Pacific.
+
+### Primary Goals
+1. Allow family and followers to track the yacht's position in real-time
+2. Publish voyage log entries with photos, linked to map positions
+3. Showcase photography and video content
+4. Document the yacht's specifications and systems
+5. Build an email subscriber list
+
+### Design Direction
+Refined maritime luxury — deep ocean colour palette with copper/brass accents. Editorial quality typography. Not a casual sailing blog aesthetic; presentation befitting a flagship yacht.
+
+---
+
+## Development Approach: FDD/TDD
+
+**CRITICAL: All development must follow Feature-Driven Development (FDD) and Test-Driven Development (TDD) principles.**
+
+### FDD Principles
+1. **Feature-centric development** - Build by feature, not by layer
+2. **Domain modeling first** - Understand the domain (sailing, voyages, tracking) before coding
+3. **Iterative and incremental** - Deliver working features in short cycles
+4. **Quality at every step** - Each feature must be complete and tested before moving on
+
+### TDD Workflow
+1. **Write tests first** - Before implementing any feature, write failing tests that define expected behavior
+2. **Red-Green-Refactor cycle**:
+   - RED: Write a failing test
+   - GREEN: Write minimal code to pass the test
+   - REFACTOR: Clean up while keeping tests green
+3. **Test coverage requirements**:
+   - Unit tests for utility functions and helpers
+   - Component tests for React components
+   - Integration tests for API routes
+   - E2E tests for critical user flows (tracking, blog, gallery)
+
+### Testing Stack
+- **Unit/Component**: Vitest + React Testing Library
+- **E2E**: Playwright
+- **API Testing**: Vitest with MSW (Mock Service Worker)
+
+### Before Starting Any Feature
+1. Review the specification in `/SPECIFICATION (2).md`
+2. Write acceptance criteria as tests
+3. Implement the feature to pass tests
+4. Refactor and document
+
+---
 
 ## Tech Stack
 
@@ -148,3 +195,51 @@ Some content is still hardcoded and should eventually be migrated to Sanity:
 ### Mock Data Showing Instead of CMS
 
 This almost always means the page is statically rendered. Add dynamic rendering export.
+
+---
+
+## Performance Requirements
+
+- **Lighthouse Score:** 90+ on all metrics
+- **Core Web Vitals:** Must pass
+- **Images:** WebP/AVIF with srcset, lazy loading, blur placeholders
+- **Fonts:** Subset, preload, font-display: swap
+- **Map:** Lazy load Mapbox GL JS
+- **ISR:** Revalidate blog pages on CMS publish
+
+---
+
+## Key Site Architecture
+
+### Page Structure
+```
+/                       # Homepage
+/track                  # Full-screen live tracking map
+/log                    # Blog listing (all entries)
+/log/[slug]             # Individual log entry
+/gallery                # Photo & video gallery
+/gallery/[voyage]       # Gallery filtered by voyage
+/yacht                  # Vessel profile & specifications
+/about                  # Crew & background
+/voyages                # Voyages listing
+/voyages/[slug]         # Individual voyage details
+```
+
+### Core Features
+1. **Live GPS Tracking** - Real-time position on Mapbox, voyage tracks as GeoJSON
+2. **Voyage Blog** - Log entries linked to positions, categories (sailing, hunting, diving, fishing)
+3. **Photo/Video Gallery** - Masonry grid, lightbox with EXIF data, voyage filtering
+4. **Yacht Documentation** - Specifications, systems, refit log
+
+### Key Data Structures
+- **Position**: coordinates, timestamp, voyage reference, source (iridium/ais/manual)
+- **Log Entry**: title, slug, body (Portable Text), location, voyage reference, category
+- **Voyage**: title, slug, dates, status, route (geopoints), hero image
+- **Gallery Image**: image with EXIF/location metadata, caption, voyage reference
+
+---
+
+## Reference Documents
+
+- **Specification**: `/SPECIFICATION (2).md` - Full technical specification
+- **Development Plan**: `/DEVELOPMENT_PLAN.md` - Phased implementation plan
