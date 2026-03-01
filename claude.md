@@ -236,7 +236,7 @@ BUTTONDOWN_API_KEY=
 NEXT_PUBLIC_PLAUSIBLE_DOMAIN=
 
 # Site
-NEXT_PUBLIC_SITE_URL=https://matariki3.nz
+NEXT_PUBLIC_SITE_URL=https://matarikiyacht.com
 ```
 
 ---

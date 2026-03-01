@@ -31,7 +31,7 @@ This guide covers both approaches.
                                            │ via Starlink
                                            ▼
                               ┌────────────────────────┐
-                              │   matariki3.nz         │
+                              │   matarikiyacht.com         │
                               │   /api/position        │
                               └────────────────────────┘
 ```
@@ -110,7 +110,7 @@ The [msp-webhook](https://github.com/50North4West/msp-webhook) plugin is ideal f
 
 1. In Signal K, go to **Appstore** → Search for **msp-webhook** → Install
 2. Configure the plugin:
-   - **Webhook URL**: `https://matariki3.nz/api/position?token=your-webhook-secret`
+   - **Webhook URL**: `https://matarikiyacht.com/api/position?token=your-webhook-secret`
    - **Send Interval**: 60 (seconds)
    - **Paths to monitor**: `navigation.position`, `navigation.speedOverGround`, `navigation.courseOverGroundTrue`
 
@@ -125,7 +125,7 @@ This plugin can publish data to an API when notification status changes.
 
 1. In Signal K, go to **Appstore** → Install **signalk-simple-webhook**
 2. Configure the plugin:
-   - **URL**: `https://matariki3.nz/api/position`
+   - **URL**: `https://matarikiyacht.com/api/position`
    - **Method**: POST
    - **Headers**:
      ```json
@@ -150,7 +150,7 @@ Create a script on the Cerbo to POST position data:
 # /data/scripts/send-position.sh
 
 SIGNALK_URL="http://localhost:3000/signalk/v1/api/vessels/self"
-WEBHOOK_URL="https://matariki3.nz/api/position"
+WEBHOOK_URL="https://matarikiyacht.com/api/position"
 WEBHOOK_SECRET="your-generated-token-here"
 
 # Fetch current position from Signal K
@@ -185,7 +185,7 @@ Add to crontab to run every minute:
 
 ```bash
 # Send a test position
-curl -X POST https://matariki3.nz/api/position \
+curl -X POST https://matarikiyacht.com/api/position \
   -H "Authorization: Bearer your-token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -196,12 +196,12 @@ curl -X POST https://matariki3.nz/api/position \
   }'
 
 # Retrieve the position
-curl https://matariki3.nz/api/position
+curl https://matarikiyacht.com/api/position
 ```
 
 ### Verify on Website
 
-Visit `https://matariki3.nz/track` to see your position displayed on the map.
+Visit `https://matarikiyacht.com/track` to see your position displayed on the map.
 
 ## Troubleshooting
 
