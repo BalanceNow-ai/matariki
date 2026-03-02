@@ -7,6 +7,7 @@ export interface Voyage {
   endDate?: string;
   status: "planning" | "active" | "completed";
   heroImage?: string;
+  waypoints?: Waypoint[];
 }
 
 export interface Position {
@@ -26,6 +27,13 @@ export interface DMSCoordinate {
   minutes: number;
   seconds: number;
   direction: "N" | "S" | "E" | "W";
+}
+
+export interface Waypoint {
+  number: number;
+  name?: string;
+  latitude: DMSCoordinate;
+  longitude: DMSCoordinate;
 }
 
 export interface LogEntry {
