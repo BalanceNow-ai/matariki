@@ -38,6 +38,7 @@ export type LogEntryWaypoint = {
     };
   };
   voyageTitle?: string;
+  heroImageUrl?: string;
 };
 
 type OpenSeaMapClientProps = {
@@ -285,6 +286,15 @@ export function OpenSeaMapClient({
               >
                 <Popup>
                   <div className="text-sm max-w-[250px]">
+                    {waypoint.heroImageUrl && (
+                      <div className="mb-2 -mx-3 -mt-3">
+                        <img
+                          src={waypoint.heroImageUrl}
+                          alt={waypoint.title}
+                          className="w-full h-24 object-cover rounded-t"
+                        />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-1">
                       {waypoint.category && (
                         <span
