@@ -41,7 +41,18 @@ export function LiveTracker({
   const [trackMessage, setTrackMessage] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [gpxDebugLog, setGpxDebugLog] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debug log helper
+  const logDebug = useCallback((message: string, data?: unknown) => {
+    const timestamp = new Date().toISOString();
+    const logEntry = data
+      ? `[${timestamp}] ${message}: ${JSON.stringify(data, null, 2)}`
+      : `[${timestamp}] ${message}`;
+    console.log("[GPX Debug]", logEntry);
+    setGpxDebugLog(prev => [...prev.slice(-50), logEntry]);
+  }, []);
 
   // Filter waypoints by selected voyage
   const filteredWaypoints = selectedVoyageId
@@ -177,43 +188,92 @@ export function LiveTracker({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Clear previous debug log and start fresh
+    setGpxDebugLog([]);
+    logDebug("=== GPX Upload Started ===");
+    logDebug("File info", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: new Date(file.lastModified).toISOString(),
+    });
+
+    // Read file content for debug
+    let fileContent = "";
+    try {
+      fileContent = await file.text();
+      logDebug("File content length", fileContent.length);
+      logDebug("File preview (first 500 chars)", fileContent.slice(0, 500));
+      logDebug("Content contains <gpx>", fileContent.includes("<gpx"));
+      logDebug("Content contains <trkpt>", fileContent.includes("<trkpt"));
+      logDebug("Content contains <wpt>", fileContent.includes("<wpt"));
+    } catch (readErr) {
+      logDebug("ERROR reading file", String(readErr));
+    }
+
     // Check if admin or prompt for token
     let token = adminToken;
     if (!isAdmin) {
+      logDebug("Not admin, prompting for token");
       const authorized = await promptAdminToken();
       if (!authorized) {
-        // Reset file input
+        logDebug("Authorization cancelled by user");
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
         return;
       }
       token = sessionStorage.getItem("adminToken");
+      logDebug("Token retrieved from session", { hasToken: !!token, length: token?.length || 0 });
+    } else {
+      logDebug("Admin authenticated", { hasToken: !!token });
     }
 
     setIsUploading(true);
     setTrackMessage(null);
     try {
+      // Create a new File object from the content we read (to ensure consistency)
+      const blob = new Blob([fileContent], { type: file.type || "application/gpx+xml" });
       const formData = new FormData();
-      formData.append("gpx", file);
+      formData.append("gpx", blob, file.name);
 
+      logDebug("Sending request to /api/position/import-gpx");
+      logDebug("Request headers", { "X-API-Key": token ? `${token.slice(0, 4)}...` : "none" });
+
+      const startTime = Date.now();
       const response = await fetch("/api/position/import-gpx", {
         method: "POST",
         headers: token ? { "X-API-Key": token } : {},
         body: formData,
       });
+      const elapsed = Date.now() - startTime;
+
+      logDebug("Response received", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        elapsedMs: elapsed,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+
       const data = await response.json();
+      logDebug("Response body", data);
+
       if (response.ok) {
+        logDebug("=== Upload SUCCESS ===", { imported: data.imported });
         setTrackMessage(`Imported ${data.imported} waypoints`);
-        // Refresh track history
         await fetchHistory();
         setTimeout(() => setTrackMessage(null), 3000);
       } else {
-        setTrackMessage(`Error: ${data.error || "Failed to import"}`);
+        const errorMsg = [data.error, data.message, data.details].filter(Boolean).join(": ");
+        logDebug("=== Upload FAILED ===", { status: response.status, error: errorMsg, fullData: data });
+        setTrackMessage(`Error: ${errorMsg || "Failed to import"}`);
       }
     } catch (err) {
-      console.error("Failed to upload GPX:", err);
-      setTrackMessage("Error: Failed to upload GPX");
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorStack = err instanceof Error ? err.stack : undefined;
+      logDebug("=== Upload EXCEPTION ===", { message: errorMessage, stack: errorStack });
+      setTrackMessage(`Error: ${errorMessage || "Network error"}`);
     } finally {
       setIsUploading(false);
       // Reset file input
@@ -221,7 +281,7 @@ export function LiveTracker({
         fileInputRef.current.value = "";
       }
     }
-  }, [fetchHistory, isAdmin, adminToken, promptAdminToken]);
+  }, [fetchHistory, isAdmin, adminToken, promptAdminToken, logDebug]);
 
   // Initial load and polling
   useEffect(() => {
@@ -359,6 +419,39 @@ export function LiveTracker({
                 className="hidden"
               />
             </div>
+
+            {/* GPX Debug Log */}
+            {gpxDebugLog.length > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-mist/60 uppercase tracking-wider">
+                    Debug Log
+                  </span>
+                  <button
+                    onClick={() => setGpxDebugLog([])}
+                    className="text-xs text-red-400/70 hover:text-red-400"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="bg-deep-ocean/50 rounded p-2 max-h-48 overflow-y-auto font-mono text-xs">
+                  {gpxDebugLog.map((log, i) => (
+                    <pre
+                      key={i}
+                      className={`whitespace-pre-wrap break-all ${
+                        log.includes("ERROR") || log.includes("FAILED") || log.includes("EXCEPTION")
+                          ? "text-red-400"
+                          : log.includes("SUCCESS")
+                          ? "text-green-400"
+                          : "text-mist/80"
+                      }`}
+                    >
+                      {log}
+                    </pre>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Waypoints Toggle */}
