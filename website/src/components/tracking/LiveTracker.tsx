@@ -125,41 +125,20 @@ export function LiveTracker({
     }
   }, []);
 
-  // Fetch track history (combines permanent track from GPX imports + recent position history)
+  // Fetch track history (unified store - GPX and SignalK data are in the same place)
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await fetch("/api/position/track?type=all", {
+      const response = await fetch("/api/position/track?type=history", {
         cache: "no-store",
       });
       if (!response.ok) return;
       const data = await response.json();
 
-      // Combine permanent track (GPX imports) with position history (live SignalK data)
-      // Both are important: GPX provides historical context, history has latest positions
-      const permanentPoints: SignalKPosition[] = data.permanentTrack?.points || [];
-      const historyPoints: SignalKPosition[] = data.positionHistory?.points || [];
-
-      // Combine both arrays and deduplicate by position (within ~50m)
-      const allPoints = [...permanentPoints, ...historyPoints];
+      // Use position history directly - all track data is in one store
+      const points: SignalKPosition[] = data.positionHistory?.points || [];
 
       // Sort by timestamp (oldest first for proper track drawing)
-      allPoints.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-      // Deduplicate: remove points that are very close together (within 50m)
-      const deduped: SignalKPosition[] = [];
-      for (const point of allPoints) {
-        const isDuplicate = deduped.some(existing => {
-          const latDiff = Math.abs(existing.latitude - point.latitude);
-          const lonDiff = Math.abs(existing.longitude - point.longitude);
-          // ~50m tolerance (rough estimate: 0.0005 degrees ≈ 50m)
-          return latDiff < 0.0005 && lonDiff < 0.0005;
-        });
-        if (!isDuplicate) {
-          deduped.push(point);
-        }
-      }
-
-      const points = deduped;
+      points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
       setTrackHistory(
         points.map((p: SignalKPosition) => ({
