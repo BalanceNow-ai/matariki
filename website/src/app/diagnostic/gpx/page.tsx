@@ -356,20 +356,17 @@ export default function GPXDiagnosticPage() {
                 Test GPX file parsing without importing. Shows detailed parse results and errors.
               </p>
               <div className="flex gap-4 items-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".gpx,application/gpx+xml,text/xml"
-                  onChange={(e) => e.target.files?.[0] && testParse(e.target.files[0])}
-                  className="hidden"
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={testing}
-                  variant="ghost"
-                >
+                <label className="inline-flex items-center justify-center font-medium uppercase tracking-wider transition-all duration-300 bg-transparent border border-mist/30 text-salt-white hover:border-copper-accent hover:text-copper-accent px-6 py-3 text-sm cursor-pointer">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".gpx,application/gpx+xml,text/xml"
+                    onChange={(e) => e.target.files?.[0] && testParse(e.target.files[0])}
+                    className="sr-only"
+                    disabled={testing}
+                  />
                   {testing ? "Testing..." : "Select GPX File to Test"}
-                </Button>
+                </label>
               </div>
 
               {parseResult && (
@@ -489,19 +486,17 @@ export default function GPXDiagnosticPage() {
                 </div>
 
                 <div className="flex gap-4 items-center">
-                  <input
-                    ref={importFileRef}
-                    type="file"
-                    accept=".gpx,application/gpx+xml,text/xml"
-                    onChange={(e) => e.target.files?.[0] && importGPX(e.target.files[0])}
-                    className="hidden"
-                  />
-                  <Button
-                    onClick={() => importFileRef.current?.click()}
-                    disabled={importing || !adminToken}
-                  >
+                  <label className={`inline-flex items-center justify-center font-medium uppercase tracking-wider transition-all duration-300 gradient-copper text-deep-ocean hover:opacity-90 hover:shadow-lg px-6 py-3 text-sm cursor-pointer ${(importing || !adminToken) ? "opacity-50 cursor-not-allowed" : ""}`}>
+                    <input
+                      ref={importFileRef}
+                      type="file"
+                      accept=".gpx,application/gpx+xml,text/xml"
+                      onChange={(e) => e.target.files?.[0] && importGPX(e.target.files[0])}
+                      className="sr-only"
+                      disabled={importing || !adminToken}
+                    />
                     {importing ? "Importing..." : "Import GPX File"}
-                  </Button>
+                  </label>
                 </div>
               </div>
 
