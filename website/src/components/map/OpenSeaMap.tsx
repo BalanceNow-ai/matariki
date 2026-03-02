@@ -28,6 +28,7 @@ export type LogEntryWaypoint = {
     };
   };
   voyageTitle?: string;
+  heroImageUrl?: string;
 };
 
 type OpenSeaMapProps = {
