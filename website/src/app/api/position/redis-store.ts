@@ -336,10 +336,28 @@ export async function importTrackFromGPX(
 ): Promise<{ imported: number; total: number }> {
   const r = getRedis();
 
-  // Filter to every 5th point to reduce density
-  const filteredPoints = trackPoints.filter((_, index) => index % 5 === 0);
+  // Smart filtering: keep every point when gaps > 1 minute, otherwise every 5th point
+  const filteredPoints: typeof trackPoints = [];
+  let pointsSinceLastKept = 5; // Start at 5 so first point is always kept
 
-  console.log(`[GPX Import] Filtering from ${trackPoints.length} to ${filteredPoints.length} points (every 5th)`);
+  for (let i = 0; i < trackPoints.length; i++) {
+    const currentTime = new Date(trackPoints[i].timestamp).getTime();
+    const prevTime = i > 0 ? new Date(trackPoints[i - 1].timestamp).getTime() : currentTime;
+    const timeDiffMs = currentTime - prevTime;
+    const oneMinuteMs = 60 * 1000;
+
+    // Keep point if:
+    // 1. Gap from previous point is > 1 minute (sparse data - keep all), OR
+    // 2. It's been 5 points since we last kept one (dense data - every 5th)
+    if (timeDiffMs > oneMinuteMs || pointsSinceLastKept >= 5) {
+      filteredPoints.push(trackPoints[i]);
+      pointsSinceLastKept = 1;
+    } else {
+      pointsSinceLastKept++;
+    }
+  }
+
+  console.log(`[GPX Import] Filtering from ${trackPoints.length} to ${filteredPoints.length} points (every point when gap > 1min, otherwise every 5th)`);
 
   // Convert to SignalKPosition format - mark as "gpx" source to distinguish from live data
   const positions: SignalKPosition[] = filteredPoints.map((point) => ({
