@@ -329,35 +329,19 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
 /**
  * Import track points from GPX data
  * Adds to the same position history used by SignalK (unified data store)
- * Filters to every 5th point and deduplicates against existing data
+ * All points are imported with timestamps preserved for proper track ordering
+ * Deduplication is by timestamp only (vessel may revisit locations)
  */
 export async function importTrackFromGPX(
   trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string }>
 ): Promise<{ imported: number; total: number }> {
   const r = getRedis();
 
-  // Smart filtering: keep every point when gaps > 1 minute, otherwise every 5th point
-  const filteredPoints: typeof trackPoints = [];
-  let pointsSinceLastKept = 5; // Start at 5 so first point is always kept
+  // Keep all points - timestamps are preserved for proper track ordering
+  // No filtering needed - the track renderer sorts by timestamp
+  const filteredPoints = trackPoints;
 
-  for (let i = 0; i < trackPoints.length; i++) {
-    const currentTime = new Date(trackPoints[i].timestamp).getTime();
-    const prevTime = i > 0 ? new Date(trackPoints[i - 1].timestamp).getTime() : currentTime;
-    const timeDiffMs = currentTime - prevTime;
-    const oneMinuteMs = 60 * 1000;
-
-    // Keep point if:
-    // 1. Gap from previous point is > 1 minute (sparse data - keep all), OR
-    // 2. It's been 5 points since we last kept one (dense data - every 5th)
-    if (timeDiffMs > oneMinuteMs || pointsSinceLastKept >= 5) {
-      filteredPoints.push(trackPoints[i]);
-      pointsSinceLastKept = 1;
-    } else {
-      pointsSinceLastKept++;
-    }
-  }
-
-  console.log(`[GPX Import] Filtering from ${trackPoints.length} to ${filteredPoints.length} points (every point when gap > 1min, otherwise every 5th)`);
+  console.log(`[GPX Import] Importing all ${filteredPoints.length} track points with timestamps`);
 
   // Convert to SignalKPosition format - mark as "gpx" source to distinguish from live data
   const positions: SignalKPosition[] = filteredPoints.map((point) => ({
@@ -371,22 +355,15 @@ export async function importTrackFromGPX(
 
   if (r) {
     try {
-      // Get existing history to deduplicate
+      // Get existing history to deduplicate by timestamp (not location - vessel may revisit areas)
       const existingHistory = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
+      const existingTimestamps = new Set(existingHistory.map(p => p.timestamp));
 
-      // Filter out positions that are too close to existing ones (within ~100m)
-      const newPositions = positions.filter(newPos => {
-        return !existingHistory.some(existing => {
-          const latDiff = Math.abs(existing.latitude - newPos.latitude);
-          const lonDiff = Math.abs(existing.longitude - newPos.longitude);
-          // ~100m tolerance
-          return latDiff < 0.001 && lonDiff < 0.001;
-        });
-      });
+      // Filter out positions with duplicate timestamps only
+      const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
 
       if (newPositions.length > 0) {
-        // Add GPX points to position history (rpush adds to end, keeping chronological order)
-        // Sort by timestamp first to ensure proper order
+        // Sort by timestamp to ensure proper chronological order for track drawing
         newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
         const BATCH_SIZE = 100;
@@ -408,13 +385,9 @@ export async function importTrackFromGPX(
   }
 
   // Fallback to memory - add to history instead of separate track
-  const newPositions = positions.filter(newPos => {
-    return !memoryHistory.some(existing => {
-      const latDiff = Math.abs(existing.latitude - newPos.latitude);
-      const lonDiff = Math.abs(existing.longitude - newPos.longitude);
-      return latDiff < 0.001 && lonDiff < 0.001;
-    });
-  });
+  // Deduplicate by timestamp only (not location - vessel may revisit areas)
+  const existingTimestamps = new Set(memoryHistory.map(p => p.timestamp));
+  const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
 
   memoryHistory.push(...newPositions);
   // Sort by timestamp

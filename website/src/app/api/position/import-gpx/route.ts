@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Imported ${result.imported} track points from ${result.total} total (every point when gap > 1min, otherwise every 5th)`,
+      message: `Imported ${result.imported} track points from ${result.total} total (all points with timestamps preserved)`,
       imported: result.imported,
       total: result.total,
       firstPoint: trackPoints[0],
