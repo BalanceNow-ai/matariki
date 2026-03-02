@@ -43,7 +43,15 @@ export const POST_BY_SLUG_QUERY = groq`*[
   excerpt,
   contentHtml,
   heroImage,
-  location,
+  "location": {
+    "name": location.name,
+    "latitude": location.latitude,
+    "longitude": location.longitude,
+    "coordinates": defined(location.latitude.degrees) && defined(location.longitude.degrees) => {
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60) + (coalesce(location.latitude.seconds, 0) / 3600)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60) + (coalesce(location.longitude.seconds, 0) / 3600)) * select(location.longitude.direction == "W" => -1, 1)
+    }
+  },
   "voyage": voyage->title
 }`;
 
@@ -182,10 +190,11 @@ export const VOYAGES_FOR_SELECTOR_QUERY = groq`*[_type == "voyage"]|order(startD
 }`;
 
 // Fetch log entries with coordinates for waypoints on map
+// Converts DMS (degrees, minutes, seconds) to decimal degrees
 export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   _type == "logEntry"
-  && defined(location.coordinates.lat)
-  && defined(location.coordinates.lng)
+  && defined(location.latitude.degrees)
+  && defined(location.longitude.degrees)
   && defined(slug.current)
 ]|order(publishedAt desc){
   _id,
@@ -197,8 +206,8 @@ export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   "location": {
     "name": location.name,
     "coordinates": {
-      "lat": location.coordinates.lat,
-      "lng": location.coordinates.lng
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60) + (coalesce(location.latitude.seconds, 0) / 3600)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60) + (coalesce(location.longitude.seconds, 0) / 3600)) * select(location.longitude.direction == "W" => -1, 1)
     }
   },
   heroImage,

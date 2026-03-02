@@ -69,9 +69,80 @@ export const logEntry = defineType({
           type: "string",
         },
         {
-          name: "coordinates",
-          title: "Coordinates",
-          type: "geopoint",
+          name: "latitude",
+          title: "Latitude",
+          type: "object",
+          fields: [
+            {
+              name: "degrees",
+              title: "Degrees",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(90).integer(),
+            },
+            {
+              name: "minutes",
+              title: "Minutes",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(59).integer(),
+            },
+            {
+              name: "seconds",
+              title: "Seconds",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(59.999).precision(3),
+            },
+            {
+              name: "direction",
+              title: "Direction",
+              type: "string",
+              options: {
+                list: [
+                  { title: "North", value: "N" },
+                  { title: "South", value: "S" },
+                ],
+                layout: "radio",
+              },
+              initialValue: "S",
+            },
+          ],
+        },
+        {
+          name: "longitude",
+          title: "Longitude",
+          type: "object",
+          fields: [
+            {
+              name: "degrees",
+              title: "Degrees",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(180).integer(),
+            },
+            {
+              name: "minutes",
+              title: "Minutes",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(59).integer(),
+            },
+            {
+              name: "seconds",
+              title: "Seconds",
+              type: "number",
+              validation: (Rule) => Rule.min(0).max(59.999).precision(3),
+            },
+            {
+              name: "direction",
+              title: "Direction",
+              type: "string",
+              options: {
+                list: [
+                  { title: "East", value: "E" },
+                  { title: "West", value: "W" },
+                ],
+                layout: "radio",
+              },
+              initialValue: "E",
+            },
+          ],
         },
       ],
     }),

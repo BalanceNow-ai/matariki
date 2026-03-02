@@ -21,6 +21,13 @@ export interface Position {
   };
 }
 
+export interface DMSCoordinate {
+  degrees: number;
+  minutes: number;
+  seconds: number;
+  direction: "N" | "S" | "E" | "W";
+}
+
 export interface LogEntry {
   id: string;
   title: string;
@@ -30,7 +37,12 @@ export interface LogEntry {
   category: "sailing" | "hunting" | "diving" | "fishing" | "general";
   location?: {
     name: string;
-    coordinates: [number, number];
+    latitude?: DMSCoordinate;
+    longitude?: DMSCoordinate;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
   };
   heroImage?: string;
   excerpt?: string;
