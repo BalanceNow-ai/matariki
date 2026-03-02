@@ -5,7 +5,6 @@ import {
   setLatestPositionAsync,
   addRequestLogAsync,
 } from "./redis-store";
-import { find as findTimezone } from "geo-tz";
 
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
@@ -17,52 +16,28 @@ export const dynamic = "force-dynamic";
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
 /**
- * Convert a datetime string to local time based on GPS coordinates
- * @param datetime - Input datetime string (assumed UTC if no timezone)
- * @param latitude - GPS latitude
- * @param longitude - GPS longitude
- * @returns Object with local timestamp string and timezone name
+ * Format a datetime string for storage
+ * @param datetime - Input datetime string
+ * @returns Formatted timestamp string
  */
-function convertToLocalTime(
-  datetime: string | undefined,
-  latitude: number,
-  longitude: number
-): { timestamp: string; timezone: string } {
-  // Detect timezone from GPS coordinates
-  const timezones = findTimezone(latitude, longitude);
-  const timezone = timezones[0] || "UTC";
-
-  // Parse the input datetime
-  let date: Date;
+function formatTimestamp(datetime: string | undefined): string {
   if (!datetime) {
-    date = new Date();
-  } else if (datetime.includes("T") || datetime.includes("Z")) {
-    // ISO format - parse directly
-    date = new Date(datetime);
-  } else {
-    // Format like "2026-03-01 23:08:30" - assume UTC
-    date = new Date(datetime + "Z");
+    // Use current UTC time formatted nicely
+    const now = new Date();
+    return now.toISOString().replace("T", " ").substring(0, 19);
   }
 
-  // Format in local timezone
-  const formatter = new Intl.DateTimeFormat("en-NZ", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  // If already in "YYYY-MM-DD HH:MM:SS" format, return as-is
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(datetime)) {
+    return datetime;
+  }
 
-  const parts = formatter.formatToParts(date);
-  const getPart = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  // If ISO format, convert to simple format
+  if (datetime.includes("T")) {
+    return datetime.replace("T", " ").substring(0, 19);
+  }
 
-  // Build ISO-like local time string with timezone
-  const localTimestamp = `${getPart("year")}-${getPart("month")}-${getPart("day")} ${getPart("hour")}:${getPart("minute")}:${getPart("second")}`;
-
-  return { timestamp: localTimestamp, timezone };
+  return datetime;
 }
 
 /**
@@ -233,17 +208,12 @@ export async function POST(request: NextRequest) {
       logEntry.payloadFormat = "simplified";
       const lat = body.latitude as number;
       const lon = body.longitude as number;
-      const { timestamp, timezone } = convertToLocalTime(
-        body.timestamp as string | undefined,
-        lat,
-        lon
-      );
+      const timestamp = formatTimestamp(body.timestamp as string | undefined);
       const position: SignalKPosition = {
         latitude: lat,
         longitude: lon,
         altitude: body.altitude as number | undefined,
         timestamp,
-        timezone,
         source: "signalk",
         // Navigation data
         courseOverGround: (body.courseOverGround || body.cog) as number | undefined,
@@ -340,20 +310,14 @@ export async function POST(request: NextRequest) {
       // Extract log (trip distance)
       const tripLog = extractNumber(body.log) ?? extractNumber(body.tripLog);
 
-      // Convert to local time based on GPS coordinates
       const lat = nestedPosition.value.latitude;
       const lon = nestedPosition.value.longitude;
-      const { timestamp, timezone } = convertToLocalTime(
-        body.datetime as string | undefined,
-        lat,
-        lon
-      );
+      const timestamp = formatTimestamp(body.datetime as string | undefined);
 
       const position: SignalKPosition = {
         latitude: lat,
         longitude: lon,
         timestamp,
-        timezone,
         source: "signalk",
         // Navigation data
         speedOverGround: speedKnots,
@@ -381,7 +345,7 @@ export async function POST(request: NextRequest) {
 
       console.log("[Signal K] Position updated (nested format):", position.latitude, position.longitude,
         "SOG:", position.speedOverGround?.toFixed(1), "kts",
-        "Local time:", position.timestamp, position.timezone);
+        "Time:", position.timestamp);
       return NextResponse.json({ success: true, position });
     }
 
@@ -439,15 +403,13 @@ function parseSignalKDelta(delta: { updates: Array<{ values: Array<{ path: strin
   }
 
   if (lat !== undefined && lon !== undefined) {
-    // Convert to local time based on GPS coordinates
-    const { timestamp, timezone } = convertToLocalTime(undefined, lat, lon);
+    const timestamp = formatTimestamp(undefined);
 
     return {
       latitude: lat,
       longitude: lon,
       altitude,
       timestamp,
-      timezone,
       source: "signalk",
       courseOverGround,
       speedOverGround,
