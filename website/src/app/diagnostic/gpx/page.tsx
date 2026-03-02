@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
+import { parseGPXFile } from "@/lib/gpx-parser";
 
 interface DiagnosticResult {
   status: "pass" | "fail" | "warn";
@@ -213,15 +214,30 @@ export default function GPXDiagnosticPage() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("gpx", file);
+      // Parse GPX client-side to avoid Vercel payload limits
+      const parseResult = await parseGPXFile(file);
 
+      if (!parseResult.success || parseResult.points.length === 0) {
+        const errorMsg = parseResult.errors.length > 0
+          ? parseResult.errors.join(", ")
+          : "No track points found in GPX file";
+        setImportResult({
+          success: false,
+          error: "Parse failed",
+          message: errorMsg,
+          details: `File size: ${file.size} bytes`,
+        });
+        return;
+      }
+
+      // Send parsed points as JSON
       const res = await fetch("/api/position/import-gpx", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           "X-API-Key": adminToken,
         },
-        body: formData,
+        body: JSON.stringify({ points: parseResult.points }),
       });
       const data = await res.json();
       setImportResult(data);
