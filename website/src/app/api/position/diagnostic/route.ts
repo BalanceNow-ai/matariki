@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { calculatePositionAgeMs } from "../store";
 import {
-  getLatestPosition,
-  hasLatestPosition,
-  getPositionHistory,
-  calculatePositionAgeMs,
-} from "../store";
+  getLatestPositionAsync,
+  hasLatestPositionAsync,
+  getPositionHistoryAsync,
+  isRedisConfigured,
+} from "../redis-store";
+import type { SignalKPosition } from "../store";
+
+// Force dynamic to prevent caching
+export const dynamic = "force-dynamic";
 
 interface DiagnosticResult {
   status: "pass" | "fail" | "warn";
@@ -25,7 +30,8 @@ interface DiagnosticReport {
     age: string;
     historyCount: number;
   };
-  rawPosition: ReturnType<typeof getLatestPosition>;
+  rawPosition: SignalKPosition;
+  storage: string;
 }
 
 /**
@@ -52,9 +58,9 @@ export async function GET() {
   }
 
   // Check 2: Live position data received
-  const hasLive = hasLatestPosition();
-  const position = getLatestPosition();
-  const history = getPositionHistory();
+  const hasLive = await hasLatestPositionAsync();
+  const position = await getLatestPositionAsync();
+  const history = await getPositionHistoryAsync();
 
   if (hasLive && position.source === "signalk") {
     const ageMs = calculatePositionAgeMs(position);
@@ -171,6 +177,7 @@ export async function GET() {
       historyCount: history.length,
     },
     rawPosition: position,
+    storage: isRedisConfigured() ? "redis" : "memory",
   };
 
   return NextResponse.json(report);

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseLocalTimestampToUtc } from "../store";
 import { getPositionHistoryAsync } from "../redis-store";
 
+// Force dynamic to prevent Next.js from caching history data
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/position/history
  * Returns historical positions for track plotting
