@@ -178,8 +178,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Imported ${result.imported} track points from GPX`,
+      message: `Imported ${result.imported} track points from GPX (every 5th of ${result.total} total)`,
       imported: result.imported,
+      total: result.total,
       firstPoint: trackPoints[0],
       lastPoint: trackPoints[trackPoints.length - 1],
     });
