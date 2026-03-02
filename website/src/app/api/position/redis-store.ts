@@ -295,14 +295,20 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
 /**
  * Import track points from GPX data
  * Replaces existing track with imported waypoints
+ * Only imports every 5th point to reduce data density
  */
 export async function importTrackFromGPX(
   trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string }>
-): Promise<{ imported: number }> {
+): Promise<{ imported: number; total: number }> {
   const r = getRedis();
 
+  // Filter to every 5th point to reduce density
+  const filteredPoints = trackPoints.filter((_, index) => index % 5 === 0);
+
+  console.log(`[GPX Import] Filtering from ${trackPoints.length} to ${filteredPoints.length} points (every 5th)`);
+
   // Convert to SignalKPosition format
-  const positions: SignalKPosition[] = trackPoints.map((point) => ({
+  const positions: SignalKPosition[] = filteredPoints.map((point) => ({
     latitude: point.latitude,
     longitude: point.longitude,
     timestamp: point.timestamp,
@@ -330,8 +336,8 @@ export async function importTrackFromGPX(
         await r.set(KEYS.lastTrackPosition, positions[positions.length - 1]);
       }
 
-      console.log(`[Redis] Imported ${positions.length} track points from GPX`);
-      return { imported: positions.length };
+      console.log(`[Redis] Imported ${positions.length} track points from GPX (from ${trackPoints.length} total)`);
+      return { imported: positions.length, total: trackPoints.length };
     } catch (error) {
       console.error("[Redis] Error importing GPX:", error);
     }
@@ -341,9 +347,9 @@ export async function importTrackFromGPX(
   memoryPermanentTrack.length = 0;
   memoryPermanentTrack.push(...positions.reverse()); // Reverse for memory (newest first)
   memoryLastTrackPosition = positions.length > 0 ? positions[0] : null;
-  console.log(`[Memory] Imported ${positions.length} track points from GPX`);
+  console.log(`[Memory] Imported ${positions.length} track points from GPX (from ${trackPoints.length} total)`);
 
-  return { imported: positions.length };
+  return { imported: positions.length, total: trackPoints.length };
 }
 
 /**
