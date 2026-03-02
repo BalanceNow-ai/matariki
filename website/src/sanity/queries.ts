@@ -48,8 +48,8 @@ export const POST_BY_SLUG_QUERY = groq`*[
     "latitude": location.latitude,
     "longitude": location.longitude,
     "coordinates": defined(location.latitude.degrees) && defined(location.longitude.degrees) => {
-      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60) + (coalesce(location.latitude.seconds, 0) / 3600)) * select(location.latitude.direction == "S" => -1, 1),
-      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60) + (coalesce(location.longitude.seconds, 0) / 3600)) * select(location.longitude.direction == "W" => -1, 1)
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60)) * select(location.longitude.direction == "W" => -1, 1)
     }
   },
   "voyage": voyage->title
@@ -190,7 +190,7 @@ export const VOYAGES_FOR_SELECTOR_QUERY = groq`*[_type == "voyage"]|order(startD
 }`;
 
 // Fetch log entries with coordinates for waypoints on map
-// Converts DMS (degrees, minutes, seconds) to decimal degrees
+// Converts degrees/decimal minutes to decimal degrees
 export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   _type == "logEntry"
   && defined(location.latitude.degrees)
@@ -206,8 +206,8 @@ export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   "location": {
     "name": location.name,
     "coordinates": {
-      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60) + (coalesce(location.latitude.seconds, 0) / 3600)) * select(location.latitude.direction == "S" => -1, 1),
-      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60) + (coalesce(location.longitude.seconds, 0) / 3600)) * select(location.longitude.direction == "W" => -1, 1)
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60)) * select(location.longitude.direction == "W" => -1, 1)
     }
   },
   heroImage,
