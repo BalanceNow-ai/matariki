@@ -10,6 +10,9 @@ import { find as findTimezone } from "geo-tz";
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
 
+// Force dynamic to prevent Next.js from caching position data
+export const dynamic = "force-dynamic";
+
 // Secret token to authenticate position updates from Signal K
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 

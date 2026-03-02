@@ -9,6 +9,9 @@ import {
 } from "../redis-store";
 import { calculatePositionAgeMs } from "../store";
 
+// Force dynamic to prevent caching
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/position/debug
  * Returns request logs and current position state for debugging

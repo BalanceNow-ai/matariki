@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPositionHistory, parseLocalTimestampToUtc } from "../store";
+import { parseLocalTimestampToUtc } from "../store";
+import { getPositionHistoryAsync } from "../redis-store";
+
+// Force dynamic to prevent Next.js from caching history data
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/position/history
@@ -16,7 +20,7 @@ export async function GET(request: NextRequest) {
   );
   const since = request.nextUrl.searchParams.get("since");
 
-  let history = getPositionHistory();
+  let history = await getPositionHistoryAsync();
 
   // Filter by timestamp if provided
   if (since) {
