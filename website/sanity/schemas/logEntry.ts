@@ -89,7 +89,7 @@ export const logEntry = defineType({
               name: "seconds",
               title: "Seconds",
               type: "number",
-              validation: (Rule) => Rule.min(0).max(59.999).precision(3),
+              validation: (Rule) => Rule.min(0).max(59.9999).precision(4),
             },
             {
               name: "direction",
@@ -127,7 +127,7 @@ export const logEntry = defineType({
               name: "seconds",
               title: "Seconds",
               type: "number",
-              validation: (Rule) => Rule.min(0).max(59.999).precision(3),
+              validation: (Rule) => Rule.min(0).max(59.9999).precision(4),
             },
             {
               name: "direction",
