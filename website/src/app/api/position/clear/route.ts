@@ -9,8 +9,9 @@ const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
 /**
  * POST /api/position/clear
- * Clears all track history (position history and permanent track)
+ * Clears GPX track history while preserving Signal K data
  * Use this to remove GPS artifacts/jumps from the track
+ * Signal K live data (source: "signalk") is preserved
  */
 export async function POST(request: NextRequest) {
   // Verify secret token
