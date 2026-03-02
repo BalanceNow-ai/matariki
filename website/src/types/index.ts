@@ -22,18 +22,17 @@ export interface Position {
   };
 }
 
-export interface DMSCoordinate {
+export interface DMCoordinate {
   degrees: number;
   minutes: number;
-  seconds: number;
   direction: "N" | "S" | "E" | "W";
 }
 
 export interface Waypoint {
   number: number;
   name?: string;
-  latitude: DMSCoordinate;
-  longitude: DMSCoordinate;
+  latitude: DMCoordinate;
+  longitude: DMCoordinate;
 }
 
 export interface LogEntry {
@@ -45,8 +44,8 @@ export interface LogEntry {
   category: "sailing" | "hunting" | "diving" | "fishing" | "general";
   location?: {
     name: string;
-    latitude?: DMSCoordinate;
-    longitude?: DMSCoordinate;
+    latitude?: DMCoordinate;
+    longitude?: DMCoordinate;
     coordinates?: {
       lat: number;
       lng: number;

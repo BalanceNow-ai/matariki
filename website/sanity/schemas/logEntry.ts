@@ -83,12 +83,6 @@ export const logEntry = defineType({
               name: "minutes",
               title: "Minutes",
               type: "number",
-              validation: (Rule) => Rule.min(0).max(59).integer(),
-            },
-            {
-              name: "seconds",
-              title: "Seconds",
-              type: "number",
               validation: (Rule) => Rule.min(0).max(59.9999).precision(4),
             },
             {
@@ -120,12 +114,6 @@ export const logEntry = defineType({
             {
               name: "minutes",
               title: "Minutes",
-              type: "number",
-              validation: (Rule) => Rule.min(0).max(59).integer(),
-            },
-            {
-              name: "seconds",
-              title: "Seconds",
               type: "number",
               validation: (Rule) => Rule.min(0).max(59.9999).precision(4),
             },
