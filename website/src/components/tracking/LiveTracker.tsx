@@ -39,12 +39,62 @@ export function LiveTracker({
   const [isClearing, setIsClearing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [trackMessage, setTrackMessage] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter waypoints by selected voyage
   const filteredWaypoints = selectedVoyageId
     ? waypoints.filter((wp) => wp.voyageTitle === allVoyages.find((v) => v._id === selectedVoyageId)?.title)
     : waypoints;
+
+  // Check admin access on mount
+  useEffect(() => {
+    const storedToken = sessionStorage.getItem("adminToken");
+    if (storedToken) {
+      // Verify the stored token is still valid
+      fetch("/api/admin/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: storedToken }),
+      })
+        .then((res) => {
+          if (res.ok) {
+            setIsAdmin(true);
+            setAdminToken(storedToken);
+          } else {
+            sessionStorage.removeItem("adminToken");
+          }
+        })
+        .catch(() => sessionStorage.removeItem("adminToken"));
+    }
+  }, []);
+
+  // Prompt for admin token
+  const promptAdminToken = useCallback(async () => {
+    const token = prompt("Enter admin token to manage track:");
+    if (!token) return false;
+
+    try {
+      const res = await fetch("/api/admin/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (res.ok) {
+        setIsAdmin(true);
+        setAdminToken(token);
+        sessionStorage.setItem("adminToken", token);
+        return true;
+      } else {
+        setTrackMessage("Error: Invalid admin token");
+        return false;
+      }
+    } catch {
+      setTrackMessage("Error: Failed to verify token");
+      return false;
+    }
+  }, []);
 
   // Fetch current position
   const fetchPosition = useCallback(async () => {
@@ -88,6 +138,14 @@ export function LiveTracker({
 
   // Clear track history
   const handleClearTrack = useCallback(async () => {
+    // Check if admin or prompt for token
+    let token = adminToken;
+    if (!isAdmin) {
+      const authorized = await promptAdminToken();
+      if (!authorized) return;
+      token = sessionStorage.getItem("adminToken");
+    }
+
     if (!confirm("Clear all track history? This cannot be undone.")) return;
 
     setIsClearing(true);
@@ -95,6 +153,7 @@ export function LiveTracker({
     try {
       const response = await fetch("/api/position/clear", {
         method: "POST",
+        headers: token ? { "X-API-Key": token } : {},
         cache: "no-store",
       });
       const data = await response.json();
@@ -111,12 +170,26 @@ export function LiveTracker({
     } finally {
       setIsClearing(false);
     }
-  }, []);
+  }, [isAdmin, adminToken, promptAdminToken]);
 
   // Handle GPX file upload
   const handleGPXUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Check if admin or prompt for token
+    let token = adminToken;
+    if (!isAdmin) {
+      const authorized = await promptAdminToken();
+      if (!authorized) {
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+      token = sessionStorage.getItem("adminToken");
+    }
 
     setIsUploading(true);
     setTrackMessage(null);
@@ -126,6 +199,7 @@ export function LiveTracker({
 
       const response = await fetch("/api/position/import-gpx", {
         method: "POST",
+        headers: token ? { "X-API-Key": token } : {},
         body: formData,
       });
       const data = await response.json();
@@ -147,7 +221,7 @@ export function LiveTracker({
         fileInputRef.current.value = "";
       }
     }
-  }, [fetchHistory]);
+  }, [fetchHistory, isAdmin, adminToken, promptAdminToken]);
 
   // Initial load and polling
   useEffect(() => {
