@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { OpenSeaMap, VesselPosition, LogEntryWaypoint } from "@/components/map/OpenSeaMap";
 import { VesselDataPanel } from "./VesselDataPanel";
 import { VoyageContextPanel, Voyage } from "./VoyageContextPanel";
@@ -36,6 +36,10 @@ export function LiveTracker({
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [trackMessage, setTrackMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter waypoints by selected voyage
   const filteredWaypoints = selectedVoyageId
@@ -81,6 +85,69 @@ export function LiveTracker({
       console.error("Failed to fetch history:", err);
     }
   }, []);
+
+  // Clear track history
+  const handleClearTrack = useCallback(async () => {
+    if (!confirm("Clear all track history? This cannot be undone.")) return;
+
+    setIsClearing(true);
+    setTrackMessage(null);
+    try {
+      const response = await fetch("/api/position/clear", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setTrackHistory([]);
+        setTrackMessage(`Cleared ${data.cleared} positions`);
+        setTimeout(() => setTrackMessage(null), 3000);
+      } else {
+        setTrackMessage(`Error: ${data.error || "Failed to clear"}`);
+      }
+    } catch (err) {
+      console.error("Failed to clear track:", err);
+      setTrackMessage("Error: Failed to clear track");
+    } finally {
+      setIsClearing(false);
+    }
+  }, []);
+
+  // Handle GPX file upload
+  const handleGPXUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setTrackMessage(null);
+    try {
+      const formData = new FormData();
+      formData.append("gpx", file);
+
+      const response = await fetch("/api/position/import-gpx", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setTrackMessage(`Imported ${data.imported} waypoints`);
+        // Refresh track history
+        await fetchHistory();
+        setTimeout(() => setTrackMessage(null), 3000);
+      } else {
+        setTrackMessage(`Error: ${data.error || "Failed to import"}`);
+      }
+    } catch (err) {
+      console.error("Failed to upload GPX:", err);
+      setTrackMessage("Error: Failed to upload GPX");
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }, [fetchHistory]);
 
   // Initial load and polling
   useEffect(() => {
@@ -183,6 +250,41 @@ export function LiveTracker({
                 }`}
               />
             </button>
+          </div>
+
+          {/* Track Management */}
+          <div className="pt-2 border-t border-mist/10 space-y-2">
+            <span className="text-xs text-mist/60 uppercase tracking-wider">
+              Track Management
+            </span>
+            {trackMessage && (
+              <p className={`text-xs ${trackMessage.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
+                {trackMessage}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleClearTrack}
+                disabled={isClearing}
+                className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-red-600/80 hover:bg-red-600 disabled:bg-mist/30 rounded transition-colors"
+              >
+                {isClearing ? "Clearing..." : "Clear Track"}
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-teal-accent/80 hover:bg-teal-accent disabled:bg-mist/30 rounded transition-colors"
+              >
+                {isUploading ? "Uploading..." : "Upload GPX"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".gpx,application/gpx+xml"
+                onChange={handleGPXUpload}
+                className="hidden"
+              />
+            </div>
           </div>
 
           {/* Waypoints Toggle */}

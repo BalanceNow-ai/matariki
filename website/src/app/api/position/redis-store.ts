@@ -256,6 +256,94 @@ export async function clearRequestLogAsync(): Promise<void> {
 }
 
 /**
+ * Clear all track history (position history and permanent track)
+ * Use this to remove GPS artifacts/jumps from the track
+ */
+export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
+  const r = getRedis();
+  let clearedCount = 0;
+
+  if (r) {
+    try {
+      // Get counts before clearing
+      const historyCount = await r.llen(KEYS.positionHistory);
+      const trackCount = await r.llen(KEYS.permanentTrack);
+      clearedCount = historyCount + trackCount;
+
+      // Clear all track-related keys
+      await r.del(KEYS.positionHistory);
+      await r.del(KEYS.permanentTrack);
+      await r.del(KEYS.lastTrackPosition);
+
+      console.log(`[Redis] Cleared track history: ${historyCount} positions, ${trackCount} track points`);
+      return { cleared: clearedCount };
+    } catch (error) {
+      console.error("[Redis] Error clearing track history:", error);
+    }
+  }
+
+  // Fallback to memory
+  clearedCount = memoryHistory.length + memoryPermanentTrack.length;
+  memoryHistory.length = 0;
+  memoryPermanentTrack.length = 0;
+  memoryLastTrackPosition = null;
+  console.log(`[Memory] Cleared track history: ${clearedCount} positions`);
+
+  return { cleared: clearedCount };
+}
+
+/**
+ * Import track points from GPX data
+ * Replaces existing track with imported waypoints
+ */
+export async function importTrackFromGPX(
+  trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string }>
+): Promise<{ imported: number }> {
+  const r = getRedis();
+
+  // Convert to SignalKPosition format
+  const positions: SignalKPosition[] = trackPoints.map((point) => ({
+    latitude: point.latitude,
+    longitude: point.longitude,
+    timestamp: point.timestamp,
+    source: "fallback" as const, // Mark as imported data
+    name: point.name || "Matariki III",
+    location: "Imported from GPX",
+  }));
+
+  if (r) {
+    try {
+      // Clear existing track first
+      await r.del(KEYS.permanentTrack);
+      await r.del(KEYS.lastTrackPosition);
+
+      // Import new track points (in reverse order so oldest is at end of list)
+      if (positions.length > 0) {
+        // RPUSH adds to end, so we push in chronological order
+        for (const pos of positions) {
+          await r.rpush(KEYS.permanentTrack, pos);
+        }
+        // Set last track position to the most recent point
+        await r.set(KEYS.lastTrackPosition, positions[positions.length - 1]);
+      }
+
+      console.log(`[Redis] Imported ${positions.length} track points from GPX`);
+      return { imported: positions.length };
+    } catch (error) {
+      console.error("[Redis] Error importing GPX:", error);
+    }
+  }
+
+  // Fallback to memory
+  memoryPermanentTrack.length = 0;
+  memoryPermanentTrack.push(...positions.reverse()); // Reverse for memory (newest first)
+  memoryLastTrackPosition = positions.length > 0 ? positions[0] : null;
+  console.log(`[Memory] Imported ${positions.length} track points from GPX`);
+
+  return { imported: positions.length };
+}
+
+/**
  * Check if Redis is available
  */
 export function isRedisConfigured(): boolean {
