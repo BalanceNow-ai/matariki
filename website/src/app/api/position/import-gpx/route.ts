@@ -94,10 +94,12 @@ function parseGPX(gpxContent: string): GPXTrackPoint[] {
 
 /**
  * POST /api/position/import-gpx
- * Imports track points from a GPX file
- * Accepts either:
- * - multipart/form-data with file field "gpx"
- * - application/xml or text/xml with GPX content in body
+ * Imports track points from a GPX file or pre-parsed track points
+ * Accepts:
+ * - multipart/form-data with file field "gpx" (for small files)
+ * - application/xml or text/xml with GPX content in body (for small files)
+ * - application/json with "points" array (recommended for large files - parse GPX client-side)
+ * - application/json with "gpx" field containing GPX string (for small files)
  */
 export async function POST(request: NextRequest) {
   // Verify secret token
@@ -124,10 +126,44 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    let gpxContent: string;
+    let trackPoints: GPXTrackPoint[];
     const contentType = request.headers.get("content-type") || "";
 
-    if (contentType.includes("multipart/form-data")) {
+    if (contentType.includes("application/json")) {
+      // Handle JSON - either pre-parsed points or GPX string
+      const json = await request.json();
+
+      if (json.points && Array.isArray(json.points)) {
+        // Pre-parsed track points from client-side GPX parsing
+        trackPoints = json.points.map((p: { latitude?: number; lat?: number; longitude?: number; lng?: number; lon?: number; timestamp?: string; name?: string }) => ({
+          latitude: p.latitude ?? p.lat,
+          longitude: p.longitude ?? p.lng ?? p.lon,
+          timestamp: p.timestamp || new Date().toISOString(),
+          name: p.name,
+        })).filter((p: GPXTrackPoint) =>
+          typeof p.latitude === 'number' &&
+          typeof p.longitude === 'number' &&
+          !isNaN(p.latitude) &&
+          !isNaN(p.longitude)
+        );
+
+        if (trackPoints.length === 0) {
+          return NextResponse.json(
+            { error: "No valid track points", message: "Points array contained no valid coordinates" },
+            { status: 400 }
+          );
+        }
+      } else if (json.gpx || json.content) {
+        // GPX string in JSON
+        const gpxContent = json.gpx || json.content;
+        trackPoints = parseGPX(gpxContent);
+      } else {
+        return NextResponse.json(
+          { error: "Invalid JSON format", message: "Send either 'points' array or 'gpx' string" },
+          { status: 400 }
+        );
+      }
+    } else if (contentType.includes("multipart/form-data")) {
       // Handle file upload
       const formData = await request.formData();
       const file = formData.get("gpx") as File | null;
@@ -139,32 +175,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      gpxContent = await file.text();
+      const gpxContent = await file.text();
+      trackPoints = parseGPX(gpxContent);
     } else if (contentType.includes("xml") || contentType.includes("text/plain")) {
       // Handle raw XML body
-      gpxContent = await request.text();
+      const gpxContent = await request.text();
+      trackPoints = parseGPX(gpxContent);
     } else {
-      // Try to parse as JSON with gpx field
-      try {
-        const json = await request.json();
-        gpxContent = json.gpx || json.content || "";
-      } catch {
-        return NextResponse.json(
-          { error: "Invalid content type", message: "Send GPX as multipart/form-data, XML, or JSON with 'gpx' field" },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (!gpxContent || !gpxContent.includes("<gpx") && !gpxContent.includes("<wpt") && !gpxContent.includes("<trkpt")) {
       return NextResponse.json(
-        { error: "Invalid GPX content", message: "Content does not appear to be valid GPX XML" },
+        { error: "Invalid content type", message: "Send as JSON with 'points' array (recommended), multipart/form-data, or XML" },
         { status: 400 }
       );
     }
-
-    // Parse GPX
-    const trackPoints = parseGPX(gpxContent);
 
     if (trackPoints.length === 0) {
       return NextResponse.json(
@@ -178,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Imported ${result.imported} track points from GPX (every 5th of ${result.total} total)`,
+      message: `Imported ${result.imported} track points (every 5th of ${result.total} total)`,
       imported: result.imported,
       total: result.total,
       firstPoint: trackPoints[0],

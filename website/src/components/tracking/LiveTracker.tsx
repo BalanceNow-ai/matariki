@@ -6,6 +6,7 @@ import { VesselDataPanel } from "./VesselDataPanel";
 import { VoyageContextPanel, Voyage } from "./VoyageContextPanel";
 import { WeatherConditionsPanel } from "./WeatherConditionsPanel";
 import { SignalKPosition } from "@/app/api/position/store";
+import { parseGPXFile } from "@/lib/gpx-parser";
 
 type FallbackPosition = {
   lat: number;
@@ -183,7 +184,7 @@ export function LiveTracker({
     }
   }, [isAdmin, adminToken, promptAdminToken]);
 
-  // Handle GPX file upload
+  // Handle GPX file upload - parses client-side to avoid Vercel payload limits
   const handleGPXUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -198,17 +199,30 @@ export function LiveTracker({
       lastModified: new Date(file.lastModified).toISOString(),
     });
 
-    // Read file content for debug
-    let fileContent = "";
-    try {
-      fileContent = await file.text();
-      logDebug("File content length", fileContent.length);
-      logDebug("File preview (first 500 chars)", fileContent.slice(0, 500));
-      logDebug("Content contains <gpx>", fileContent.includes("<gpx"));
-      logDebug("Content contains <trkpt>", fileContent.includes("<trkpt"));
-      logDebug("Content contains <wpt>", fileContent.includes("<wpt"));
-    } catch (readErr) {
-      logDebug("ERROR reading file", String(readErr));
+    // Parse GPX client-side to extract track points
+    logDebug("Parsing GPX client-side...");
+    const parseResult = await parseGPXFile(file);
+
+    logDebug("Parse result", {
+      success: parseResult.success,
+      totalPoints: parseResult.stats.totalPoints,
+      waypointsFound: parseResult.stats.waypointsFound,
+      trackPointsFound: parseResult.stats.trackPointsFound,
+      routePointsFound: parseResult.stats.routePointsFound,
+      errors: parseResult.errors,
+      warnings: parseResult.warnings,
+    });
+
+    if (!parseResult.success || parseResult.points.length === 0) {
+      const errorMsg = parseResult.errors.length > 0
+        ? parseResult.errors.join(", ")
+        : "No track points found in GPX file";
+      logDebug("=== Parse FAILED ===", { error: errorMsg });
+      setTrackMessage(`Error: ${errorMsg}`);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
     }
 
     // Check if admin or prompt for token
@@ -232,19 +246,23 @@ export function LiveTracker({
     setIsUploading(true);
     setTrackMessage(null);
     try {
-      // Create a new File object from the content we read (to ensure consistency)
-      const blob = new Blob([fileContent], { type: file.type || "application/gpx+xml" });
-      const formData = new FormData();
-      formData.append("gpx", blob, file.name);
-
-      logDebug("Sending request to /api/position/import-gpx");
+      // Send parsed points as JSON instead of raw GPX file
+      const payload = JSON.stringify({ points: parseResult.points });
+      logDebug("Sending request to /api/position/import-gpx", {
+        payloadSize: payload.length,
+        originalFileSize: file.size,
+        compressionRatio: `${((1 - payload.length / file.size) * 100).toFixed(1)}% smaller`,
+      });
       logDebug("Request headers", { "X-API-Key": token ? `${token.slice(0, 4)}...` : "none" });
 
       const startTime = Date.now();
       const response = await fetch("/api/position/import-gpx", {
         method: "POST",
-        headers: token ? { "X-API-Key": token } : {},
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "X-API-Key": token } : {}),
+        },
+        body: payload,
       });
       const elapsed = Date.now() - startTime;
 
