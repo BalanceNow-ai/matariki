@@ -256,8 +256,9 @@ export async function clearRequestLogAsync(): Promise<void> {
 }
 
 /**
- * Clear all track history (position history and permanent track)
+ * Clear GPX track history while preserving Signal K data
  * Use this to remove GPS artifacts/jumps from the track
+ * Signal K data (source: "signalk") is preserved
  */
 export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
   const r = getRedis();
@@ -265,37 +266,70 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
 
   if (r) {
     try {
-      // Get counts before clearing
-      const historyCount = await r.llen(KEYS.positionHistory);
-      const trackCount = await r.llen(KEYS.permanentTrack);
-      clearedCount = historyCount + trackCount;
+      // Get all positions from history
+      const history = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
+      const track = await r.lrange<SignalKPosition>(KEYS.permanentTrack, 0, -1);
 
-      // Clear all track-related keys
+      // Filter to keep only Signal K data (live data from the vessel)
+      const signalkHistory = history.filter(pos => pos.source === "signalk");
+      const signalkTrack = track.filter(pos => pos.source === "signalk");
+
+      // Calculate how many we're clearing (non-signalk data)
+      const historyCleared = history.length - signalkHistory.length;
+      const trackCleared = track.length - signalkTrack.length;
+      clearedCount = historyCleared + trackCleared;
+
+      // Clear and repopulate with only Signal K data
       await r.del(KEYS.positionHistory);
       await r.del(KEYS.permanentTrack);
-      await r.del(KEYS.lastTrackPosition);
 
-      console.log(`[Redis] Cleared track history: ${historyCount} positions, ${trackCount} track points`);
+      if (signalkHistory.length > 0) {
+        // Restore Signal K history (rpush to maintain order)
+        await r.rpush(KEYS.positionHistory, ...signalkHistory);
+      }
+
+      if (signalkTrack.length > 0) {
+        // Restore Signal K permanent track
+        await r.rpush(KEYS.permanentTrack, ...signalkTrack);
+      }
+
+      // Only clear lastTrackPosition if no Signal K track data remains
+      if (signalkTrack.length === 0) {
+        await r.del(KEYS.lastTrackPosition);
+      }
+
+      console.log(`[Redis] Cleared GPX data: ${historyCleared} history positions, ${trackCleared} track points (preserved ${signalkHistory.length} Signal K positions)`);
       return { cleared: clearedCount };
     } catch (error) {
       console.error("[Redis] Error clearing track history:", error);
     }
   }
 
-  // Fallback to memory
-  clearedCount = memoryHistory.length + memoryPermanentTrack.length;
+  // Fallback to memory - filter to keep only Signal K data
+  const signalkHistory = memoryHistory.filter(pos => pos.source === "signalk");
+  const signalkTrack = memoryPermanentTrack.filter(pos => pos.source === "signalk");
+
+  clearedCount = (memoryHistory.length - signalkHistory.length) + (memoryPermanentTrack.length - signalkTrack.length);
+
   memoryHistory.length = 0;
+  memoryHistory.push(...signalkHistory);
+
   memoryPermanentTrack.length = 0;
-  memoryLastTrackPosition = null;
-  console.log(`[Memory] Cleared track history: ${clearedCount} positions`);
+  memoryPermanentTrack.push(...signalkTrack);
+
+  if (signalkTrack.length === 0) {
+    memoryLastTrackPosition = null;
+  }
+
+  console.log(`[Memory] Cleared GPX data: ${clearedCount} positions (preserved ${signalkHistory.length} Signal K positions)`);
 
   return { cleared: clearedCount };
 }
 
 /**
  * Import track points from GPX data
- * Replaces existing track with imported waypoints
- * Only imports every 5th point to reduce data density
+ * Adds to the same position history used by SignalK (unified data store)
+ * Filters to every 5th point and deduplicates against existing data
  */
 export async function importTrackFromGPX(
   trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string }>
@@ -307,49 +341,73 @@ export async function importTrackFromGPX(
 
   console.log(`[GPX Import] Filtering from ${trackPoints.length} to ${filteredPoints.length} points (every 5th)`);
 
-  // Convert to SignalKPosition format
+  // Convert to SignalKPosition format - mark as "gpx" source to distinguish from live data
   const positions: SignalKPosition[] = filteredPoints.map((point) => ({
     latitude: point.latitude,
     longitude: point.longitude,
     timestamp: point.timestamp,
-    source: "fallback" as const, // Mark as imported data
+    source: "gpx" as "signalk" | "fallback", // Note: using fallback type but semantically it's GPX
     name: point.name || "Matariki III",
-    location: "Imported from GPX",
+    mmsi: "512004962",
   }));
 
   if (r) {
     try {
-      // Clear existing track first
+      // Get existing history to deduplicate
+      const existingHistory = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
+
+      // Filter out positions that are too close to existing ones (within ~100m)
+      const newPositions = positions.filter(newPos => {
+        return !existingHistory.some(existing => {
+          const latDiff = Math.abs(existing.latitude - newPos.latitude);
+          const lonDiff = Math.abs(existing.longitude - newPos.longitude);
+          // ~100m tolerance
+          return latDiff < 0.001 && lonDiff < 0.001;
+        });
+      });
+
+      if (newPositions.length > 0) {
+        // Add GPX points to position history (rpush adds to end, keeping chronological order)
+        // Sort by timestamp first to ensure proper order
+        newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < newPositions.length; i += BATCH_SIZE) {
+          const batch = newPositions.slice(i, i + BATCH_SIZE);
+          await r.rpush(KEYS.positionHistory, ...batch);
+        }
+      }
+
+      // Also clear the old permanent track if it exists (migrate to unified store)
       await r.del(KEYS.permanentTrack);
       await r.del(KEYS.lastTrackPosition);
 
-      // Import new track points using batched rpush (much faster than individual calls)
-      if (positions.length > 0) {
-        // Batch positions into chunks to avoid memory issues with very large imports
-        const BATCH_SIZE = 100;
-        for (let i = 0; i < positions.length; i += BATCH_SIZE) {
-          const batch = positions.slice(i, i + BATCH_SIZE);
-          // Use spread to push multiple items in one rpush call
-          await r.rpush(KEYS.permanentTrack, ...batch);
-        }
-        // Set last track position to the most recent point
-        await r.set(KEYS.lastTrackPosition, positions[positions.length - 1]);
-      }
-
-      console.log(`[Redis] Imported ${positions.length} track points from GPX (from ${trackPoints.length} total)`);
-      return { imported: positions.length, total: trackPoints.length };
+      console.log(`[Redis] Imported ${newPositions.length} new track points from GPX (${positions.length - newPositions.length} duplicates skipped)`);
+      return { imported: newPositions.length, total: trackPoints.length };
     } catch (error) {
       console.error("[Redis] Error importing GPX:", error);
     }
   }
 
-  // Fallback to memory
-  memoryPermanentTrack.length = 0;
-  memoryPermanentTrack.push(...positions.reverse()); // Reverse for memory (newest first)
-  memoryLastTrackPosition = positions.length > 0 ? positions[0] : null;
-  console.log(`[Memory] Imported ${positions.length} track points from GPX (from ${trackPoints.length} total)`);
+  // Fallback to memory - add to history instead of separate track
+  const newPositions = positions.filter(newPos => {
+    return !memoryHistory.some(existing => {
+      const latDiff = Math.abs(existing.latitude - newPos.latitude);
+      const lonDiff = Math.abs(existing.longitude - newPos.longitude);
+      return latDiff < 0.001 && lonDiff < 0.001;
+    });
+  });
 
-  return { imported: positions.length, total: trackPoints.length };
+  memoryHistory.push(...newPositions);
+  // Sort by timestamp
+  memoryHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  // Clear old permanent track
+  memoryPermanentTrack.length = 0;
+  memoryLastTrackPosition = null;
+
+  console.log(`[Memory] Imported ${newPositions.length} track points from GPX`);
+  return { imported: newPositions.length, total: trackPoints.length };
 }
 
 /**

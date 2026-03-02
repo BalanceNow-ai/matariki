@@ -125,22 +125,20 @@ export function LiveTracker({
     }
   }, []);
 
-  // Fetch track history (combines permanent track from GPX imports + recent position history)
+  // Fetch track history (unified store - GPX and SignalK data are in the same place)
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await fetch("/api/position/track?type=all", {
+      const response = await fetch("/api/position/track?type=history", {
         cache: "no-store",
       });
       if (!response.ok) return;
       const data = await response.json();
 
-      // Combine permanent track (GPX imports) with position history
-      // Permanent track has priority as it contains intentional data
-      const permanentPoints = data.permanentTrack?.points || [];
-      const historyPoints = data.positionHistory?.points || [];
+      // Use position history directly - all track data is in one store
+      const points: SignalKPosition[] = data.positionHistory?.points || [];
 
-      // Use permanent track if available, otherwise fall back to history
-      const points = permanentPoints.length > 0 ? permanentPoints : historyPoints;
+      // Sort by timestamp (oldest first for proper track drawing)
+      points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
       setTrackHistory(
         points.map((p: SignalKPosition) => ({
