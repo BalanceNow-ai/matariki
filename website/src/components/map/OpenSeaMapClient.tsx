@@ -50,9 +50,9 @@ const LINZ_API_KEY = "30bfa18d280f436aa56448a8ad74c6b8";
 // Base layer configurations
 const BASE_LAYERS: Record<MapBaseLayer, { url: string; attribution: string; name: string }> = {
   linz: {
-    url: `https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=${LINZ_API_KEY}`,
+    url: `https://basemaps.linz.govt.nz/v1/tiles/topographic/WebMercatorQuad/{z}/{x}/{y}.webp?api=${LINZ_API_KEY}`,
     attribution: '&copy; <a href="https://www.linz.govt.nz/">LINZ</a> CC-BY 4.0',
-    name: "LINZ Aerial",
+    name: "LINZ Topographic",
   },
   esri: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
