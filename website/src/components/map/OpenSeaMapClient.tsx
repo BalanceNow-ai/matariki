@@ -41,6 +41,31 @@ export type LogEntryWaypoint = {
   heroImageUrl?: string;
 };
 
+// Map base layer options
+export type MapBaseLayer = "linz" | "esri" | "osm";
+
+// LINZ API key for NZ topographic and aerial imagery
+const LINZ_API_KEY = "30bfa18d280f436aa56448a8ad74c6b8";
+
+// Base layer configurations
+const BASE_LAYERS: Record<MapBaseLayer, { url: string; attribution: string; name: string }> = {
+  linz: {
+    url: `https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=${LINZ_API_KEY}`,
+    attribution: '&copy; <a href="https://www.linz.govt.nz/">LINZ</a> CC-BY 4.0',
+    name: "LINZ Aerial",
+  },
+  esri: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
+    name: "ESRI World Imagery",
+  },
+  osm: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    name: "OpenStreetMap",
+  },
+};
+
 type OpenSeaMapClientProps = {
   position: VesselPosition;
   trackHistory?: VesselPosition[];
@@ -49,6 +74,8 @@ type OpenSeaMapClientProps = {
   showWaypoints?: boolean;
   zoom?: number;
   className?: string;
+  /** Base map layer - defaults to LINZ */
+  baseLayer?: MapBaseLayer;
 };
 
 // Create custom vessel icon (boat shape pointing in direction of travel) with pulsing animation
@@ -181,9 +208,14 @@ export function OpenSeaMapClient({
   showWaypoints = true,
   zoom = 12,
   className = "",
+  baseLayer: initialBaseLayer = "linz",
 }: OpenSeaMapClientProps) {
   const [autoCenter, setAutoCenter] = useState(true);
+  const [baseLayer, setBaseLayer] = useState<MapBaseLayer>(initialBaseLayer);
+  const [showLayerMenu, setShowLayerMenu] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
+
+  const currentLayer = BASE_LAYERS[baseLayer];
 
   // Format date for waypoint popup
   const formatWaypointDate = (dateStr: string) => {
@@ -222,10 +254,11 @@ export function OpenSeaMapClient({
         zoomControl={true}
         attributionControl={true}
       >
-        {/* Base layer: OpenStreetMap */}
+        {/* Base layer - configurable */}
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          key={baseLayer}
+          url={currentLayer.url}
+          attribution={currentLayer.attribution}
         />
 
         {/* Marine overlay: OpenSeaMap */}
@@ -362,6 +395,41 @@ export function OpenSeaMapClient({
         >
           {autoCenter ? "Tracking" : "Track"}
         </button>
+
+        {/* Layer selector */}
+        <div className="relative">
+          <button
+            onClick={() => setShowLayerMenu(!showLayerMenu)}
+            className="px-3 py-2 rounded-lg text-xs font-medium shadow-lg transition-colors bg-white/90 text-slate-700 hover:bg-white flex items-center gap-1"
+            title="Change map layer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            Layers
+          </button>
+
+          {showLayerMenu && (
+            <div className="absolute top-full right-0 mt-1 bg-white rounded-lg shadow-lg overflow-hidden min-w-[160px]">
+              {(Object.keys(BASE_LAYERS) as MapBaseLayer[]).map((layer) => (
+                <button
+                  key={layer}
+                  onClick={() => {
+                    setBaseLayer(layer);
+                    setShowLayerMenu(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-xs font-medium transition-colors ${
+                    baseLayer === layer
+                      ? "bg-copper-accent text-white"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {BASE_LAYERS[layer].name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

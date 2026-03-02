@@ -31,6 +31,9 @@ export type LogEntryWaypoint = {
   heroImageUrl?: string;
 };
 
+// Map base layer options
+export type MapBaseLayer = "linz" | "esri" | "osm";
+
 type OpenSeaMapProps = {
   position: VesselPosition;
   trackHistory?: VesselPosition[];
@@ -39,6 +42,8 @@ type OpenSeaMapProps = {
   showWaypoints?: boolean;
   zoom?: number;
   className?: string;
+  /** Base map layer - defaults to LINZ */
+  baseLayer?: MapBaseLayer;
 };
 
 // Dynamic import wrapper to avoid SSR issues with Leaflet
