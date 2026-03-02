@@ -125,16 +125,25 @@ export function LiveTracker({
     }
   }, []);
 
-  // Fetch track history
+  // Fetch track history (combines permanent track from GPX imports + recent position history)
   const fetchHistory = useCallback(async () => {
     try {
-      const response = await fetch("/api/position/history?limit=200", {
+      const response = await fetch("/api/position/track?type=all", {
         cache: "no-store",
       });
       if (!response.ok) return;
       const data = await response.json();
+
+      // Combine permanent track (GPX imports) with position history
+      // Permanent track has priority as it contains intentional data
+      const permanentPoints = data.permanentTrack?.points || [];
+      const historyPoints = data.positionHistory?.points || [];
+
+      // Use permanent track if available, otherwise fall back to history
+      const points = permanentPoints.length > 0 ? permanentPoints : historyPoints;
+
       setTrackHistory(
-        data.positions.map((p: SignalKPosition) => ({
+        points.map((p: SignalKPosition) => ({
           latitude: p.latitude,
           longitude: p.longitude,
           timestamp: p.timestamp,
