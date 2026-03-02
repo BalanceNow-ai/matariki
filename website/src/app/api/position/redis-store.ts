@@ -317,11 +317,14 @@ export async function importTrackFromGPX(
       await r.del(KEYS.permanentTrack);
       await r.del(KEYS.lastTrackPosition);
 
-      // Import new track points (in reverse order so oldest is at end of list)
+      // Import new track points using batched rpush (much faster than individual calls)
       if (positions.length > 0) {
-        // RPUSH adds to end, so we push in chronological order
-        for (const pos of positions) {
-          await r.rpush(KEYS.permanentTrack, pos);
+        // Batch positions into chunks to avoid memory issues with very large imports
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < positions.length; i += BATCH_SIZE) {
+          const batch = positions.slice(i, i + BATCH_SIZE);
+          // Use spread to push multiple items in one rpush call
+          await r.rpush(KEYS.permanentTrack, ...batch);
         }
         // Set last track position to the most recent point
         await r.set(KEYS.lastTrackPosition, positions[positions.length - 1]);

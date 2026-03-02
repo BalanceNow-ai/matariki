@@ -4,6 +4,9 @@ import { importTrackFromGPX } from "../redis-store";
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
 
+// Allow longer execution time for large GPX files (60 seconds)
+export const maxDuration = 60;
+
 // Secret token to authenticate track management
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
