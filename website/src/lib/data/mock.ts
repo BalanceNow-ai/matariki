@@ -74,7 +74,7 @@ export const logEntries: LogEntry[] = [
     category: "sailing",
     location: {
       name: "Milford Sound",
-      coordinates: [167.9256, -44.6414],
+      coordinates: { lat: -44.6414, lng: 167.9256 },
     },
     heroImage: "/images/fiordland-expedition.jpg",
     excerpt:
@@ -90,7 +90,7 @@ export const logEntries: LogEntry[] = [
     category: "sailing",
     location: {
       name: "Doubtful Sound",
-      coordinates: [166.9876, -45.3210],
+      coordinates: { lat: -45.3210, lng: 166.9876 },
     },
     heroImage: "/images/doubtful-sound.jpg",
     excerpt:
@@ -106,7 +106,7 @@ export const logEntries: LogEntry[] = [
     category: "hunting",
     location: {
       name: "Secretary Island",
-      coordinates: [166.8234, -45.2567],
+      coordinates: { lat: -45.2567, lng: 166.8234 },
     },
     heroImage: "/images/hunting-dawn.jpg",
     excerpt:
@@ -122,7 +122,7 @@ export const logEntries: LogEntry[] = [
     category: "diving",
     location: {
       name: "Deep Cove",
-      coordinates: [167.1432, -45.4523],
+      coordinates: { lat: -45.4523, lng: 167.1432 },
     },
     heroImage: "/images/diving-cove.jpg",
     excerpt:

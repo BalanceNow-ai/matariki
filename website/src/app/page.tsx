@@ -69,12 +69,11 @@ type RecentPost = {
   voyageId: string;
   category: "sailing" | "hunting" | "diving" | "fishing" | "general";
   excerpt: string;
-  location: {
+  location?: {
     name: string;
-    coordinates: [number, number];
+    coordinates?: { lat: number; lng: number };
   };
-  heroImage: string;
-  body: string;
+  heroImage?: string;
 };
 
 export default async function HomePage() {
@@ -101,12 +100,11 @@ export default async function HomePage() {
         excerpt: post.excerpt || "",
         location: {
           name: post.location || "Unknown",
-          coordinates: [0, 0] as [number, number],
+          coordinates: { lat: 0, lng: 0 },
         },
         heroImage: post.heroImage
-          ? urlFor(post.heroImage)?.width(800).height(500).url() || ""
-          : "",
-        body: "",
+          ? urlFor(post.heroImage)?.width(800).height(500).url() || undefined
+          : undefined,
       }));
     }
 

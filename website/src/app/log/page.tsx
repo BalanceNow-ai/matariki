@@ -57,12 +57,11 @@ export default async function LogPage() {
         excerpt: post.excerpt || "",
         location: {
           name: post.location || "Unknown",
-          coordinates: [0, 0] as [number, number],
+          coordinates: { lat: 0, lng: 0 },
         },
         heroImage: post.heroImage
           ? urlFor(post.heroImage)?.width(800).height(500).url() || undefined
           : undefined,
-        body: "",
       }));
     }
   } catch (error) {
