@@ -247,31 +247,7 @@ export function OpenSeaMapClient({
           />
         )}
 
-        {/* Waypoint connecting line - draw line between log entry locations */}
-        {showWaypoints && (() => {
-          const sortedWaypoints = [...waypoints]
-            .filter((wp) => wp.location?.coordinates?.lat && wp.location?.coordinates?.lng)
-            .sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
-
-          const waypointCoords: [number, number][] = sortedWaypoints.map((wp) => [
-            wp.location.coordinates!.lat,
-            wp.location.coordinates!.lng,
-          ]);
-
-          return waypointCoords.length > 1 ? (
-            <Polyline
-              positions={waypointCoords}
-              pathOptions={{
-                color: "#10b981",
-                weight: 2,
-                opacity: 0.6,
-                dashArray: "8, 12",
-              }}
-            />
-          ) : null;
-        })()}
-
-        {/* Waypoint markers for log entries */}
+        {/* Waypoint markers for log entries (no connecting line - track only shows historical GPS positions) */}
         {showWaypoints &&
           waypoints
             .filter((wp) => wp.location?.coordinates?.lat && wp.location?.coordinates?.lng)
