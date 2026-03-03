@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "postinstall": "rm -rf node_modules/@types/mapbox__point-geometry 2>/dev/null || true"
+    "postinstall": "rm -rf node_modules/@types/mapbox__point-geometry 2>/dev/null || true",
+    "gpx:import": "npx ts-node scripts/batch-import-gpx.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -49,6 +50,7 @@
     "jsdom": "^28.1.0",
     "msw": "^2.12.10",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }
