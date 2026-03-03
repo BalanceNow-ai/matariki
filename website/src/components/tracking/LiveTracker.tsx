@@ -149,6 +149,7 @@ export function LiveTracker({
           heading: p.heading,
           courseOverGround: p.courseOverGround,
           speedOverGround: p.speedOverGround,
+          segmentIndex: p.segmentIndex,
         }))
       );
     } catch (err) {

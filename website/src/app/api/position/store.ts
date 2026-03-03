@@ -26,6 +26,8 @@ export type SignalKPosition = {
   name?: string;
   mmsi?: string;
   location?: string;
+  // Track segment info (for GPX imports - points in same segment form continuous track)
+  segmentIndex?: number;
 };
 
 // Request log entry for debugging

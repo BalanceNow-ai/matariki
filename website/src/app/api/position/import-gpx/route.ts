@@ -15,6 +15,7 @@ type GPXTrackPoint = {
   longitude: number;
   timestamp: string;
   name?: string;
+  segmentIndex?: number;
 };
 
 /**
@@ -135,11 +136,12 @@ export async function POST(request: NextRequest) {
 
       if (json.points && Array.isArray(json.points)) {
         // Pre-parsed track points from client-side GPX parsing
-        trackPoints = json.points.map((p: { latitude?: number; lat?: number; longitude?: number; lng?: number; lon?: number; timestamp?: string; name?: string }) => ({
+        trackPoints = json.points.map((p: { latitude?: number; lat?: number; longitude?: number; lng?: number; lon?: number; timestamp?: string; name?: string; segmentIndex?: number }) => ({
           latitude: p.latitude ?? p.lat,
           longitude: p.longitude ?? p.lng ?? p.lon,
           timestamp: p.timestamp || new Date().toISOString(),
           name: p.name,
+          segmentIndex: p.segmentIndex,
         })).filter((p: GPXTrackPoint) =>
           typeof p.latitude === 'number' &&
           typeof p.longitude === 'number' &&
