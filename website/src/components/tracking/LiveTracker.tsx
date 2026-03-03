@@ -391,7 +391,7 @@ export function LiveTracker({
   return (
     <div className="flex-1 flex flex-col lg:flex-row">
       {/* Map Area */}
-      <div className="flex-1 relative min-h-[50vh] lg:min-h-0">
+      <div className="flex-1 relative min-h-[50vh] lg:min-h-0 isolate z-0">
         <div className="absolute inset-0">
           <OpenSeaMap
             position={mapPosition}
