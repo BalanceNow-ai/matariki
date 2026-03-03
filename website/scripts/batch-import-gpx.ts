@@ -2,28 +2,30 @@
 /**
  * Batch GPX Import Script
  *
- * Processes multiple GPX files from a directory and imports them to Redis
- * via the /api/position/import-gpx endpoint.
+ * Processes a large GPX file by parsing it locally and importing track points
+ * in batches to avoid payload size limits.
  *
  * Usage:
- *   npx ts-node scripts/batch-import-gpx.ts <gpx-directory> [options]
+ *   npx ts-node scripts/batch-import-gpx.ts <gpx-file> [options]
  *
  * Options:
- *   --api-url <url>     API base URL (default: http://localhost:3000)
- *   --token <token>     Admin token for authentication
- *   --dry-run           Parse files but don't import
- *   --clear-first       Clear existing track before importing
+ *   --api-url <url>       API base URL (default: http://localhost:3000)
+ *   --token <token>       Admin token for authentication
+ *   --batch-size <n>      Points per batch (default: 1000)
+ *   --dry-run             Parse file but don't import
+ *   --clear-first         Clear existing track before importing
+ *   --delay <ms>          Delay between batches in ms (default: 100)
  *
  * Examples:
- *   npx ts-node scripts/batch-import-gpx.ts ./gpx-files
- *   npx ts-node scripts/batch-import-gpx.ts ./gpx-files --token your-secret-token
- *   npx ts-node scripts/batch-import-gpx.ts ./gpx-files --dry-run
+ *   npx ts-node scripts/batch-import-gpx.ts ./large-track.gpx
+ *   npx ts-node scripts/batch-import-gpx.ts ./track.gpx --batch-size 500
+ *   npx ts-node scripts/batch-import-gpx.ts ./track.gpx --token your-secret --clear-first
  */
 
 import * as fs from "fs";
 import * as path from "path";
 
-// GPX Parser (same logic as client-side parser)
+// GPX Parser
 type GPXTrackPoint = {
   latitude: number;
   longitude: number;
@@ -143,21 +145,25 @@ function parseGPX(gpxContent: string): GPXParseResult {
 
 // CLI argument parsing
 interface CLIOptions {
-  directory: string;
+  filePath: string;
   apiUrl: string;
   token?: string;
+  batchSize: number;
   dryRun: boolean;
   clearFirst: boolean;
+  delay: number;
 }
 
 function parseArgs(): CLIOptions {
   const args = process.argv.slice(2);
   const options: CLIOptions = {
-    directory: "",
+    filePath: "",
     apiUrl: process.env.API_URL || "http://localhost:3000",
     token: process.env.SIGNALK_WEBHOOK_SECRET,
+    batchSize: 1000,
     dryRun: false,
     clearFirst: false,
+    delay: 100,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -166,12 +172,16 @@ function parseArgs(): CLIOptions {
       options.apiUrl = args[++i];
     } else if (arg === "--token" && args[i + 1]) {
       options.token = args[++i];
+    } else if (arg === "--batch-size" && args[i + 1]) {
+      options.batchSize = parseInt(args[++i], 10);
+    } else if (arg === "--delay" && args[i + 1]) {
+      options.delay = parseInt(args[++i], 10);
     } else if (arg === "--dry-run") {
       options.dryRun = true;
     } else if (arg === "--clear-first") {
       options.clearFirst = true;
-    } else if (!arg.startsWith("--") && !options.directory) {
-      options.directory = arg;
+    } else if (!arg.startsWith("--") && !options.filePath) {
+      options.filePath = arg;
     }
   }
 
@@ -182,23 +192,27 @@ function printUsage() {
   console.log(`
 Batch GPX Import Script
 
+Processes a large GPX file by importing track points in batches.
+
 Usage:
-  npx ts-node scripts/batch-import-gpx.ts <gpx-directory> [options]
+  npx ts-node scripts/batch-import-gpx.ts <gpx-file> [options]
 
 Options:
-  --api-url <url>     API base URL (default: http://localhost:3000)
-  --token <token>     Admin token for authentication (or set SIGNALK_WEBHOOK_SECRET env var)
-  --dry-run           Parse files but don't import
-  --clear-first       Clear existing track before importing
+  --api-url <url>       API base URL (default: http://localhost:3000)
+  --token <token>       Admin token (or set SIGNALK_WEBHOOK_SECRET env var)
+  --batch-size <n>      Points per batch (default: 1000)
+  --delay <ms>          Delay between batches in ms (default: 100)
+  --dry-run             Parse file but don't import
+  --clear-first         Clear existing track before importing
 
 Examples:
-  npx ts-node scripts/batch-import-gpx.ts ./gpx-files
-  npx ts-node scripts/batch-import-gpx.ts ./gpx-files --token your-secret-token
-  npx ts-node scripts/batch-import-gpx.ts ./gpx-files --dry-run
+  npx ts-node scripts/batch-import-gpx.ts ./large-track.gpx
+  npx ts-node scripts/batch-import-gpx.ts ./track.gpx --batch-size 500
+  npx ts-node scripts/batch-import-gpx.ts ./track.gpx --token your-secret --clear-first
   `);
 }
 
-async function importToAPI(
+async function importBatch(
   points: GPXTrackPoint[],
   apiUrl: string,
   token?: string
@@ -246,34 +260,69 @@ async function clearTrack(apiUrl: string, token?: string): Promise<boolean> {
   return response.ok;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 async function main() {
   const options = parseArgs();
 
-  if (!options.directory) {
+  if (!options.filePath) {
     printUsage();
     process.exit(1);
   }
 
-  // Resolve directory path
-  const gpxDir = path.resolve(options.directory);
+  // Resolve file path
+  const gpxFile = path.resolve(options.filePath);
 
-  if (!fs.existsSync(gpxDir)) {
-    console.error(`Error: Directory not found: ${gpxDir}`);
+  if (!fs.existsSync(gpxFile)) {
+    console.error(`Error: File not found: ${gpxFile}`);
     process.exit(1);
   }
 
-  // Find all GPX files
-  const files = fs.readdirSync(gpxDir).filter((f) => f.toLowerCase().endsWith(".gpx"));
-
-  if (files.length === 0) {
-    console.error(`Error: No .gpx files found in ${gpxDir}`);
-    process.exit(1);
-  }
-
-  console.log(`\n📂 Found ${files.length} GPX file(s) in ${gpxDir}`);
+  const stats = fs.statSync(gpxFile);
+  console.log(`\n📄 GPX File: ${gpxFile}`);
+  console.log(`   Size: ${formatBytes(stats.size)}`);
   console.log(`🌐 API URL: ${options.apiUrl}`);
   console.log(`🔑 Token: ${options.token ? "configured" : "not set"}`);
+  console.log(`📦 Batch size: ${options.batchSize} points`);
+  console.log(`⏱️  Delay between batches: ${options.delay}ms`);
   console.log(`🔍 Dry run: ${options.dryRun}`);
+  console.log("");
+
+  // Read and parse the GPX file
+  console.log("📖 Reading GPX file...");
+  const content = fs.readFileSync(gpxFile, "utf-8");
+  console.log(`   File content: ${formatBytes(content.length)}`);
+
+  console.log("🔍 Parsing GPX content...");
+  const result = parseGPX(content);
+
+  if (!result.success) {
+    console.error("✗ Parse failed:");
+    result.errors.forEach((e) => console.error(`  - ${e}`));
+    process.exit(1);
+  }
+
+  console.log(`✓ Parsed ${result.stats.totalPoints} points`);
+  console.log(`  - Waypoints: ${result.stats.waypointsFound}`);
+  console.log(`  - Track points: ${result.stats.trackPointsFound}`);
+  console.log(`  - Route points: ${result.stats.routePointsFound}`);
+
+  if (result.warnings.length > 0) {
+    result.warnings.forEach((w) => console.log(`  ⚠ ${w}`));
+  }
+
+  if (result.points.length > 0) {
+    console.log(`  Date range: ${result.points[0].timestamp} to ${result.points[result.points.length - 1].timestamp}`);
+  }
+
   console.log("");
 
   // Clear track if requested
@@ -287,71 +336,55 @@ async function main() {
     }
   }
 
-  // Collect all points from all files
-  let allPoints: GPXTrackPoint[] = [];
-  let totalFiles = 0;
-  let successfulFiles = 0;
+  // Import in batches
+  const totalPoints = result.points.length;
+  const totalBatches = Math.ceil(totalPoints / options.batchSize);
 
-  for (const file of files) {
-    const filePath = path.join(gpxDir, file);
-    totalFiles++;
+  console.log(`🚀 Importing ${totalPoints} points in ${totalBatches} batches...`);
+  console.log("");
 
-    console.log(`📄 Processing: ${file}`);
+  let totalImported = 0;
+  let failedBatches = 0;
 
-    try {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const result = parseGPX(content);
+  for (let i = 0; i < totalBatches; i++) {
+    const start = i * options.batchSize;
+    const end = Math.min(start + options.batchSize, totalPoints);
+    const batch = result.points.slice(start, end);
+    const batchNum = i + 1;
 
-      if (result.success) {
-        console.log(`   ✓ Parsed ${result.stats.totalPoints} points`);
-        console.log(`     - Waypoints: ${result.stats.waypointsFound}`);
-        console.log(`     - Track points: ${result.stats.trackPointsFound}`);
-        console.log(`     - Route points: ${result.stats.routePointsFound}`);
+    const progress = ((batchNum / totalBatches) * 100).toFixed(1);
+    process.stdout.write(`   Batch ${batchNum}/${totalBatches} (${progress}%) - ${batch.length} points... `);
 
-        if (result.warnings.length > 0) {
-          result.warnings.forEach((w) => console.log(`   ⚠ ${w}`));
-        }
-
-        allPoints = allPoints.concat(result.points);
-        successfulFiles++;
+    if (options.dryRun) {
+      console.log("(dry run)");
+      totalImported += batch.length;
+    } else {
+      const batchResult = await importBatch(batch, options.apiUrl, options.token);
+      if (batchResult.success) {
+        console.log(`✓ imported ${batchResult.imported}`);
+        totalImported += batchResult.imported;
       } else {
-        console.log(`   ✗ Parse failed`);
-        result.errors.forEach((e) => console.log(`     - ${e}`));
+        console.log(`✗ ${batchResult.error}`);
+        failedBatches++;
       }
-    } catch (err) {
-      console.log(`   ✗ Error reading file: ${err}`);
+
+      // Delay between batches to avoid overwhelming the server
+      if (i < totalBatches - 1 && options.delay > 0) {
+        await sleep(options.delay);
+      }
     }
-
-    console.log("");
   }
-
-  // Sort all points by timestamp
-  allPoints.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   // Summary
+  console.log("");
   console.log("═".repeat(50));
-  console.log(`📊 Summary:`);
-  console.log(`   Files processed: ${successfulFiles}/${totalFiles}`);
-  console.log(`   Total points: ${allPoints.length}`);
+  console.log(`📊 Import Summary:`);
+  console.log(`   Total points parsed: ${totalPoints}`);
+  console.log(`   Total points imported: ${totalImported}`);
+  console.log(`   Batches: ${totalBatches - failedBatches}/${totalBatches} successful`);
 
-  if (allPoints.length > 0) {
-    console.log(`   Date range: ${allPoints[0].timestamp} to ${allPoints[allPoints.length - 1].timestamp}`);
-  }
-
-  // Import if not dry run
-  if (!options.dryRun && allPoints.length > 0) {
-    console.log(`\n🚀 Importing ${allPoints.length} points to ${options.apiUrl}...`);
-
-    const result = await importToAPI(allPoints, options.apiUrl, options.token);
-
-    if (result.success) {
-      console.log(`   ✓ Successfully imported ${result.imported} points`);
-    } else {
-      console.log(`   ✗ Import failed: ${result.error}`);
-      process.exit(1);
-    }
-  } else if (options.dryRun) {
-    console.log(`\n🔍 Dry run complete - no data imported`);
+  if (failedBatches > 0) {
+    console.log(`   ⚠ ${failedBatches} batch(es) failed`);
   }
 
   console.log("\n✅ Done!\n");
