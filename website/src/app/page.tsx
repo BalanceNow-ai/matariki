@@ -8,6 +8,7 @@ import { NewsletterForm } from "@/components/forms";
 import { client, projectId, dataset, fetchOptions } from "@/sanity/client";
 import { RECENT_POSTS_QUERY, FEATURED_GALLERY_QUERY, VESSEL_QUERY } from "@/sanity/queries";
 import imageUrlBuilder from "@sanity/image-url";
+import { getLatestPositionAsync } from "@/app/api/position/redis-store";
 
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
@@ -81,13 +82,18 @@ export default async function HomePage() {
   let recentPosts: RecentPost[] = [];
   let featuredImages: Array<{ id: string; src: string; caption: string }> = [];
   let vessel: VesselData = null;
+  let isUnderway = false;
 
   try {
-    const [sanityPosts, sanityGallery, sanityVessel] = await Promise.all([
+    const [sanityPosts, sanityGallery, sanityVessel, position] = await Promise.all([
       client.fetch<SanityLogEntry[]>(RECENT_POSTS_QUERY, {}, fetchOptions),
       client.fetch<SanityGalleryImage[]>(FEATURED_GALLERY_QUERY, {}, fetchOptions),
       client.fetch<VesselData>(VESSEL_QUERY, {}, fetchOptions),
+      getLatestPositionAsync(),
     ]);
+
+    // Vessel is underway if SOG > 1 knot
+    isUnderway = (position.speedOverGround ?? 0) > 1;
 
     if (sanityPosts && sanityPosts.length > 0) {
       recentPosts = sanityPosts.map((post) => ({
@@ -143,10 +149,18 @@ export default async function HomePage() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
                 {/* Status Badge */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-sea-green/20 border border-sea-green/30 rounded-full mb-6">
-                  <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
-                  <span className="text-caption text-sea-green">
-                    At Anchor
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6 ${
+                  isUnderway
+                    ? "bg-copper-accent/20 border border-copper-accent/30"
+                    : "bg-sea-green/20 border border-sea-green/30"
+                }`}>
+                  <span className={`w-2 h-2 rounded-full animate-pulse ${
+                    isUnderway ? "bg-copper-accent" : "bg-sea-green"
+                  }`} />
+                  <span className={`text-caption ${
+                    isUnderway ? "text-copper-accent" : "text-sea-green"
+                  }`}>
+                    {isUnderway ? "Underway" : "At Anchor"}
                   </span>
                 </div>
 
