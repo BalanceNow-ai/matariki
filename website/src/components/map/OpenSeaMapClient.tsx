@@ -20,7 +20,69 @@ export type VesselPosition = {
   heading?: number;
   courseOverGround?: number;
   speedOverGround?: number;
+  /** Segment index - points in same segment form a continuous track */
+  segmentIndex?: number;
 };
+
+/**
+ * Calculate distance between two coordinates in meters (Haversine formula)
+ */
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Split track points into segments, breaking on large gaps
+ * This prevents drawing lines across the map when there are discontinuities
+ */
+function splitIntoSegments(
+  positions: VesselPosition[],
+  maxGapMeters: number = 50000 // 50km max gap
+): VesselPosition[][] {
+  if (positions.length === 0) return [];
+
+  const segments: VesselPosition[][] = [];
+  let currentSegment: VesselPosition[] = [positions[0]];
+
+  for (let i = 1; i < positions.length; i++) {
+    const prev = positions[i - 1];
+    const curr = positions[i];
+
+    // Check if segment changed (if we have segment info)
+    const segmentChanged = prev.segmentIndex !== undefined &&
+      curr.segmentIndex !== undefined &&
+      prev.segmentIndex !== curr.segmentIndex;
+
+    // Check if there's a large gap in position
+    const distance = distanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+    const largeGap = distance > maxGapMeters;
+
+    if (segmentChanged || largeGap) {
+      // Start new segment
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+      }
+      currentSegment = [curr];
+    } else {
+      currentSegment.push(curr);
+    }
+  }
+
+  // Don't forget the last segment
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
+}
 
 // Log entry waypoint type
 export type LogEntryWaypoint = {
@@ -218,14 +280,25 @@ export function OpenSeaMapClient({
     });
   };
 
-  // Convert track history to polyline coordinates
-  const trackCoords: [number, number][] = showTrack
-    ? trackHistory.map((pos) => [pos.latitude, pos.longitude])
-    : [];
+  // Split track history into segments to avoid drawing lines across large gaps
+  const trackSegments = showTrack ? splitIntoSegments(trackHistory) : [];
 
-  // Add current position to track if showing
-  if (showTrack && trackCoords.length > 0) {
-    trackCoords.push([position.latitude, position.longitude]);
+  // Convert each segment to polyline coordinates
+  const trackSegmentCoords: [number, number][][] = trackSegments.map(segment =>
+    segment.map(pos => [pos.latitude, pos.longitude])
+  );
+
+  // Add current position to the last segment if showing
+  if (showTrack && trackSegmentCoords.length > 0) {
+    const lastSegment = trackSegmentCoords[trackSegmentCoords.length - 1];
+    if (lastSegment.length > 0) {
+      // Only add if reasonably close to last track point (within 50km)
+      const lastPoint = lastSegment[lastSegment.length - 1];
+      const distToLast = distanceMeters(lastPoint[0], lastPoint[1], position.latitude, position.longitude);
+      if (distToLast < 50000) {
+        lastSegment.push([position.latitude, position.longitude]);
+      }
+    }
   }
 
   // Format timestamp for popup
@@ -259,17 +332,20 @@ export function OpenSeaMapClient({
           attribution='&copy; <a href="http://www.openseamap.org">OpenSeaMap</a>'
         />
 
-        {/* Track history polyline */}
-        {showTrack && trackCoords.length > 1 && (
-          <Polyline
-            positions={trackCoords}
-            pathOptions={{
-              color: "#D97706",
-              weight: 3,
-              opacity: 0.7,
-              dashArray: "5, 10",
-            }}
-          />
+        {/* Track history polylines - one per segment to avoid cross-map lines */}
+        {showTrack && trackSegmentCoords.map((segmentCoords, idx) =>
+          segmentCoords.length > 1 && (
+            <Polyline
+              key={`track-segment-${idx}`}
+              positions={segmentCoords}
+              pathOptions={{
+                color: "#D97706",
+                weight: 3,
+                opacity: 0.7,
+                dashArray: "5, 10",
+              }}
+            />
+          )
         )}
 
         {/* Waypoint markers for log entries (no connecting line - track only shows historical GPS positions) */}

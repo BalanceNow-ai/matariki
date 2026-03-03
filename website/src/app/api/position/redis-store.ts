@@ -333,7 +333,7 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
  * Deduplication is by timestamp only (vessel may revisit locations)
  */
 export async function importTrackFromGPX(
-  trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string }>
+  trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string; segmentIndex?: number }>
 ): Promise<{ imported: number; total: number }> {
   const r = getRedis();
 
@@ -351,6 +351,7 @@ export async function importTrackFromGPX(
     source: "gpx",
     name: point.name || "Matariki III",
     mmsi: "512004962",
+    segmentIndex: point.segmentIndex,
   }));
 
   if (r) {

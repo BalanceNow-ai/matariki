@@ -10,6 +10,8 @@ export type VesselPosition = {
   heading?: number;
   courseOverGround?: number;
   speedOverGround?: number;
+  /** Segment index - points in same segment form a continuous track */
+  segmentIndex?: number;
 };
 
 // Re-export LogEntryWaypoint type
