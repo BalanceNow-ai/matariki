@@ -256,9 +256,9 @@ export async function clearRequestLogAsync(): Promise<void> {
 }
 
 /**
- * Clear GPX track history while preserving Signal K data
+ * Clear GPX track history while preserving Signal K and other data
  * Use this to remove GPS artifacts/jumps from the track
- * Signal K data (source: "signalk") is preserved
+ * Only data with source: "gpx" is deleted
  */
 export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
   const r = getRedis();
@@ -270,58 +270,58 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
       const history = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
       const track = await r.lrange<SignalKPosition>(KEYS.permanentTrack, 0, -1);
 
-      // Filter to keep only Signal K data (live data from the vessel)
-      const signalkHistory = history.filter(pos => pos.source === "signalk");
-      const signalkTrack = track.filter(pos => pos.source === "signalk");
+      // Filter to keep everything EXCEPT GPX data (only delete source: "gpx")
+      const nonGpxHistory = history.filter(pos => pos.source !== "gpx");
+      const nonGpxTrack = track.filter(pos => pos.source !== "gpx");
 
-      // Calculate how many we're clearing (non-signalk data)
-      const historyCleared = history.length - signalkHistory.length;
-      const trackCleared = track.length - signalkTrack.length;
+      // Calculate how many GPX positions we're clearing
+      const historyCleared = history.length - nonGpxHistory.length;
+      const trackCleared = track.length - nonGpxTrack.length;
       clearedCount = historyCleared + trackCleared;
 
-      // Clear and repopulate with only Signal K data
+      // Clear and repopulate with non-GPX data
       await r.del(KEYS.positionHistory);
       await r.del(KEYS.permanentTrack);
 
-      if (signalkHistory.length > 0) {
-        // Restore Signal K history (rpush to maintain order)
-        await r.rpush(KEYS.positionHistory, ...signalkHistory);
+      if (nonGpxHistory.length > 0) {
+        // Restore non-GPX history (rpush to maintain order)
+        await r.rpush(KEYS.positionHistory, ...nonGpxHistory);
       }
 
-      if (signalkTrack.length > 0) {
-        // Restore Signal K permanent track
-        await r.rpush(KEYS.permanentTrack, ...signalkTrack);
+      if (nonGpxTrack.length > 0) {
+        // Restore non-GPX permanent track
+        await r.rpush(KEYS.permanentTrack, ...nonGpxTrack);
       }
 
-      // Only clear lastTrackPosition if no Signal K track data remains
-      if (signalkTrack.length === 0) {
+      // Only clear lastTrackPosition if no track data remains
+      if (nonGpxTrack.length === 0) {
         await r.del(KEYS.lastTrackPosition);
       }
 
-      console.log(`[Redis] Cleared GPX data: ${historyCleared} history positions, ${trackCleared} track points (preserved ${signalkHistory.length} Signal K positions)`);
+      console.log(`[Redis] Cleared GPX data: ${historyCleared} history positions, ${trackCleared} track points (preserved ${nonGpxHistory.length} non-GPX positions)`);
       return { cleared: clearedCount };
     } catch (error) {
       console.error("[Redis] Error clearing track history:", error);
     }
   }
 
-  // Fallback to memory - filter to keep only Signal K data
-  const signalkHistory = memoryHistory.filter(pos => pos.source === "signalk");
-  const signalkTrack = memoryPermanentTrack.filter(pos => pos.source === "signalk");
+  // Fallback to memory - filter to keep everything EXCEPT GPX data
+  const nonGpxHistory = memoryHistory.filter(pos => pos.source !== "gpx");
+  const nonGpxTrack = memoryPermanentTrack.filter(pos => pos.source !== "gpx");
 
-  clearedCount = (memoryHistory.length - signalkHistory.length) + (memoryPermanentTrack.length - signalkTrack.length);
+  clearedCount = (memoryHistory.length - nonGpxHistory.length) + (memoryPermanentTrack.length - nonGpxTrack.length);
 
   memoryHistory.length = 0;
-  memoryHistory.push(...signalkHistory);
+  memoryHistory.push(...nonGpxHistory);
 
   memoryPermanentTrack.length = 0;
-  memoryPermanentTrack.push(...signalkTrack);
+  memoryPermanentTrack.push(...nonGpxTrack);
 
-  if (signalkTrack.length === 0) {
+  if (nonGpxTrack.length === 0) {
     memoryLastTrackPosition = null;
   }
 
-  console.log(`[Memory] Cleared GPX data: ${clearedCount} positions (preserved ${signalkHistory.length} Signal K positions)`);
+  console.log(`[Memory] Cleared GPX data: ${clearedCount} positions (preserved ${nonGpxHistory.length} non-GPX positions)`);
 
   return { cleared: clearedCount };
 }
@@ -348,7 +348,7 @@ export async function importTrackFromGPX(
     latitude: point.latitude,
     longitude: point.longitude,
     timestamp: point.timestamp,
-    source: "gpx" as "signalk" | "fallback", // Note: using fallback type but semantically it's GPX
+    source: "gpx",
     name: point.name || "Matariki III",
     mmsi: "512004962",
   }));
@@ -373,10 +373,6 @@ export async function importTrackFromGPX(
         }
       }
 
-      // Also clear the old permanent track if it exists (migrate to unified store)
-      await r.del(KEYS.permanentTrack);
-      await r.del(KEYS.lastTrackPosition);
-
       console.log(`[Redis] Imported ${newPositions.length} new track points from GPX (${positions.length - newPositions.length} duplicates skipped)`);
       return { imported: newPositions.length, total: trackPoints.length };
     } catch (error) {
@@ -392,10 +388,6 @@ export async function importTrackFromGPX(
   memoryHistory.push(...newPositions);
   // Sort by timestamp
   memoryHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-  // Clear old permanent track
-  memoryPermanentTrack.length = 0;
-  memoryLastTrackPosition = null;
 
   console.log(`[Memory] Imported ${newPositions.length} track points from GPX`);
   return { imported: newPositions.length, total: trackPoints.length };
