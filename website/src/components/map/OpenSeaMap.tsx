@@ -32,7 +32,7 @@ export type LogEntryWaypoint = {
 };
 
 // Map base layer options
-export type MapBaseLayer = "linz" | "esri" | "osm";
+export type MapBaseLayer = "esri" | "osm";
 
 type OpenSeaMapProps = {
   position: VesselPosition;
@@ -42,7 +42,7 @@ type OpenSeaMapProps = {
   showWaypoints?: boolean;
   zoom?: number;
   className?: string;
-  /** Base map layer - defaults to LINZ */
+  /** Base map layer - defaults to ESRI satellite */
   baseLayer?: MapBaseLayer;
 };
 

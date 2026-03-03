@@ -42,22 +42,14 @@ export type LogEntryWaypoint = {
 };
 
 // Map base layer options
-export type MapBaseLayer = "linz" | "esri" | "osm";
-
-// LINZ API key for NZ topographic and aerial imagery
-const LINZ_API_KEY = "30bfa18d280f436aa56448a8ad74c6b8";
+export type MapBaseLayer = "esri" | "osm";
 
 // Base layer configurations
 const BASE_LAYERS: Record<MapBaseLayer, { url: string; attribution: string; name: string }> = {
-  linz: {
-    url: `https://basemaps.linz.govt.nz/v1/tiles/topographic/WebMercatorQuad/{z}/{x}/{y}.webp?api=${LINZ_API_KEY}`,
-    attribution: '&copy; <a href="https://www.linz.govt.nz/">LINZ</a> CC-BY 4.0',
-    name: "LINZ Topographic",
-  },
   esri: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
-    name: "ESRI World Imagery",
+    name: "ESRI Satellite",
   },
   osm: {
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -74,7 +66,7 @@ type OpenSeaMapClientProps = {
   showWaypoints?: boolean;
   zoom?: number;
   className?: string;
-  /** Base map layer - defaults to LINZ */
+  /** Base map layer - defaults to ESRI satellite */
   baseLayer?: MapBaseLayer;
 };
 
@@ -208,7 +200,7 @@ export function OpenSeaMapClient({
   showWaypoints = true,
   zoom = 12,
   className = "",
-  baseLayer: initialBaseLayer = "linz",
+  baseLayer: initialBaseLayer = "esri",
 }: OpenSeaMapClientProps) {
   const [autoCenter, setAutoCenter] = useState(true);
   const [baseLayer, setBaseLayer] = useState<MapBaseLayer>(initialBaseLayer);
