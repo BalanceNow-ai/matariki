@@ -39,6 +39,7 @@ export function LiveTracker({
   const [error, setError] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [trackMessage, setTrackMessage] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminToken, setAdminToken] = useState<string | null>(null);
@@ -252,47 +253,93 @@ export function LiveTracker({
 
     setIsUploading(true);
     setTrackMessage(null);
+    setUploadProgress(null);
+
+    // Batch configuration
+    const BATCH_SIZE = 1000;
+    const allPoints = parseResult.points;
+    const totalBatches = Math.ceil(allPoints.length / BATCH_SIZE);
+
+    logDebug("Batch upload configuration", {
+      totalPoints: allPoints.length,
+      batchSize: BATCH_SIZE,
+      totalBatches,
+    });
+
     try {
-      // Send parsed points as JSON instead of raw GPX file
-      const payload = JSON.stringify({ points: parseResult.points });
-      logDebug("Sending request to /api/position/import-gpx", {
-        payloadSize: payload.length,
-        originalFileSize: file.size,
-        compressionRatio: `${((1 - payload.length / file.size) * 100).toFixed(1)}% smaller`,
-      });
-      logDebug("Request headers", { "X-API-Key": token ? `${token.slice(0, 4)}...` : "none" });
+      let totalImported = 0;
+      let failedBatches = 0;
 
-      const startTime = Date.now();
-      const response = await fetch("/api/position/import-gpx", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "X-API-Key": token } : {}),
-        },
-        body: payload,
-      });
-      const elapsed = Date.now() - startTime;
+      for (let i = 0; i < totalBatches; i++) {
+        const start = i * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, allPoints.length);
+        const batch = allPoints.slice(start, end);
+        const batchNum = i + 1;
 
-      logDebug("Response received", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        elapsedMs: elapsed,
-        headers: Object.fromEntries(response.headers.entries()),
-      });
+        setUploadProgress({ current: batchNum, total: totalBatches });
+        logDebug(`Sending batch ${batchNum}/${totalBatches}`, {
+          pointsInBatch: batch.length,
+          startIndex: start,
+          endIndex: end,
+        });
 
-      const data = await response.json();
-      logDebug("Response body", data);
+        const payload = JSON.stringify({ points: batch });
+        const startTime = Date.now();
 
-      if (response.ok) {
-        logDebug("=== Upload SUCCESS ===", { imported: data.imported });
-        setTrackMessage(`Imported ${data.imported} waypoints`);
+        try {
+          const response = await fetch("/api/position/import-gpx", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { "X-API-Key": token } : {}),
+            },
+            body: payload,
+          });
+          const elapsed = Date.now() - startTime;
+
+          const data = await response.json();
+
+          if (response.ok) {
+            totalImported += data.imported || batch.length;
+            logDebug(`Batch ${batchNum} success`, {
+              imported: data.imported,
+              elapsedMs: elapsed,
+            });
+          } else {
+            failedBatches++;
+            const errorMsg = [data.error, data.message, data.details].filter(Boolean).join(": ");
+            logDebug(`Batch ${batchNum} FAILED`, {
+              status: response.status,
+              error: errorMsg,
+            });
+          }
+        } catch (batchErr) {
+          failedBatches++;
+          logDebug(`Batch ${batchNum} EXCEPTION`, {
+            error: batchErr instanceof Error ? batchErr.message : String(batchErr),
+          });
+        }
+
+        // Small delay between batches to avoid overwhelming the server
+        if (i < totalBatches - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+
+      setUploadProgress(null);
+
+      if (failedBatches === 0) {
+        logDebug("=== Upload SUCCESS ===", { totalImported, batches: totalBatches });
+        setTrackMessage(`Imported ${totalImported} waypoints`);
         await fetchHistory();
         setTimeout(() => setTrackMessage(null), 3000);
+      } else if (totalImported > 0) {
+        logDebug("=== Upload PARTIAL ===", { totalImported, failedBatches });
+        setTrackMessage(`Imported ${totalImported} waypoints (${failedBatches} batch(es) failed)`);
+        await fetchHistory();
       } else {
-        const errorMsg = [data.error, data.message, data.details].filter(Boolean).join(": ");
-        logDebug("=== Upload FAILED ===", { status: response.status, error: errorMsg, fullData: data });
-        setTrackMessage(`Error: ${errorMsg || "Failed to import"}`);
+        logDebug("=== Upload FAILED ===", { failedBatches });
+        setTrackMessage(`Error: All ${failedBatches} batches failed`);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -301,6 +348,7 @@ export function LiveTracker({
       setTrackMessage(`Error: ${errorMessage || "Network error"}`);
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -434,7 +482,11 @@ export function LiveTracker({
                 disabled={isUploading}
                 className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-teal-accent/80 hover:bg-teal-accent disabled:bg-mist/30 rounded transition-colors"
               >
-                {isUploading ? "Uploading..." : "Upload GPX"}
+                {isUploading
+                  ? uploadProgress
+                    ? `Batch ${uploadProgress.current}/${uploadProgress.total}`
+                    : "Parsing..."
+                  : "Upload GPX"}
               </button>
               <input
                 ref={fileInputRef}
@@ -444,6 +496,21 @@ export function LiveTracker({
                 className="hidden"
               />
             </div>
+
+            {/* Upload Progress Bar */}
+            {uploadProgress && (
+              <div className="space-y-1">
+                <div className="w-full bg-mist/20 rounded-full h-1.5">
+                  <div
+                    className="bg-teal-accent h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-mist/60 text-center">
+                  {Math.round((uploadProgress.current / uploadProgress.total) * 100)}% complete
+                </p>
+              </div>
+            )}
 
             {/* GPX Debug Log */}
             {gpxDebugLog.length > 0 && (
