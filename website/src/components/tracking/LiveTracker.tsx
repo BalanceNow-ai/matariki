@@ -150,6 +150,7 @@ export function LiveTracker({
           courseOverGround: p.courseOverGround,
           speedOverGround: p.speedOverGround,
           segmentIndex: p.segmentIndex,
+          name: p.name,
         }))
       );
     } catch (err) {

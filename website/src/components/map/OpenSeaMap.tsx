@@ -12,6 +12,8 @@ export type VesselPosition = {
   speedOverGround?: number;
   /** Segment index - points in same segment form a continuous track */
   segmentIndex?: number;
+  /** Waypoint name (e.g., from KML/GPX imports) */
+  name?: string;
 };
 
 // Re-export LogEntryWaypoint type
