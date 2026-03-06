@@ -89,7 +89,12 @@ export default async function AboutPage() {
 
         {/* Crew Section */}
         <Section>
-          <SectionLabel number="01" label="The Crew" className="mb-8" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+            <SectionLabel number="01" label="The Crew" />
+            <Button href="/about/crew-orientation" variant="ghost" size="sm">
+              New Crew? Start Here
+            </Button>
+          </div>
           {crew.length > 0 ? (
             <div className="grid md:grid-cols-2 gap-12">
               {crew.map((member) => (
