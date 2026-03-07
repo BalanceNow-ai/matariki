@@ -91,7 +91,7 @@ export default async function AboutPage() {
         <Section>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <SectionLabel number="01" label="The Crew" />
-            <Button href="/about/crew-orientation" variant="ghost" size="sm">
+            <Button href="/resources/crew-orientation" variant="ghost" size="sm">
               New Crew? Start Here
             </Button>
           </div>

@@ -317,8 +317,8 @@ export default function CrewOrientationPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button href="/yacht">View Yacht Specifications</Button>
-              <Button href="/about" variant="ghost">
-                Back to About
+              <Button href="/resources" variant="ghost">
+                All Resources
               </Button>
             </div>
           </div>
