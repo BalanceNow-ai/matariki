@@ -847,6 +847,185 @@ Matariki carries a comprehensive first aid kit. If you have specific medical nee
       },
     ],
   },
-];
+  // ─────────────────────────────────────────────────────────
+  // 6. RESOURCES
+  // ─────────────────────────────────────────────────────────
+  {
+    id: "resources",
+    slug: "resources",
+    title: "Resources",
+    subtitle: "Recommended reading, courses, and tools for new crew",
+    colorClass: "section-resources",
+    accentVar: "var(--section-resources)",
+    icon: "📚",
+    topics: [
+      {
+        id: "r1",
+        title: "NauticEd — Qualified Crew Member Course",
+        type: "info",
+        content: `The single best structured preparation for someone joining an offshore yacht for the first time.
 
+**What it covers:** Sailing terminology, sail trim, navigation basics, weather, safety, man overboard, anchoring, and emergency procedures. Approximately 7 hours of self-paced online learning.
+
+**Cost:** Approximately USD 38
+
+**Link:** [nauticed.org/sailing-courses/view/qualified-crew-member](https://www.nauticed.org/sailing-courses/view/qualified-crew-member)
+
+**Why it matters for Matariki:** The course is written for exactly this scenario — someone joining a serious offshore yacht without prior sailing experience. It uses the same terminology you will hear on board and covers the same procedures we follow. If you only do one thing from this list, do this.`,
+      },
+      {
+        id: "r2",
+        title: "CCA — Advice to a First Time Offshore Sailor",
+        type: "info",
+        content: `A superb, concise article written by the Cruising Club of America specifically for someone joining a large offshore yacht for the first time.
+
+**What it covers:** What to expect offshore, watch-keeping, seasickness, safety harness policy, the importance of rest, and the culture of offshore sailing.
+
+**Cost:** Free
+
+**Link:** [cruisingclub.org/article/advice-first-time-offshore-sailor](https://cruisingclub.org/article/advice-first-time-offshore-sailor)
+
+**Why it matters for Matariki:** Written from the perspective of the skipper — it explains exactly what the skipper needs from you and why. Reading this before you arrive will make you a better crew member from day one.`,
+      },
+      {
+        id: "r3",
+        title: "59° North — What to Expect Offshore",
+        type: "info",
+        content: `59° North is a professional offshore sailing operation that takes paying crew on ocean passages. Their crew briefing is one of the most honest and practical documents available for new offshore crew.
+
+**What it covers:** Watch systems, seasickness, sleep deprivation, heavy weather, the emotional arc of a long passage, and how to be a good crew member.
+
+**Cost:** Free
+
+**Link:** [59-north.com/what-to-expect](https://59-north.com/what-to-expect)
+
+**Why it matters for Matariki:** 59° North sails the same kind of boat in the same kind of conditions. Their advice is direct and unvarnished — exactly what you need before your first offshore passage.`,
+      },
+      {
+        id: "r4",
+        title: "Morgan's Cloud — 36 Immutable Rules of Seamanship",
+        type: "info",
+        content: `John Harries and Phyllis Nickel have sailed their boat Morgan's Cloud to some of the most remote places on earth. Their "36 Immutable Rules" is essential reading on the mindset and culture of offshore sailing.
+
+**What it covers:** The philosophy of seamanship — conservatism, preparation, respect for the sea, and the importance of never cutting corners.
+
+**Cost:** Free
+
+**Link:** [morganscloud.com/2014/02/04/john-phyllis-33-immutable-rules-of-seamanship](https://www.morganscloud.com/2014/02/04/john-phyllis-33-immutable-rules-of-seamanship/)
+
+**Why it matters for Matariki:** The rules articulate the culture we try to maintain on board. Reading them will help you understand why we do things the way we do.`,
+      },
+      {
+        id: "r5",
+        title: "Yachting World — Offshore Skills: Get Ready for Bluewater",
+        type: "info",
+        content: `A practical guide from Yachting World magazine on the skills and knowledge required for bluewater offshore sailing.
+
+**What it covers:** Navigation, weather, sail handling, safety equipment, provisioning, and the differences between coastal and offshore sailing.
+
+**Cost:** Free
+
+**Link:** [yachtingworld.com/cruising/get-set-for-bluewater-131405](https://www.yachtingworld.com/cruising/get-set-for-bluewater-131405)
+
+**Why it matters for Matariki:** Helps you prioritise what to learn and why it matters. A good overview of the skills you will develop over time on board.`,
+      },
+      {
+        id: "r6",
+        title: "RYA — Getting Started in Sailing",
+        type: "info",
+        content: `The Royal Yachting Association (RYA) is the world's leading sailing training organisation. Their "Getting Started" pathway is the gold standard for new sailors.
+
+**What it covers:** An overview of the RYA training pathway from complete beginner to offshore skipper, with links to courses worldwide.
+
+**Cost:** Free (overview); courses vary in cost
+
+**Link:** [rya.org.uk/get-started](https://www.rya.org.uk/get-started/)
+
+**Why it matters for Matariki:** If you want to develop your sailing beyond this trip, the RYA pathway is the clearest route. The Day Skipper course is an excellent next step after your first offshore passage.`,
+      },
+      {
+        id: "r7",
+        title: "Sailing Terminology Glossary",
+        type: "info",
+        content: `Sailing has its own vocabulary. Understanding the terminology before you arrive means you can act on instructions immediately rather than asking for clarification at a critical moment.
+
+**Key terms to know before joining:**
+- **Bow / Stern** — front / back of the boat
+- **Port / Starboard** — left / right when facing forward
+- **Windward / Leeward** — toward / away from the wind
+- **Tack** — turn the bow through the wind
+- **Gybe** — turn the stern through the wind
+- **Sheet** — rope that controls a sail
+- **Halyard** — rope that hoists a sail
+- **Cleat** — fitting used to secure a rope
+- **Jammer / Clutch** — device that locks a rope under load
+- **Furling** — rolling up a sail
+- **Reef** — reducing the size of a sail
+- **Helm** — the steering wheel
+- **Cockpit** — the outdoor seating area at the stern
+- **Companionway** — the main entrance hatch from cockpit to cabin
+- **Foredeck** — the deck area forward of the mast
+- **Bilge** — the lowest part of the boat's interior
+- **Keel** — the heavy fin below the hull that provides stability
+
+**Link:** [cruisingworld.com/story/how-to/sailing-terms-glossary](https://www.cruisingworld.com/story/how-to/sailing-terms-glossary/)
+
+**Cost:** Free`,
+      },
+      {
+        id: "r8",
+        title: "Oyster Yachts — About the Oyster 68",
+        type: "info",
+        content: `Matariki III is an Oyster 68. Understanding the boat you will be sailing — its layout, systems, and design philosophy — will help you feel at home more quickly.
+
+**What to look at:**
+- The Oyster 68 specification and layout on the Oyster website
+- The Oyster YouTube channel — there are videos of the 68 being sailed and fitted out
+- The Oyster Bluewater Academy — Oyster's own crew training programme
+
+**Links:**
+- [oysteryachts.com/heritage-yachts/oyster-hp68](https://oysteryachts.com/heritage-yachts/oyster-hp68/) — the Oyster 68 heritage page
+- [youtube.com/@OysterYachts](https://www.youtube.com/@OysterYachts) — Oyster YouTube channel
+- [oysteryachts.com/bluewater-academy](https://oysteryachts.com/bluewater-academy/) — Bluewater Academy
+
+**Cost:** Free`,
+      },
+      {
+        id: "r9",
+        title: "On the Wind Podcast",
+        type: "info",
+        content: `The definitive offshore sailing podcast. Hosted by Andy Schell (who also runs 59° North), it features interviews with some of the world's best offshore sailors, covering everything from passage planning to heavy weather tactics to the culture of bluewater cruising.
+
+**What to listen to first:**
+- Any episode featuring a first-time offshore crew member
+- Episodes on seasickness, watch systems, and heavy weather
+- Episodes featuring Oyster or similar bluewater cruising yachts
+
+**Link:** [onthewind.com](https://www.onthewind.com/) or search "On the Wind" in any podcast app
+
+**Cost:** Free
+
+**Why it matters for Matariki:** Listening to experienced offshore sailors talk about their passages is one of the best ways to absorb the culture and mindset of offshore sailing before you experience it yourself.`,
+      },
+      {
+        id: "r10",
+        title: "Windy — Weather Forecasting Tool",
+        type: "info",
+        content: `Windy is the best free weather visualisation tool available. It displays wind, waves, rain, and pressure on an animated map and is used by sailors worldwide for passage planning.
+
+**How to use it:**
+- Go to windy.com or download the Windy app
+- Set the location to your departure port
+- Switch between wind, waves, and pressure overlays
+- Use the forecast timeline to see how conditions will develop
+
+**Link:** [windy.com](https://www.windy.com/)
+
+**Cost:** Free (premium version available)
+
+**Why it matters for Matariki:** We use Windy for passage planning and you will hear it mentioned during weather briefings. Familiarising yourself with it before joining means you can follow the skipper's weather analysis and contribute to passage planning discussions.`,
+      },
+    ],
+  },
+];
 export const totalTopics = sections.reduce((sum, s) => sum + s.topics.length, 0);
