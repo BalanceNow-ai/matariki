@@ -49,10 +49,15 @@ function splitIntoSegments(
   positions: VesselPosition[],
   maxGapMeters: number = 50000 // 50km max gap
 ): VesselPosition[][] {
-  if (positions.length === 0) return [];
+  console.log("[Segment Debug] splitIntoSegments called with", positions.length, "positions");
+  if (positions.length === 0) {
+    console.log("[Segment Debug] Empty positions array, returning empty segments");
+    return [];
+  }
 
   const segments: VesselPosition[][] = [];
   let currentSegment: VesselPosition[] = [positions[0]];
+  let splitReasons: string[] = [];
 
   for (let i = 1; i < positions.length; i++) {
     const prev = positions[i - 1];
@@ -68,6 +73,11 @@ function splitIntoSegments(
     const largeGap = distance > maxGapMeters;
 
     if (segmentChanged || largeGap) {
+      const reason = segmentChanged
+        ? `segmentIndex changed (${prev.segmentIndex} -> ${curr.segmentIndex})`
+        : `largeGap (${Math.round(distance / 1000)}km > ${maxGapMeters / 1000}km)`;
+      splitReasons.push(`Point ${i}: ${reason}`);
+
       // Start new segment
       if (currentSegment.length > 0) {
         segments.push(currentSegment);
@@ -82,6 +92,12 @@ function splitIntoSegments(
   if (currentSegment.length > 0) {
     segments.push(currentSegment);
   }
+
+  console.log("[Segment Debug] Created", segments.length, "segments from", positions.length, "positions");
+  if (splitReasons.length > 0) {
+    console.log("[Segment Debug] Split reasons:", splitReasons);
+  }
+  console.log("[Segment Debug] Segment sizes:", segments.map(s => s.length));
 
   return segments;
 }
@@ -285,10 +301,29 @@ export function OpenSeaMapClient({
   // Split track history into segments to avoid drawing lines across large gaps
   const trackSegments = showTrack ? splitIntoSegments(trackHistory) : [];
 
+  // Debug: Log track data received
+  console.log("[Map Debug] OpenSeaMapClient received:", {
+    showTrack,
+    trackHistoryLength: trackHistory.length,
+    trackSegmentsCount: trackSegments.length,
+    trackHistoryFirst: trackHistory[0],
+    trackHistoryLast: trackHistory[trackHistory.length - 1],
+  });
+
   // Convert each segment to polyline coordinates
   const trackSegmentCoords: [number, number][][] = trackSegments.map(segment =>
     segment.map(pos => [pos.latitude, pos.longitude])
   );
+
+  // Debug: Log segments
+  if (trackSegments.length > 0) {
+    console.log("[Map Debug] Track segments:", trackSegments.map((seg, i) => ({
+      segmentIndex: i,
+      pointCount: seg.length,
+      firstPoint: seg[0],
+      lastPoint: seg[seg.length - 1],
+    })));
+  }
 
   // Add current position to the last segment if showing
   if (showTrack && trackSegmentCoords.length > 0) {
@@ -335,8 +370,10 @@ export function OpenSeaMapClient({
         />
 
         {/* Track history polylines - one per segment to avoid cross-map lines */}
-        {showTrack && trackSegmentCoords.map((segmentCoords, idx) =>
-          segmentCoords.length > 1 && (
+        {showTrack && trackSegmentCoords.map((segmentCoords, idx) => {
+          const willRender = segmentCoords.length > 1;
+          console.log(`[Map Debug] Segment ${idx}: ${segmentCoords.length} points, willRender: ${willRender}`);
+          return willRender ? (
             <Polyline
               key={`track-segment-${idx}`}
               positions={segmentCoords}
@@ -347,8 +384,8 @@ export function OpenSeaMapClient({
                 dashArray: "5, 10",
               }}
             />
-          )
-        )}
+          ) : null;
+        })}
 
         {/* Waypoint markers for log entries (no connecting line - track only shows historical GPS positions) */}
         {showWaypoints &&
@@ -451,6 +488,11 @@ export function OpenSeaMapClient({
 
         <MapViewController position={position} autoCenter={autoCenter} />
       </MapContainer>
+
+      {/* Debug overlay - shows track data status */}
+      <div className="absolute top-4 left-4 z-[1000] bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
+        Track: {trackHistory.length} pts → {trackSegments.length} segs → {trackSegmentCoords.filter(s => s.length > 1).length} rendered
+      </div>
 
       {/* Map controls overlay */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
