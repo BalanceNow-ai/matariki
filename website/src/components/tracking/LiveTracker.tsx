@@ -129,32 +129,54 @@ export function LiveTracker({
   // Fetch track history (unified store - GPX and SignalK data are in the same place)
   const fetchHistory = useCallback(async () => {
     try {
+      console.log("[Track Debug] Fetching history from /api/position/track?type=history");
       const response = await fetch("/api/position/track?type=history", {
         cache: "no-store",
       });
-      if (!response.ok) return;
+      console.log("[Track Debug] Response status:", response.status, response.ok);
+      if (!response.ok) {
+        console.error("[Track Debug] Response not OK:", response.status, response.statusText);
+        return;
+      }
       const data = await response.json();
+      console.log("[Track Debug] API Response:", {
+        hasPositionHistory: !!data.positionHistory,
+        count: data.positionHistory?.count,
+        pointsLength: data.positionHistory?.points?.length,
+        redisConfigured: data.redisConfigured,
+        firstPoint: data.positionHistory?.points?.[0],
+        lastPoint: data.positionHistory?.points?.[data.positionHistory?.points?.length - 1],
+      });
 
       // Use position history directly - all track data is in one store
       const points: SignalKPosition[] = data.positionHistory?.points || [];
+      console.log("[Track Debug] Extracted points count:", points.length);
 
       // Sort by timestamp (oldest first for proper track drawing)
       points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-      setTrackHistory(
-        points.map((p: SignalKPosition) => ({
-          latitude: p.latitude,
-          longitude: p.longitude,
-          timestamp: p.timestamp,
-          heading: p.heading,
-          courseOverGround: p.courseOverGround,
-          speedOverGround: p.speedOverGround,
-          segmentIndex: p.segmentIndex,
-          name: p.name,
-        }))
-      );
+      const mappedHistory = points.map((p: SignalKPosition) => ({
+        latitude: p.latitude,
+        longitude: p.longitude,
+        timestamp: p.timestamp,
+        heading: p.heading,
+        courseOverGround: p.courseOverGround,
+        speedOverGround: p.speedOverGround,
+        segmentIndex: p.segmentIndex,
+        name: p.name,
+      }));
+
+      console.log("[Track Debug] Mapped history count:", mappedHistory.length);
+      if (mappedHistory.length > 0) {
+        console.log("[Track Debug] Sample points:", {
+          first: mappedHistory[0],
+          last: mappedHistory[mappedHistory.length - 1],
+        });
+      }
+
+      setTrackHistory(mappedHistory);
     } catch (err) {
-      console.error("Failed to fetch history:", err);
+      console.error("[Track Debug] Failed to fetch history:", err);
     }
   }, []);
 

@@ -64,5 +64,10 @@ const OpenSeaMapInner = dynamic(
 );
 
 export function OpenSeaMap(props: OpenSeaMapProps) {
+  console.log("[OpenSeaMap Wrapper Debug] Props received:", {
+    trackHistoryLength: props.trackHistory?.length ?? 0,
+    showTrack: props.showTrack,
+    position: { lat: props.position.latitude, lng: props.position.longitude },
+  });
   return <OpenSeaMapInner {...props} />;
 }
