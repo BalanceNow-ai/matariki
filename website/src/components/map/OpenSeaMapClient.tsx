@@ -489,10 +489,29 @@ export function OpenSeaMapClient({
         <MapViewController position={position} autoCenter={autoCenter} />
       </MapContainer>
 
-      {/* Debug overlay - shows track data status */}
-      <div className="absolute top-4 left-4 z-[1000] bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
-        Track: {trackHistory.length} pts → {trackSegments.length} segs → {trackSegmentCoords.filter(s => s.length > 1).length} rendered
-      </div>
+      {/* Debug overlay - shows track data status and bounding box */}
+      {(() => {
+        const lats = trackHistory.map(p => p.latitude);
+        const lngs = trackHistory.map(p => p.longitude);
+        const minLat = lats.length > 0 ? Math.min(...lats).toFixed(4) : 'N/A';
+        const maxLat = lats.length > 0 ? Math.max(...lats).toFixed(4) : 'N/A';
+        const minLng = lngs.length > 0 ? Math.min(...lngs).toFixed(4) : 'N/A';
+        const maxLng = lngs.length > 0 ? Math.max(...lngs).toFixed(4) : 'N/A';
+        const timestamps = trackHistory.map(p => new Date(p.timestamp).getTime()).filter(t => !isNaN(t));
+        const oldest = timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString().slice(0, 16) : 'N/A';
+        const newest = timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString().slice(0, 16) : 'N/A';
+
+        return (
+          <div className="absolute top-4 left-4 z-[1000] bg-black/80 text-white text-xs px-3 py-2 rounded font-mono space-y-0.5 max-w-[320px]">
+            <div>Track: {trackHistory.length} pts → {trackSegments.length} segs → {trackSegmentCoords.filter(s => s.length > 1).length} rendered</div>
+            <div className="text-yellow-300">Lat: {minLat} to {maxLat}</div>
+            <div className="text-yellow-300">Lng: {minLng} to {maxLng}</div>
+            <div className="text-cyan-300">Time: {oldest}</div>
+            <div className="text-cyan-300">  to: {newest}</div>
+            <div className="text-green-300">Vessel: {position.latitude.toFixed(4)}, {position.longitude.toFixed(4)}</div>
+          </div>
+        );
+      })()}
 
       {/* Map controls overlay */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
