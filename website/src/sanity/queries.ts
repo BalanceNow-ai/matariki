@@ -1,0 +1,259 @@
+import { groq } from "next-sanity";
+
+// Fetch recent log entries for homepage
+export const RECENT_POSTS_QUERY = groq`*[
+  _type == "logEntry"
+  && defined(slug.current)
+]|order(publishedAt desc)[0...3]{
+  _id,
+  title,
+  slug,
+  publishedAt,
+  category,
+  excerpt,
+  "location": location.name,
+  heroImage
+}`;
+
+// Fetch all log entries for the log page
+export const ALL_POSTS_QUERY = groq`*[
+  _type == "logEntry"
+  && defined(slug.current)
+]|order(publishedAt desc){
+  _id,
+  title,
+  slug,
+  publishedAt,
+  category,
+  excerpt,
+  "location": location.name,
+  heroImage
+}`;
+
+// Fetch single log entry by slug
+export const POST_BY_SLUG_QUERY = groq`*[
+  _type == "logEntry"
+  && slug.current == $slug
+][0]{
+  _id,
+  title,
+  slug,
+  publishedAt,
+  category,
+  excerpt,
+  contentHtml,
+  heroImage,
+  "location": {
+    "name": location.name,
+    "latitude": location.latitude,
+    "longitude": location.longitude,
+    "coordinates": defined(location.latitude.degrees) && defined(location.longitude.degrees) => {
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60)) * select(location.longitude.direction == "W" => -1, 1)
+    }
+  },
+  "voyage": voyage->title
+}`;
+
+// Fetch featured gallery images
+export const FEATURED_GALLERY_QUERY = groq`*[
+  _type == "galleryImage"
+  && featured == true
+]|order(takenAt desc)[0...5]{
+  _id,
+  image,
+  caption,
+  category
+}`;
+
+// Fetch all gallery images
+export const ALL_GALLERY_QUERY = groq`*[
+  _type == "galleryImage"
+]|order(_createdAt desc){
+  _id,
+  image,
+  caption,
+  category,
+  takenAt,
+  exif,
+  "voyage": voyage->title
+}`;
+
+// Fetch all videos
+export const ALL_VIDEOS_QUERY = groq`*[
+  _type == "video"
+]|order(publishedAt desc){
+  _id,
+  title,
+  description,
+  videoType,
+  youtubeUrl,
+  vimeoUrl,
+  thumbnail,
+  category,
+  duration,
+  featured,
+  "voyage": voyage->title
+}`;
+
+// Fetch site settings
+export const SITE_SETTINGS_QUERY = groq`*[_type == "siteSettings"][0]{
+  siteName,
+  tagline,
+  description,
+  currentPosition,
+  socialLinks,
+  sailloggerUrl,
+  "currentVoyage": currentVoyage->title
+}`;
+
+// Fetch all voyages
+export const VOYAGES_QUERY = groq`*[
+  _type == "voyage"
+]|order(startDate desc){
+  _id,
+  title,
+  slug,
+  description,
+  startDate,
+  endDate,
+  status,
+  heroImage
+}`;
+
+// Fetch crew members
+export const CREW_QUERY = groq`*[
+  _type == "crew"
+]|order(sortOrder asc){
+  _id,
+  name,
+  role,
+  bio,
+  photo,
+  sortOrder
+}`;
+
+// Fetch vessel details
+export const VESSEL_QUERY = groq`*[_type == "vessel"][0]{
+  _id,
+  name,
+  type,
+  designer,
+  builder,
+  year,
+  flag,
+  description,
+  descriptionSections[]{
+    title,
+    content
+  },
+  dimensions,
+  rig,
+  engine,
+  tanks,
+  electronics,
+  heroImage,
+  gallery
+}`;
+
+// Fetch latest position for tracking
+export const LATEST_POSITION_QUERY = groq`*[_type == "position"]|order(timestamp desc)[0]{
+  _id,
+  coordinates,
+  timestamp,
+  locationName,
+  source,
+  weather,
+  "voyage": voyage->title
+}`;
+
+// Fetch active voyage with stats for tracking page
+export const ACTIVE_VOYAGE_QUERY = groq`*[_type == "voyage" && status == "active"][0]{
+  _id,
+  title,
+  slug,
+  description,
+  startDate,
+  endDate,
+  status,
+  heroImage
+}`;
+
+// Fetch all voyages for voyage selector
+export const VOYAGES_FOR_SELECTOR_QUERY = groq`*[_type == "voyage"]|order(startDate desc){
+  _id,
+  title,
+  slug,
+  status,
+  startDate,
+  endDate
+}`;
+
+// Fetch log entries with coordinates for waypoints on map
+// Converts degrees/decimal minutes to decimal degrees
+export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
+  _type == "logEntry"
+  && defined(location.latitude.degrees)
+  && defined(location.longitude.degrees)
+  && defined(slug.current)
+]|order(publishedAt desc){
+  _id,
+  title,
+  slug,
+  publishedAt,
+  category,
+  excerpt,
+  "location": {
+    "name": location.name,
+    "coordinates": {
+      "lat": (location.latitude.degrees + (coalesce(location.latitude.minutes, 0) / 60)) * select(location.latitude.direction == "S" => -1, 1),
+      "lng": (location.longitude.degrees + (coalesce(location.longitude.minutes, 0) / 60)) * select(location.longitude.direction == "W" => -1, 1)
+    }
+  },
+  heroImage,
+  "voyageId": voyage->_id,
+  "voyageTitle": voyage->title
+}`;
+
+// Fetch single voyage by slug with gallery
+export const VOYAGE_BY_SLUG_QUERY = groq`*[
+  _type == "voyage"
+  && slug.current == $slug
+][0]{
+  _id,
+  title,
+  slug,
+  description,
+  startDate,
+  endDate,
+  status,
+  heroImage,
+  gallery,
+  "galleryImages": *[_type == "galleryImage" && references(^._id)]|order(takenAt desc){
+    _id,
+    image,
+    caption,
+    category,
+    takenAt
+  },
+  "videos": *[_type == "video" && references(^._id)]|order(publishedAt desc){
+    _id,
+    title,
+    description,
+    videoType,
+    youtubeUrl,
+    vimeoUrl,
+    thumbnail,
+    category,
+    duration
+  },
+  "logEntries": *[_type == "logEntry" && references(^._id) && defined(slug.current)]|order(publishedAt desc){
+    _id,
+    title,
+    slug,
+    publishedAt,
+    category,
+    excerpt,
+    heroImage
+  }
+}`;
