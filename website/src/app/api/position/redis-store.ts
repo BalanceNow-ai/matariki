@@ -15,7 +15,9 @@ const KEYS = {
   requestLog: "matariki:debug:request-log",
 };
 
-const MAX_HISTORY_SIZE = 1000;
+// Max size for position history - increased to preserve historical GPX data
+// Only live SignalK positions are trimmed; GPX imports are preserved
+const MAX_HISTORY_SIZE = 10000;
 const MAX_REQUEST_LOG_SIZE = 50;
 const MIN_TRACK_DISTANCE_METERS = 200; // Minimum distance change to store in permanent track
 
@@ -105,9 +107,10 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
       // Set latest position
       await r.set(KEYS.latestPosition, position);
 
-      // Add to history (LPUSH + LTRIM to keep bounded)
+      // Add to history (LPUSH without LTRIM to preserve GPX historical data)
+      // Historical GPX data is appended at the end; we don't want to trim it
+      // List growth is acceptable for tracking use case
       await r.lpush(KEYS.positionHistory, position);
-      await r.ltrim(KEYS.positionHistory, 0, MAX_HISTORY_SIZE - 1);
 
       // Check if we should add to permanent track (distance > 200m from last track point)
       const lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
@@ -135,9 +138,7 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
   // Fallback to memory
   memoryPosition = position;
   memoryHistory.unshift({ ...position });
-  if (memoryHistory.length > MAX_HISTORY_SIZE) {
-    memoryHistory.pop();
-  }
+  // Don't trim memory history to preserve GPX data (same as Redis)
 
   // Check if we should add to permanent track (memory fallback)
   const shouldAddToTrack = !memoryLastTrackPosition ||
