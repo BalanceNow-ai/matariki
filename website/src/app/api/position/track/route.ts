@@ -52,12 +52,28 @@ export async function GET(request: NextRequest) {
   }
 
   // Get position history
+  // NOTE: positionHistory Redis key is not reliably populated; use permanentTrack as the
+  // authoritative source for all track data (both live SignalK and imported GPX points).
   if (type === "history" || type === "all") {
+    // First try positionHistory; fall back to permanentTrack if empty
     const history = await getPositionHistoryAsync();
-    result.positionHistory = {
-      count: history.length,
-      points: limit ? history.slice(0, limit) : history,
-    };
+    if (history.length > 0) {
+      result.positionHistory = {
+        count: history.length,
+        points: limit ? history.slice(0, limit) : history,
+      };
+    } else {
+      // positionHistory is empty — serve permanentTrack data under positionHistory key
+      // so the frontend (which reads positionHistory) gets the correct data
+      const track = await getPermanentTrackAsync();
+      const sorted = [...track].sort(
+        (a, b) => new Date((a as {timestamp:string}).timestamp).getTime() - new Date((b as {timestamp:string}).timestamp).getTime()
+      );
+      result.positionHistory = {
+        count: sorted.length,
+        points: limit ? sorted.slice(0, limit) : sorted,
+      };
+    }
   }
 
   return NextResponse.json(result);
