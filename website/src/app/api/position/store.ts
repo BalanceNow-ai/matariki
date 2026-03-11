@@ -108,9 +108,9 @@ export function clearRequestLog(): void {
 
 /**
  * Parse a timestamp string and return a Date object.
- * Handles both ISO format and "YYYY-MM-DD HH:MM:SS" format.
+ * Handles ISO 8601 format (preferred) and legacy "YYYY-MM-DD HH:MM:SS" format.
  *
- * @param timestamp - Timestamp string (e.g., "2026-03-02 12:33:11" or ISO format)
+ * @param timestamp - Timestamp string (ISO format preferred, or "YYYY-MM-DD HH:MM:SS")
  * @param _timezone - Deprecated, kept for backwards compatibility
  * @returns Date object
  */
@@ -118,7 +118,12 @@ export function parseLocalTimestampToUtc(
   timestamp: string,
   _timezone?: string | undefined
 ): Date {
-  // Parse the timestamp string: "2026-03-02 12:33:11"
+  // If ISO format with T, parse directly
+  if (timestamp.includes("T")) {
+    return new Date(timestamp);
+  }
+
+  // Legacy support: Parse "YYYY-MM-DD HH:MM:SS" format
   const match = timestamp.match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
   if (!match) {
     return new Date(timestamp);

@@ -16,25 +16,31 @@ export const dynamic = "force-dynamic";
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
 /**
- * Format a datetime string for storage
+ * Format a datetime string for storage in ISO 8601 format
+ * Both SignalK and GPX data use ISO format for consistent storage and sorting
  * @param datetime - Input datetime string
- * @returns Formatted timestamp string
+ * @returns ISO 8601 formatted timestamp string
  */
 function formatTimestamp(datetime: string | undefined): string {
   if (!datetime) {
-    // Use current UTC time formatted nicely
-    const now = new Date();
-    return now.toISOString().replace("T", " ").substring(0, 19);
+    // Use current UTC time in ISO format
+    return new Date().toISOString();
   }
 
-  // If already in "YYYY-MM-DD HH:MM:SS" format, return as-is
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(datetime)) {
+  // If already in ISO format with T, return as-is
+  if (datetime.includes("T")) {
     return datetime;
   }
 
-  // If ISO format, convert to simple format
-  if (datetime.includes("T")) {
-    return datetime.replace("T", " ").substring(0, 19);
+  // If in "YYYY-MM-DD HH:MM:SS" format, convert to ISO
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(datetime)) {
+    return datetime.replace(" ", "T") + "Z";
+  }
+
+  // Try to parse and convert to ISO
+  const parsed = new Date(datetime);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString();
   }
 
   return datetime;

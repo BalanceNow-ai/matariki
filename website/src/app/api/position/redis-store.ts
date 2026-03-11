@@ -328,8 +328,25 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
 }
 
 /**
+ * Normalize a timestamp to ISO 8601 format for consistent storage
+ * Both SignalK and GPX data should use the same format
+ */
+function normalizeTimestamp(timestamp: string): string {
+  // If already ISO format with T, return as-is
+  if (timestamp.includes("T")) {
+    return timestamp;
+  }
+  // If "YYYY-MM-DD HH:MM:SS" format, convert to ISO
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timestamp)) {
+    return timestamp.replace(" ", "T") + "Z";
+  }
+  // Otherwise return as-is and let JS handle it
+  return timestamp;
+}
+
+/**
  * Import track points from GPX data
- * Adds to the same position history used by SignalK (unified data store)
+ * Adds to the same position history AND permanentTrack used by SignalK (unified data store)
  * All points are imported with timestamps preserved for proper track ordering
  * Deduplication is by timestamp only (vessel may revisit locations)
  */
@@ -345,10 +362,11 @@ export async function importTrackFromGPX(
   console.log(`[GPX Import] Importing all ${filteredPoints.length} track points with timestamps`);
 
   // Convert to SignalKPosition format - mark as "gpx" source to distinguish from live data
+  // Normalize timestamps to ISO format for consistency with SignalK data
   const positions: SignalKPosition[] = filteredPoints.map((point) => ({
     latitude: point.latitude,
     longitude: point.longitude,
-    timestamp: point.timestamp,
+    timestamp: normalizeTimestamp(point.timestamp),
     source: "gpx",
     name: point.name || "Matariki III",
     mmsi: "512004962",
@@ -359,7 +377,7 @@ export async function importTrackFromGPX(
     try {
       // Get existing history to deduplicate by timestamp (not location - vessel may revisit areas)
       const existingHistory = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
-      const existingTimestamps = new Set(existingHistory.map(p => p.timestamp));
+      const existingTimestamps = new Set(existingHistory.map(p => normalizeTimestamp(p.timestamp)));
 
       // Filter out positions with duplicate timestamps only
       const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
@@ -368,10 +386,41 @@ export async function importTrackFromGPX(
         // Sort by timestamp to ensure proper chronological order for track drawing
         newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
+        // Add to position history
         const BATCH_SIZE = 100;
         for (let i = 0; i < newPositions.length; i += BATCH_SIZE) {
           const batch = newPositions.slice(i, i + BATCH_SIZE);
           await r.rpush(KEYS.positionHistory, ...batch);
+        }
+
+        // Also add to permanentTrack (same as SignalK) with 200m distance filtering
+        // This ensures GPX data appears in the permanent track just like live SignalK data
+        let lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
+        const trackPointsToAdd: SignalKPosition[] = [];
+
+        for (const pos of newPositions) {
+          const shouldAddToTrack = !lastTrackPos ||
+            calculateDistanceMeters(
+              lastTrackPos.latitude,
+              lastTrackPos.longitude,
+              pos.latitude,
+              pos.longitude
+            ) >= MIN_TRACK_DISTANCE_METERS;
+
+          if (shouldAddToTrack) {
+            trackPointsToAdd.push(pos);
+            lastTrackPos = pos;
+          }
+        }
+
+        if (trackPointsToAdd.length > 0) {
+          for (let i = 0; i < trackPointsToAdd.length; i += BATCH_SIZE) {
+            const batch = trackPointsToAdd.slice(i, i + BATCH_SIZE);
+            await r.rpush(KEYS.permanentTrack, ...batch);
+          }
+          // Update last track position
+          await r.set(KEYS.lastTrackPosition, lastTrackPos);
+          console.log(`[Redis] Added ${trackPointsToAdd.length} GPX points to permanent track (200m filtered)`);
         }
       }
 
@@ -382,16 +431,37 @@ export async function importTrackFromGPX(
     }
   }
 
-  // Fallback to memory - add to history instead of separate track
+  // Fallback to memory - add to history AND permanent track
   // Deduplicate by timestamp only (not location - vessel may revisit areas)
-  const existingTimestamps = new Set(memoryHistory.map(p => p.timestamp));
+  const existingTimestamps = new Set(memoryHistory.map(p => normalizeTimestamp(p.timestamp)));
   const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
 
-  memoryHistory.push(...newPositions);
   // Sort by timestamp
+  newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  memoryHistory.push(...newPositions);
+  // Sort the entire history by timestamp
   memoryHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-  console.log(`[Memory] Imported ${newPositions.length} track points from GPX`);
+  // Also add to permanent track with distance filtering (same as SignalK)
+  let trackPointsAdded = 0;
+  for (const pos of newPositions) {
+    const shouldAddToTrack = !memoryLastTrackPosition ||
+      calculateDistanceMeters(
+        memoryLastTrackPosition.latitude,
+        memoryLastTrackPosition.longitude,
+        pos.latitude,
+        pos.longitude
+      ) >= MIN_TRACK_DISTANCE_METERS;
+
+    if (shouldAddToTrack) {
+      memoryPermanentTrack.push({ ...pos });
+      memoryLastTrackPosition = { ...pos };
+      trackPointsAdded++;
+    }
+  }
+
+  console.log(`[Memory] Imported ${newPositions.length} track points from GPX, ${trackPointsAdded} added to permanent track`);
   return { imported: newPositions.length, total: trackPoints.length };
 }
 
