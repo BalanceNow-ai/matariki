@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clearTrackHistoryAsync } from "../redis-store";
+import { clearTrackHistoryAsync, clearAllTrackDataAsync } from "../redis-store";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
@@ -9,9 +9,11 @@ const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
 /**
  * POST /api/position/clear
- * Clears GPX track history while preserving Signal K data
- * Use this to remove GPS artifacts/jumps from the track
- * Signal K live data (source: "signalk") is preserved
+ * Clears track history from Redis
+ *
+ * Query params:
+ * - mode: "gpx" (default) - Clear only GPX uploaded data, preserve SignalK data
+ * - mode: "all" - Clear ALL track data including SignalK positions
  */
 export async function POST(request: NextRequest) {
   // Verify secret token
@@ -37,12 +39,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Get clear mode from query params
+  const mode = request.nextUrl.searchParams.get("mode") || "gpx";
+
   try {
-    const result = await clearTrackHistoryAsync();
+    let result: { cleared: number };
+    let message: string;
+
+    if (mode === "all") {
+      // Clear ALL track data including SignalK
+      result = await clearAllTrackDataAsync();
+      message = `Cleared ALL ${result.cleared} track positions (including SignalK)`;
+    } else {
+      // Default: Clear only GPX data, preserve SignalK
+      result = await clearTrackHistoryAsync();
+      message = `Cleared ${result.cleared} GPX track positions (SignalK preserved)`;
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Cleared ${result.cleared} track positions`,
+      message,
       cleared: result.cleared,
+      mode,
     });
   } catch (error) {
     console.error("[Clear Track] Error:", error);

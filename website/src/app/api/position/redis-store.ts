@@ -257,6 +257,45 @@ export async function clearRequestLogAsync(): Promise<void> {
 }
 
 /**
+ * Clear ALL track data from Redis (position history, permanent track, latest position)
+ * Use this to completely reset the tracking system
+ */
+export async function clearAllTrackDataAsync(): Promise<{ cleared: number }> {
+  const r = getRedis();
+  let clearedCount = 0;
+
+  if (r) {
+    try {
+      // Get counts before clearing
+      const historyCount = await r.llen(KEYS.positionHistory);
+      const trackCount = await r.llen(KEYS.permanentTrack);
+      clearedCount = historyCount + trackCount;
+
+      // Delete all track-related keys
+      await r.del(KEYS.positionHistory);
+      await r.del(KEYS.permanentTrack);
+      await r.del(KEYS.lastTrackPosition);
+      await r.del(KEYS.latestPosition);
+
+      console.log(`[Redis] Cleared ALL track data: ${historyCount} history positions, ${trackCount} track points`);
+      return { cleared: clearedCount };
+    } catch (error) {
+      console.error("[Redis] Error clearing all track data:", error);
+    }
+  }
+
+  // Fallback to memory
+  clearedCount = memoryHistory.length + memoryPermanentTrack.length;
+  memoryHistory.length = 0;
+  memoryPermanentTrack.length = 0;
+  memoryLastTrackPosition = null;
+  memoryPosition = null;
+
+  console.log(`[Memory] Cleared ALL track data: ${clearedCount} positions`);
+  return { cleared: clearedCount };
+}
+
+/**
  * Clear GPX track history while preserving Signal K and other data
  * Use this to remove GPS artifacts/jumps from the track
  * Only data with source: "gpx" is deleted
