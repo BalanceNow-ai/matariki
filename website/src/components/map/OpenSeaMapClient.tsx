@@ -257,11 +257,19 @@ function createWaypointIcon(category?: string): L.DivIcon {
 function MapViewController({
   position,
   autoCenter,
+  onMapReady,
 }: {
   position: VesselPosition;
   autoCenter: boolean;
+  onMapReady?: (map: L.Map) => void;
 }) {
   const map = useMap();
+
+  useEffect(() => {
+    if (onMapReady) {
+      onMapReady(map);
+    }
+  }, [map, onMapReady]);
 
   useEffect(() => {
     if (autoCenter) {
@@ -286,6 +294,21 @@ export function OpenSeaMapClient({
   const [baseLayer, setBaseLayer] = useState<MapBaseLayer>(initialBaseLayer);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+
+  // Fit map to show all track points
+  const fitToTrack = () => {
+    if (!mapInstanceRef.current || trackHistory.length === 0) return;
+
+    const bounds = L.latLngBounds(
+      trackHistory.map(p => [p.latitude, p.longitude] as [number, number])
+    );
+    // Include current position in bounds
+    bounds.extend([position.latitude, position.longitude]);
+
+    mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
+    setAutoCenter(false); // Disable auto-center when manually fitting
+  };
 
   const currentLayer = BASE_LAYERS[baseLayer];
 
@@ -378,10 +401,9 @@ export function OpenSeaMapClient({
               key={`track-segment-${idx}`}
               positions={segmentCoords}
               pathOptions={{
-                color: "#D97706",
-                weight: 3,
-                opacity: 0.7,
-                dashArray: "5, 10",
+                color: "#F59E0B",
+                weight: 4,
+                opacity: 0.9,
               }}
             />
           ) : null;
@@ -486,7 +508,11 @@ export function OpenSeaMapClient({
           </Popup>
         </Marker>
 
-        <MapViewController position={position} autoCenter={autoCenter} />
+        <MapViewController
+          position={position}
+          autoCenter={autoCenter}
+          onMapReady={(map) => { mapInstanceRef.current = map; }}
+        />
       </MapContainer>
 
       {/* Debug overlay - shows track data status and bounding box */}
@@ -500,14 +526,28 @@ export function OpenSeaMapClient({
         const timestamps = trackHistory.map(p => new Date(p.timestamp).getTime()).filter(t => !isNaN(t));
         const oldest = timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString().slice(0, 16) : 'N/A';
         const newest = timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString().slice(0, 16) : 'N/A';
+        const renderedCount = trackSegmentCoords.filter(s => s.length > 1).length;
+
+        // Show warning if no track is rendered
+        const noDataMessage = trackHistory.length === 0
+          ? "No track data - upload GPX or wait for SignalK"
+          : renderedCount === 0
+          ? `${trackHistory.length} points but all segments <2 pts (gaps >50km?)`
+          : null;
 
         return (
           <div className="absolute top-4 left-4 z-[1000] bg-black/80 text-white text-xs px-3 py-2 rounded font-mono space-y-0.5 max-w-[320px]">
-            <div>Track: {trackHistory.length} pts → {trackSegments.length} segs → {trackSegmentCoords.filter(s => s.length > 1).length} rendered</div>
-            <div className="text-yellow-300">Lat: {minLat} to {maxLat}</div>
-            <div className="text-yellow-300">Lng: {minLng} to {maxLng}</div>
-            <div className="text-cyan-300">Time: {oldest}</div>
-            <div className="text-cyan-300">  to: {newest}</div>
+            {noDataMessage ? (
+              <div className="text-red-400">{noDataMessage}</div>
+            ) : (
+              <>
+                <div className="text-green-400">Track: {trackHistory.length} pts → {trackSegments.length} segs → {renderedCount} rendered</div>
+                <div className="text-yellow-300">Lat: {minLat} to {maxLat}</div>
+                <div className="text-yellow-300">Lng: {minLng} to {maxLng}</div>
+                <div className="text-cyan-300">Time: {oldest}</div>
+                <div className="text-cyan-300">  to: {newest}</div>
+              </>
+            )}
             <div className="text-green-300">Vessel: {position.latitude.toFixed(4)}, {position.longitude.toFixed(4)}</div>
           </div>
         );
@@ -526,6 +566,20 @@ export function OpenSeaMapClient({
         >
           {autoCenter ? "Tracking" : "Track"}
         </button>
+
+        {/* Fit to Track button - only show if there's track data */}
+        {trackHistory.length > 0 && (
+          <button
+            onClick={fitToTrack}
+            className="px-3 py-2 rounded-lg text-xs font-medium shadow-lg transition-colors bg-white/90 text-slate-700 hover:bg-white flex items-center gap-1"
+            title="Zoom to show entire track"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            Fit Track
+          </button>
+        )}
 
         {/* Layer selector */}
         <div className="relative">
