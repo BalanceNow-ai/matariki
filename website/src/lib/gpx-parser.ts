@@ -193,7 +193,7 @@ export function parseGPX(gpxContent: string): GPXParseResult {
         ? timeMatch[1]
         : `1970-01-02T00:${String(Math.floor(routePointIndex / 60)).padStart(2, "0")}:${String(routePointIndex % 60).padStart(2, "0")}Z`,
       name: nameMatch ? nameMatch[1] : undefined,
-      segmentIndex: segmentsFound + routePointIndex, // Separate segment for route
+      segmentIndex: segmentsFound, // All route points in same segment (continuous route)
     });
     routePointsFound++;
     routePointIndex++;
