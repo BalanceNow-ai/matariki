@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getPermanentTrackAsync,
   getLatestPositionAsync,
-  getPositionHistoryAsync,
   isRedisConfigured,
 } from "../redis-store";
 
@@ -52,36 +51,28 @@ export async function GET(request: NextRequest) {
   }
 
   // Get position history
-  // NOTE: positionHistory Redis key is not reliably populated; use permanentTrack as the
-  // authoritative source for all track data (both live SignalK and imported GPX points).
+  // NOTE: permanentTrack is the authoritative source for all track data:
+  // - Contains actual vessel movement (positions >200m apart)
+  // - Contains GPX imports with full historical data
+  // - positionHistory may contain many near-duplicate positions from stationary SignalK updates
   if (type === "history" || type === "all") {
-    // First try positionHistory; fall back to permanentTrack if empty
-    const history = await getPositionHistoryAsync();
-    if (history.length > 0) {
-      result.positionHistory = {
-        count: history.length,
-        points: limit ? history.slice(0, limit) : history,
-      };
-    } else {
-      // positionHistory is empty — serve permanentTrack data under positionHistory key
-      // so the frontend (which reads positionHistory) gets the correct data
-      const track = await getPermanentTrackAsync();
-      // Sort by segmentIndex first to maintain segment continuity, then by timestamp
-      const sorted = [...track].sort((a, b) => {
-        const posA = a as { timestamp: string; segmentIndex?: number };
-        const posB = b as { timestamp: string; segmentIndex?: number };
-        // First sort by segment (undefined segments go last)
-        const segA = posA.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-        const segB = posB.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-        if (segA !== segB) return segA - segB;
-        // Then by timestamp within segment
-        return new Date(posA.timestamp).getTime() - new Date(posB.timestamp).getTime();
-      });
-      result.positionHistory = {
-        count: sorted.length,
-        points: limit ? sorted.slice(0, limit) : sorted,
-      };
-    }
+    // Always use permanentTrack as the primary source for track display
+    const track = await getPermanentTrackAsync();
+    // Sort by segmentIndex first to maintain segment continuity, then by timestamp
+    const sorted = [...track].sort((a, b) => {
+      const posA = a as { timestamp: string; segmentIndex?: number };
+      const posB = b as { timestamp: string; segmentIndex?: number };
+      // First sort by segment (undefined segments go last)
+      const segA = posA.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+      const segB = posB.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+      if (segA !== segB) return segA - segB;
+      // Then by timestamp within segment
+      return new Date(posA.timestamp).getTime() - new Date(posB.timestamp).getTime();
+    });
+    result.positionHistory = {
+      count: sorted.length,
+      points: limit ? sorted.slice(0, limit) : sorted,
+    };
   }
 
   return NextResponse.json(result);
