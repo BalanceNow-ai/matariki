@@ -423,8 +423,14 @@ export async function importTrackFromGPX(
       const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
 
       if (newPositions.length > 0) {
-        // Sort by timestamp to ensure proper chronological order for track drawing
-        newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        // Sort by segmentIndex first, then by timestamp within segments
+        // This maintains GPX track segment continuity
+        newPositions.sort((a, b) => {
+          const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+          const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+          if (segA !== segB) return segA - segB;
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
 
         // Write to permanentTrack (the reliable store) instead of positionHistory
         const BATCH_SIZE = 100;
@@ -451,12 +457,22 @@ export async function importTrackFromGPX(
   const existingTimestamps = new Set(memoryHistory.map(p => normalizeTimestamp(p.timestamp)));
   const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
 
-  // Sort by timestamp
-  newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Sort by segmentIndex first, then by timestamp within segments
+  newPositions.sort((a, b) => {
+    const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+    const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+    if (segA !== segB) return segA - segB;
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
 
   memoryHistory.push(...newPositions);
-  // Sort the entire history by timestamp
-  memoryHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Sort the entire history by segmentIndex, then timestamp
+  memoryHistory.sort((a, b) => {
+    const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+    const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+    if (segA !== segB) return segA - segB;
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
 
   // Also add to permanent track with distance filtering (same as SignalK)
   let trackPointsAdded = 0;

@@ -50,8 +50,71 @@ function extractLatLon(attributeStr: string): { lat: number; lon: number } | nul
 }
 
 /**
+ * Generate a synthetic timestamp for points without real timestamps.
+ * Uses a far-future base date (9999-01-01) to avoid conflicts with real timestamps.
+ * Encodes segment and point index to maintain order and uniqueness.
+ */
+function generateSyntheticTimestamp(segmentIndex: number, pointIndex: number): string {
+  // Use segment as hours (0-23 supports 24 segments)
+  // Use pointIndex encoded in minutes and seconds (supports 3600 points per segment)
+  const hours = segmentIndex % 24;
+  const minutes = Math.floor(pointIndex / 60) % 60;
+  const seconds = pointIndex % 60;
+  const millis = Math.floor(pointIndex / 3600); // For overflow beyond 3600 points
+
+  return `9999-01-01T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}Z`;
+}
+
+/**
+ * Parse track points from segment content, handling both regular and self-closing tags
+ * Returns array of parsed points with their segment index
+ */
+function parseTrackPoints(
+  segmentContent: string,
+  segmentIndex: number
+): { points: GPXTrackPoint[]; pointsWithTimestamps: number } {
+  const points: GPXTrackPoint[] = [];
+  let pointsWithTimestamps = 0;
+  let pointIndexInSegment = 0;
+
+  // Match both forms:
+  // 1. Self-closing: <trkpt lat="..." lon="..."/>
+  // 2. With content: <trkpt lat="..." lon="...">...</trkpt>
+  // Use a unified regex that captures both forms
+  const trkptRegex = /<trkpt\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/trkpt>)/gi;
+  let match;
+
+  while ((match = trkptRegex.exec(segmentContent)) !== null) {
+    const coords = extractLatLon(match[1]);
+    if (!coords) continue;
+
+    // match[2] is the inner content (undefined for self-closing tags)
+    const innerContent = match[2] || "";
+    const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
+    const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
+
+    const hasTimestamp = !!timeMatch;
+    if (hasTimestamp) pointsWithTimestamps++;
+
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      // Use actual timestamp, or generate synthetic for ordering/deduplication
+      timestamp: timeMatch
+        ? timeMatch[1]
+        : generateSyntheticTimestamp(segmentIndex, pointIndexInSegment),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex,
+    });
+    pointIndexInSegment++;
+  }
+
+  return { points, pointsWithTimestamps };
+}
+
+/**
  * Parse GPX XML content to extract track points, waypoints, and route points
- * Properly handles track segments and attribute ordering
+ * Properly handles track segments, attribute ordering, and self-closing tags
  */
 export function parseGPX(gpxContent: string): GPXParseResult {
   const points: GPXTrackPoint[] = [];
@@ -102,76 +165,29 @@ export function parseGPX(gpxContent: string): GPXParseResult {
     segmentsFound++;
     const segmentContent = trksegMatch[1];
 
-    // Parse track points within this segment
-    const trkptRegex = /<trkpt\s+([^>]+)>([\s\S]*?)<\/trkpt>/gi;
-    let trkptMatch;
-    let pointIndexInSegment = 0;
-
-    while ((trkptMatch = trkptRegex.exec(segmentContent)) !== null) {
-      const coords = extractLatLon(trkptMatch[1]);
-      if (!coords) continue;
-
-      const innerContent = trkptMatch[2];
-      const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-      const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-
-      const hasTimestamp = !!timeMatch;
-      if (hasTimestamp) pointsWithTimestamps++;
-
-      points.push({
-        latitude: coords.lat,
-        longitude: coords.lon,
-        // Use actual timestamp or generate sequential fake timestamp within segment
-        timestamp: timeMatch
-          ? timeMatch[1]
-          : `1970-01-01T${String(segmentIndex).padStart(2, "0")}:${String(Math.floor(pointIndexInSegment / 60)).padStart(2, "0")}:${String(pointIndexInSegment % 60).padStart(2, "0")}Z`,
-        name: nameMatch ? nameMatch[1] : undefined,
-        segmentIndex,
-      });
-      trackPointsFound++;
-      pointIndexInSegment++;
-    }
+    // Parse track points within this segment (handles both regular and self-closing tags)
+    const result = parseTrackPoints(segmentContent, segmentIndex);
+    points.push(...result.points);
+    trackPointsFound += result.points.length;
+    pointsWithTimestamps += result.pointsWithTimestamps;
 
     segmentIndex++;
   }
 
   // If no segments found, try parsing trkpt outside of trkseg (malformed but common)
   if (segmentsFound === 0) {
-    const trkptRegex = /<trkpt\s+([^>]+)>([\s\S]*?)<\/trkpt>/gi;
-    let trkptMatch;
-    let pointIndex = 0;
-
-    while ((trkptMatch = trkptRegex.exec(gpxContent)) !== null) {
-      const coords = extractLatLon(trkptMatch[1]);
-      if (!coords) continue;
-
-      const innerContent = trkptMatch[2];
-      const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-      const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-
-      const hasTimestamp = !!timeMatch;
-      if (hasTimestamp) pointsWithTimestamps++;
-
-      points.push({
-        latitude: coords.lat,
-        longitude: coords.lon,
-        timestamp: timeMatch
-          ? timeMatch[1]
-          : `1970-01-01T00:${String(Math.floor(pointIndex / 60)).padStart(2, "0")}:${String(pointIndex % 60).padStart(2, "0")}Z`,
-        name: nameMatch ? nameMatch[1] : undefined,
-        segmentIndex: 0,
-      });
-      trackPointsFound++;
-      pointIndex++;
-    }
+    const result = parseTrackPoints(gpxContent, 0);
+    points.push(...result.points);
+    trackPointsFound += result.points.length;
+    pointsWithTimestamps += result.pointsWithTimestamps;
 
     if (trackPointsFound > 0) {
       segmentsFound = 1;
     }
   }
 
-  // Parse route points (<rtept ...>...</rtept>)
-  const rteptRegex = /<rtept\s+([^>]+)>([\s\S]*?)<\/rtept>/gi;
+  // Parse route points (<rtept ...>...</rtept>) - also handle self-closing
+  const rteptRegex = /<rtept\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/rtept>)/gi;
   let rteptMatch;
   let routePointIndex = 0;
 
@@ -179,7 +195,7 @@ export function parseGPX(gpxContent: string): GPXParseResult {
     const coords = extractLatLon(rteptMatch[1]);
     if (!coords) continue;
 
-    const innerContent = rteptMatch[2];
+    const innerContent = rteptMatch[2] || "";
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
 
@@ -191,7 +207,7 @@ export function parseGPX(gpxContent: string): GPXParseResult {
       longitude: coords.lon,
       timestamp: timeMatch
         ? timeMatch[1]
-        : `1970-01-02T00:${String(Math.floor(routePointIndex / 60)).padStart(2, "0")}:${String(routePointIndex % 60).padStart(2, "0")}Z`,
+        : generateSyntheticTimestamp(segmentsFound, routePointIndex),
       name: nameMatch ? nameMatch[1] : undefined,
       segmentIndex: segmentsFound, // All route points in same segment (continuous route)
     });
@@ -200,7 +216,7 @@ export function parseGPX(gpxContent: string): GPXParseResult {
   }
 
   // Sort by segment first, then by timestamp within segment
-  // This ensures proper track continuity
+  // Points without timestamps stay in their original order within the segment
   points.sort((a, b) => {
     // First sort by segment
     const segA = a.segmentIndex ?? 0;
@@ -208,11 +224,12 @@ export function parseGPX(gpxContent: string): GPXParseResult {
     if (segA !== segB) return segA - segB;
 
     // Then by timestamp within segment
-    const timeA = new Date(a.timestamp).getTime();
-    const timeB = new Date(b.timestamp).getTime();
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : NaN;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : NaN;
 
-    // Handle invalid dates by keeping original order
+    // If both have no timestamp or invalid timestamps, keep original order
     if (isNaN(timeA) && isNaN(timeB)) return 0;
+    // Points without timestamps go to the end of their segment
     if (isNaN(timeA)) return 1;
     if (isNaN(timeB)) return -1;
 

@@ -66,9 +66,17 @@ export async function GET(request: NextRequest) {
       // positionHistory is empty — serve permanentTrack data under positionHistory key
       // so the frontend (which reads positionHistory) gets the correct data
       const track = await getPermanentTrackAsync();
-      const sorted = [...track].sort(
-        (a, b) => new Date((a as {timestamp:string}).timestamp).getTime() - new Date((b as {timestamp:string}).timestamp).getTime()
-      );
+      // Sort by segmentIndex first to maintain segment continuity, then by timestamp
+      const sorted = [...track].sort((a, b) => {
+        const posA = a as { timestamp: string; segmentIndex?: number };
+        const posB = b as { timestamp: string; segmentIndex?: number };
+        // First sort by segment (undefined segments go last)
+        const segA = posA.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+        const segB = posB.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+        if (segA !== segB) return segA - segB;
+        // Then by timestamp within segment
+        return new Date(posA.timestamp).getTime() - new Date(posB.timestamp).getTime();
+      });
       result.positionHistory = {
         count: sorted.length,
         points: limit ? sorted.slice(0, limit) : sorted,
