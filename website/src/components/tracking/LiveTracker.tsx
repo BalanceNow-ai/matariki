@@ -152,8 +152,17 @@ export function LiveTracker({
       const points: SignalKPosition[] = data.positionHistory?.points || [];
       console.log("[Track Debug] Extracted points count:", points.length);
 
-      // Sort by timestamp (oldest first for proper track drawing)
-      points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      // Sort by segmentIndex first to maintain segment continuity, then by timestamp within segments
+      // This ensures GPX track segments stay together even if timestamps overlap between segments
+      points.sort((a, b) => {
+        // First sort by segment (undefined/null segments go last)
+        const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+        const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+        if (segA !== segB) return segA - segB;
+
+        // Then by timestamp within segment
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
 
       const mappedHistory = points.map((p: SignalKPosition) => ({
         latitude: p.latitude,
