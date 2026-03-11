@@ -433,35 +433,10 @@ export async function importTrackFromGPX(
           await r.rpush(KEYS.permanentTrack, ...batch);
         }
 
-        // Also add to permanentTrack (same as SignalK) with 200m distance filtering
-        // This ensures GPX data appears in the permanent track just like live SignalK data
-        let lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
-        const trackPointsToAdd: SignalKPosition[] = [];
-
-        for (const pos of newPositions) {
-          const shouldAddToTrack = !lastTrackPos ||
-            calculateDistanceMeters(
-              lastTrackPos.latitude,
-              lastTrackPos.longitude,
-              pos.latitude,
-              pos.longitude
-            ) >= MIN_TRACK_DISTANCE_METERS;
-
-          if (shouldAddToTrack) {
-            trackPointsToAdd.push(pos);
-            lastTrackPos = pos;
-          }
-        }
-
-        if (trackPointsToAdd.length > 0) {
-          for (let i = 0; i < trackPointsToAdd.length; i += BATCH_SIZE) {
-            const batch = trackPointsToAdd.slice(i, i + BATCH_SIZE);
-            await r.rpush(KEYS.permanentTrack, ...batch);
-          }
-          // Update last track position
-          await r.set(KEYS.lastTrackPosition, lastTrackPos);
-          console.log(`[Redis] Added ${trackPointsToAdd.length} GPX points to permanent track (200m filtered)`);
-        }
+        // Update lastTrackPosition to the last imported point for SignalK consistency
+        const lastImportedPos = newPositions[newPositions.length - 1];
+        await r.set(KEYS.lastTrackPosition, lastImportedPos);
+        console.log(`[Redis] Updated lastTrackPosition to ${lastImportedPos.latitude}, ${lastImportedPos.longitude}`);
       }
 
       console.log(`[Redis] Imported ${newPositions.length} new GPX track points to permanentTrack (${positions.length - newPositions.length} duplicates skipped)`);
