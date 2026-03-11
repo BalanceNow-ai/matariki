@@ -180,8 +180,8 @@ export function LiveTracker({
     }
   }, []);
 
-  // Clear track history
-  const handleClearTrack = useCallback(async () => {
+  // Clear track history (GPX only or all)
+  const handleClearTrack = useCallback(async (mode: "gpx" | "all") => {
     // Check if admin or prompt for token
     let token = adminToken;
     if (!isAdmin) {
@@ -190,12 +190,16 @@ export function LiveTracker({
       token = sessionStorage.getItem("adminToken");
     }
 
-    if (!confirm("Clear all track history? This cannot be undone.")) return;
+    const confirmMsg = mode === "all"
+      ? "Clear ALL track data including live SignalK positions? This cannot be undone."
+      : "Clear GPX uploaded data only? SignalK live data will be preserved.";
+
+    if (!confirm(confirmMsg)) return;
 
     setIsClearing(true);
     setTrackMessage(null);
     try {
-      const response = await fetch("/api/position/clear", {
+      const response = await fetch(`/api/position/clear?mode=${mode}`, {
         method: "POST",
         headers: token ? { "X-API-Key": token } : {},
         cache: "no-store",
@@ -203,7 +207,7 @@ export function LiveTracker({
       const data = await response.json();
       if (response.ok) {
         setTrackHistory([]);
-        setTrackMessage(`Cleared ${data.cleared} positions`);
+        setTrackMessage(data.message || `Cleared ${data.cleared} positions`);
         setTimeout(() => setTrackMessage(null), 3000);
       } else {
         setTrackMessage(`Error: ${data.error || "Failed to clear"}`);
@@ -493,18 +497,29 @@ export function LiveTracker({
                 {trackMessage}
               </p>
             )}
-            <div className="flex gap-2">
-              <button
-                onClick={handleClearTrack}
-                disabled={isClearing}
-                className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-red-600/80 hover:bg-red-600 disabled:bg-mist/30 rounded transition-colors"
-              >
-                {isClearing ? "Clearing..." : "Clear Track"}
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleClearTrack("gpx")}
+                  disabled={isClearing}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-amber-600/80 hover:bg-amber-600 disabled:bg-mist/30 rounded transition-colors"
+                  title="Clear GPX uploaded data only, preserve SignalK live data"
+                >
+                  {isClearing ? "Clearing..." : "Clear GPX"}
+                </button>
+                <button
+                  onClick={() => handleClearTrack("all")}
+                  disabled={isClearing}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-red-600/80 hover:bg-red-600 disabled:bg-mist/30 rounded transition-colors"
+                  title="Clear ALL track data including SignalK"
+                >
+                  {isClearing ? "Clearing..." : "Clear All"}
+                </button>
+              </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-teal-accent/80 hover:bg-teal-accent disabled:bg-mist/30 rounded transition-colors"
+                className="w-full px-3 py-1.5 text-xs font-medium text-salt-white bg-teal-accent/80 hover:bg-teal-accent disabled:bg-mist/30 rounded transition-colors"
               >
                 {isUploading
                   ? uploadProgress
