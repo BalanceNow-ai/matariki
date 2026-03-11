@@ -375,9 +375,10 @@ export async function importTrackFromGPX(
 
   if (r) {
     try {
-      // Get existing history to deduplicate by timestamp (not location - vessel may revisit areas)
-      const existingHistory = await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
-      const existingTimestamps = new Set(existingHistory.map(p => normalizeTimestamp(p.timestamp)));
+      // Deduplicate against permanentTrack by timestamp
+      // (positionHistory is not reliably populated; permanentTrack is the authoritative store)
+      const existingTrack = await r.lrange<SignalKPosition>(KEYS.permanentTrack, 0, -1);
+      const existingTimestamps = new Set(existingTrack.map(p => p.timestamp));
 
       // Filter out positions with duplicate timestamps only
       const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
@@ -386,11 +387,11 @@ export async function importTrackFromGPX(
         // Sort by timestamp to ensure proper chronological order for track drawing
         newPositions.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-        // Add to position history
+        // Write to permanentTrack (the reliable store) instead of positionHistory
         const BATCH_SIZE = 100;
         for (let i = 0; i < newPositions.length; i += BATCH_SIZE) {
           const batch = newPositions.slice(i, i + BATCH_SIZE);
-          await r.rpush(KEYS.positionHistory, ...batch);
+          await r.rpush(KEYS.permanentTrack, ...batch);
         }
 
         // Also add to permanentTrack (same as SignalK) with 200m distance filtering
@@ -424,7 +425,7 @@ export async function importTrackFromGPX(
         }
       }
 
-      console.log(`[Redis] Imported ${newPositions.length} new track points from GPX (${positions.length - newPositions.length} duplicates skipped)`);
+      console.log(`[Redis] Imported ${newPositions.length} new GPX track points to permanentTrack (${positions.length - newPositions.length} duplicates skipped)`);
       return { imported: newPositions.length, total: trackPoints.length };
     } catch (error) {
       console.error("[Redis] Error importing GPX:", error);
