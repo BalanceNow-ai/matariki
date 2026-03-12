@@ -25,12 +25,14 @@
 import * as fs from "fs";
 import * as path from "path";
 
-// GPX Parser
+// GPX Parser - preserves segment information for proper track rendering
 type GPXTrackPoint = {
   latitude: number;
   longitude: number;
   timestamp: string;
   name?: string;
+  /** Segment index - points in the same segment form a continuous track */
+  segmentIndex?: number;
 };
 
 type GPXParseResult = {
@@ -42,9 +44,65 @@ type GPXParseResult = {
     waypointsFound: number;
     trackPointsFound: number;
     routePointsFound: number;
+    segmentsFound: number;
     totalPoints: number;
   };
 };
+
+/**
+ * Extract lat/lon from an element's attributes, handling any attribute order
+ */
+function extractLatLon(attributeStr: string): { lat: number; lon: number } | null {
+  const latMatch = attributeStr.match(/\blat=["']([^"']+)["']/i);
+  const lonMatch = attributeStr.match(/\blon=["']([^"']+)["']/i);
+
+  if (!latMatch || !lonMatch) return null;
+
+  const lat = parseFloat(latMatch[1]);
+  const lon = parseFloat(lonMatch[1]);
+
+  if (isNaN(lat) || isNaN(lon)) return null;
+
+  // Validate reasonable coordinate ranges
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+
+  return { lat, lon };
+}
+
+/**
+ * Parse track points from segment content
+ */
+function parseTrackPointsInSegment(
+  segmentContent: string,
+  segmentIndex: number
+): GPXTrackPoint[] {
+  const points: GPXTrackPoint[] = [];
+
+  // Match both forms:
+  // 1. Self-closing: <trkpt lat="..." lon="..."/>
+  // 2. With content: <trkpt lat="..." lon="...">...</trkpt>
+  const trkptRegex = /<trkpt\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/trkpt>)/gi;
+  let match;
+
+  while ((match = trkptRegex.exec(segmentContent)) !== null) {
+    const coords = extractLatLon(match[1]);
+    if (!coords) continue;
+
+    const innerContent = match[2] || "";
+    const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
+    const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
+
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex,
+    });
+  }
+
+  return points;
+}
 
 function parseGPX(gpxContent: string): GPXParseResult {
   const points: GPXTrackPoint[] = [];
@@ -53,73 +111,87 @@ function parseGPX(gpxContent: string): GPXParseResult {
   let waypointsFound = 0;
   let trackPointsFound = 0;
   let routePointsFound = 0;
+  let segmentsFound = 0;
 
   if (!gpxContent.includes("<gpx")) {
     errors.push("No <gpx> tag found - file may not be valid GPX format");
   }
 
   // Parse waypoints (<wpt lat="..." lon="...">)
-  const wptRegex = /<wpt\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/wpt>/gi;
+  const wptRegex = /<wpt\s+([^>]+)>([\s\S]*?)<\/wpt>/gi;
   let wptMatch;
   while ((wptMatch = wptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(wptMatch[1]);
-    const lon = parseFloat(wptMatch[2]);
-    const innerContent = wptMatch[3];
+    const coords = extractLatLon(wptMatch[1]);
+    if (!coords) continue;
 
+    const innerContent = wptMatch[2];
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
-
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
 
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-      waypointsFound++;
-    }
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex: -1, // Waypoints are standalone
+    });
+    waypointsFound++;
   }
 
-  // Parse track points (<trkpt lat="..." lon="...">)
-  const trkptRegex = /<trkpt\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/trkpt>/gi;
-  let trkptMatch;
-  while ((trkptMatch = trkptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(trkptMatch[1]);
-    const lon = parseFloat(trkptMatch[2]);
-    const innerContent = trkptMatch[3];
+  // Parse track segments - CRITICAL for proper track rendering
+  // Each <trkseg> represents a continuous track segment
+  const trksegRegex = /<trkseg>([\s\S]*?)<\/trkseg>/gi;
+  let trksegMatch;
+  let segmentIndex = 0;
 
-    const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
+  while ((trksegMatch = trksegRegex.exec(gpxContent)) !== null) {
+    segmentsFound++;
+    const segmentContent = trksegMatch[1];
+    const segmentPoints = parseTrackPointsInSegment(segmentContent, segmentIndex);
+    points.push(...segmentPoints);
+    trackPointsFound += segmentPoints.length;
+    segmentIndex++;
+  }
 
-    const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
-
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-      trackPointsFound++;
+  // If no segments found, try parsing trkpt outside of trkseg (malformed but common)
+  if (segmentsFound === 0) {
+    const fallbackPoints = parseTrackPointsInSegment(gpxContent, 0);
+    points.push(...fallbackPoints);
+    trackPointsFound += fallbackPoints.length;
+    if (fallbackPoints.length > 0) {
+      segmentsFound = 1;
     }
   }
 
   // Parse route points (<rtept lat="..." lon="...">)
-  const rteptRegex = /<rtept\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/rtept>/gi;
+  const rteptRegex = /<rtept\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/rtept>)/gi;
   let rteptMatch;
+
   while ((rteptMatch = rteptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(rteptMatch[1]);
-    const lon = parseFloat(rteptMatch[2]);
-    const innerContent = rteptMatch[3];
+    const coords = extractLatLon(rteptMatch[1]);
+    if (!coords) continue;
 
+    const innerContent = rteptMatch[2] || "";
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
-
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
 
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-      routePointsFound++;
-    }
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex: segmentsFound, // Route points get their own segment
+    });
+    routePointsFound++;
   }
 
-  // Sort by timestamp
-  points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Sort by segment first, then by timestamp within segment
+  points.sort((a, b) => {
+    const segA = a.segmentIndex ?? 0;
+    const segB = b.segmentIndex ?? 0;
+    if (segA !== segB) return segA - segB;
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
 
   if (points.length === 0) {
     if (gpxContent.includes("<trkpt") || gpxContent.includes("<wpt") || gpxContent.includes("<rtept")) {
@@ -138,6 +210,7 @@ function parseGPX(gpxContent: string): GPXParseResult {
       waypointsFound,
       trackPointsFound,
       routePointsFound,
+      segmentsFound,
       totalPoints: points.length,
     },
   };
@@ -312,6 +385,7 @@ async function main() {
 
   console.log(`✓ Parsed ${result.stats.totalPoints} points`);
   console.log(`  - Waypoints: ${result.stats.waypointsFound}`);
+  console.log(`  - Track segments: ${result.stats.segmentsFound}`);
   console.log(`  - Track points: ${result.stats.trackPointsFound}`);
   console.log(`  - Route points: ${result.stats.routePointsFound}`);
 

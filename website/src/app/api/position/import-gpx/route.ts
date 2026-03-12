@@ -19,76 +19,130 @@ type GPXTrackPoint = {
 };
 
 /**
+ * Extract lat/lon from an element's attributes, handling any attribute order
+ */
+function extractLatLon(attributeStr: string): { lat: number; lon: number } | null {
+  const latMatch = attributeStr.match(/\blat=["']([^"']+)["']/i);
+  const lonMatch = attributeStr.match(/\blon=["']([^"']+)["']/i);
+
+  if (!latMatch || !lonMatch) return null;
+
+  const lat = parseFloat(latMatch[1]);
+  const lon = parseFloat(lonMatch[1]);
+
+  if (isNaN(lat) || isNaN(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+
+  return { lat, lon };
+}
+
+/**
+ * Parse track points from segment content
+ */
+function parseTrackPointsInSegment(
+  segmentContent: string,
+  segmentIndex: number
+): GPXTrackPoint[] {
+  const points: GPXTrackPoint[] = [];
+
+  const trkptRegex = /<trkpt\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/trkpt>)/gi;
+  let match;
+
+  while ((match = trkptRegex.exec(segmentContent)) !== null) {
+    const coords = extractLatLon(match[1]);
+    if (!coords) continue;
+
+    const innerContent = match[2] || "";
+    const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
+    const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
+
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex,
+    });
+  }
+
+  return points;
+}
+
+/**
  * Parse GPX XML content to extract track points and waypoints
+ * Preserves segment information for proper track rendering
  */
 function parseGPX(gpxContent: string): GPXTrackPoint[] {
   const points: GPXTrackPoint[] = [];
+  let segmentsFound = 0;
 
   // Parse waypoints (<wpt lat="..." lon="...">)
-  const wptRegex = /<wpt\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/wpt>/gi;
+  const wptRegex = /<wpt\s+([^>]+)>([\s\S]*?)<\/wpt>/gi;
   let wptMatch;
   while ((wptMatch = wptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(wptMatch[1]);
-    const lon = parseFloat(wptMatch[2]);
-    const innerContent = wptMatch[3];
+    const coords = extractLatLon(wptMatch[1]);
+    if (!coords) continue;
 
-    // Extract name if present
+    const innerContent = wptMatch[2];
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
-
-    // Extract time if present
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
 
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-    }
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex: -1,
+    });
   }
 
-  // Parse track points (<trkpt lat="..." lon="...">)
-  const trkptRegex = /<trkpt\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/trkpt>/gi;
-  let trkptMatch;
-  while ((trkptMatch = trkptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(trkptMatch[1]);
-    const lon = parseFloat(trkptMatch[2]);
-    const innerContent = trkptMatch[3];
+  // Parse track segments - preserves segment boundaries
+  const trksegRegex = /<trkseg>([\s\S]*?)<\/trkseg>/gi;
+  let trksegMatch;
+  let segmentIndex = 0;
 
-    // Extract time if present
-    const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
+  while ((trksegMatch = trksegRegex.exec(gpxContent)) !== null) {
+    segmentsFound++;
+    const segmentContent = trksegMatch[1];
+    const segmentPoints = parseTrackPointsInSegment(segmentContent, segmentIndex);
+    points.push(...segmentPoints);
+    segmentIndex++;
+  }
 
-    // Extract name if present
-    const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
-
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-    }
+  // Fallback: if no segments found, parse trkpt outside of trkseg
+  if (segmentsFound === 0) {
+    const fallbackPoints = parseTrackPointsInSegment(gpxContent, 0);
+    points.push(...fallbackPoints);
   }
 
   // Parse route points (<rtept lat="..." lon="...">)
-  const rteptRegex = /<rtept\s+lat=["']([^"']+)["']\s+lon=["']([^"']+)["'][^>]*>([\s\S]*?)<\/rtept>/gi;
+  const rteptRegex = /<rtept\s+([^>\/]+)(?:\/>|>([\s\S]*?)<\/rtept>)/gi;
   let rteptMatch;
+
   while ((rteptMatch = rteptRegex.exec(gpxContent)) !== null) {
-    const lat = parseFloat(rteptMatch[1]);
-    const lon = parseFloat(rteptMatch[2]);
-    const innerContent = rteptMatch[3];
+    const coords = extractLatLon(rteptMatch[1]);
+    if (!coords) continue;
 
-    // Extract time if present
+    const innerContent = rteptMatch[2] || "";
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
-    const timestamp = timeMatch ? timeMatch[1] : new Date().toISOString();
-
-    // Extract name if present
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
-    const name = nameMatch ? nameMatch[1] : undefined;
 
-    if (!isNaN(lat) && !isNaN(lon)) {
-      points.push({ latitude: lat, longitude: lon, timestamp, name });
-    }
+    points.push({
+      latitude: coords.lat,
+      longitude: coords.lon,
+      timestamp: timeMatch ? timeMatch[1] : new Date().toISOString(),
+      name: nameMatch ? nameMatch[1] : undefined,
+      segmentIndex: segmentsFound,
+    });
   }
 
-  // Sort by timestamp
-  points.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Sort by segment first, then by timestamp within segment
+  points.sort((a, b) => {
+    const segA = a.segmentIndex ?? 0;
+    const segB = b.segmentIndex ?? 0;
+    if (segA !== segB) return segA - segB;
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
 
   return points;
 }
