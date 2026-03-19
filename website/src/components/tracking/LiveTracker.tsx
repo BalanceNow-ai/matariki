@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { OpenSeaMap, VesselPosition, LogEntryWaypoint } from "@/components/map/OpenSeaMap";
 import { VesselDataPanel } from "./VesselDataPanel";
 import { VoyageContextPanel, Voyage } from "./VoyageContextPanel";
 import { WeatherConditionsPanel } from "./WeatherConditionsPanel";
 import { SignalKPosition } from "@/app/api/position/store";
-import { parseGPXFile } from "@/lib/gpx-parser";
 
 type FallbackPosition = {
   lat: number;
@@ -37,77 +36,11 @@ export function LiveTracker({
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isClearing, setIsClearing] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
-  const [trackMessage, setTrackMessage] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminToken, setAdminToken] = useState<string | null>(null);
-  const [gpxDebugLog, setGpxDebugLog] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Debug log helper
-  const logDebug = useCallback((message: string, data?: unknown) => {
-    const timestamp = new Date().toISOString();
-    const logEntry = data
-      ? `[${timestamp}] ${message}: ${JSON.stringify(data, null, 2)}`
-      : `[${timestamp}] ${message}`;
-    console.log("[GPX Debug]", logEntry);
-    setGpxDebugLog(prev => [...prev.slice(-50), logEntry]);
-  }, []);
 
   // Filter waypoints by selected voyage
   const filteredWaypoints = selectedVoyageId
     ? waypoints.filter((wp) => wp.voyageTitle === allVoyages.find((v) => v._id === selectedVoyageId)?.title)
     : waypoints;
-
-  // Check admin access on mount
-  useEffect(() => {
-    const storedToken = sessionStorage.getItem("adminToken");
-    if (storedToken) {
-      // Verify the stored token is still valid
-      fetch("/api/admin/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: storedToken }),
-      })
-        .then((res) => {
-          if (res.ok) {
-            setIsAdmin(true);
-            setAdminToken(storedToken);
-          } else {
-            sessionStorage.removeItem("adminToken");
-          }
-        })
-        .catch(() => sessionStorage.removeItem("adminToken"));
-    }
-  }, []);
-
-  // Prompt for admin token
-  const promptAdminToken = useCallback(async () => {
-    const token = prompt("Enter admin token to manage track:");
-    if (!token) return false;
-
-    try {
-      const res = await fetch("/api/admin/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      if (res.ok) {
-        setIsAdmin(true);
-        setAdminToken(token);
-        sessionStorage.setItem("adminToken", token);
-        return true;
-      } else {
-        setTrackMessage("Error: Invalid admin token");
-        return false;
-      }
-    } catch {
-      setTrackMessage("Error: Failed to verify token");
-      return false;
-    }
-  }, []);
 
   // Fetch current position
   const fetchPosition = useCallback(async () => {
@@ -126,41 +59,22 @@ export function LiveTracker({
     }
   }, []);
 
-  // Fetch track history (unified store - GPX and SignalK data are in the same place)
+  // Fetch track history
   const fetchHistory = useCallback(async () => {
     try {
-      console.log("[Track Debug] Fetching history from /api/position/track?type=history");
       const response = await fetch("/api/position/track?type=history", {
         cache: "no-store",
       });
-      console.log("[Track Debug] Response status:", response.status, response.ok);
-      if (!response.ok) {
-        console.error("[Track Debug] Response not OK:", response.status, response.statusText);
-        return;
-      }
+      if (!response.ok) return;
       const data = await response.json();
-      console.log("[Track Debug] API Response:", {
-        hasPositionHistory: !!data.positionHistory,
-        count: data.positionHistory?.count,
-        pointsLength: data.positionHistory?.points?.length,
-        redisConfigured: data.redisConfigured,
-        firstPoint: data.positionHistory?.points?.[0],
-        lastPoint: data.positionHistory?.points?.[data.positionHistory?.points?.length - 1],
-      });
 
-      // Use position history directly - all track data is in one store
       const points: SignalKPosition[] = data.positionHistory?.points || [];
-      console.log("[Track Debug] Extracted points count:", points.length);
 
       // Sort by segmentIndex first to maintain segment continuity, then by timestamp within segments
-      // This ensures GPX track segments stay together even if timestamps overlap between segments
       points.sort((a, b) => {
-        // First sort by segment (undefined/null segments go last)
         const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
         const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
         if (segA !== segB) return segA - segB;
-
-        // Then by timestamp within segment
         return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
       });
 
@@ -175,223 +89,11 @@ export function LiveTracker({
         name: p.name,
       }));
 
-      console.log("[Track Debug] Mapped history count:", mappedHistory.length);
-      if (mappedHistory.length > 0) {
-        console.log("[Track Debug] Sample points:", {
-          first: mappedHistory[0],
-          last: mappedHistory[mappedHistory.length - 1],
-        });
-      }
-
       setTrackHistory(mappedHistory);
     } catch (err) {
-      console.error("[Track Debug] Failed to fetch history:", err);
+      console.error("Failed to fetch history:", err);
     }
   }, []);
-
-  // Clear track history (GPX only or all)
-  const handleClearTrack = useCallback(async (mode: "gpx" | "all") => {
-    // Check if admin or prompt for token
-    let token = adminToken;
-    if (!isAdmin) {
-      const authorized = await promptAdminToken();
-      if (!authorized) return;
-      token = sessionStorage.getItem("adminToken");
-    }
-
-    const confirmMsg = mode === "all"
-      ? "Clear ALL track data including live SignalK positions? This cannot be undone."
-      : "Clear GPX uploaded data only? SignalK live data will be preserved.";
-
-    if (!confirm(confirmMsg)) return;
-
-    setIsClearing(true);
-    setTrackMessage(null);
-    try {
-      const response = await fetch(`/api/position/clear?mode=${mode}`, {
-        method: "POST",
-        headers: token ? { "X-API-Key": token } : {},
-        cache: "no-store",
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setTrackHistory([]);
-        setTrackMessage(data.message || `Cleared ${data.cleared} positions`);
-        setTimeout(() => setTrackMessage(null), 3000);
-      } else {
-        setTrackMessage(`Error: ${data.error || "Failed to clear"}`);
-      }
-    } catch (err) {
-      console.error("Failed to clear track:", err);
-      setTrackMessage("Error: Failed to clear track");
-    } finally {
-      setIsClearing(false);
-    }
-  }, [isAdmin, adminToken, promptAdminToken]);
-
-  // Handle GPX file upload - parses client-side to avoid Vercel payload limits
-  const handleGPXUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Clear previous debug log and start fresh
-    setGpxDebugLog([]);
-    logDebug("=== GPX Upload Started ===");
-    logDebug("File info", {
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: new Date(file.lastModified).toISOString(),
-    });
-
-    // Parse GPX client-side to extract track points
-    logDebug("Parsing GPX client-side...");
-    const parseResult = await parseGPXFile(file);
-
-    logDebug("Parse result", {
-      success: parseResult.success,
-      totalPoints: parseResult.stats.totalPoints,
-      waypointsFound: parseResult.stats.waypointsFound,
-      trackPointsFound: parseResult.stats.trackPointsFound,
-      routePointsFound: parseResult.stats.routePointsFound,
-      errors: parseResult.errors,
-      warnings: parseResult.warnings,
-    });
-
-    if (!parseResult.success || parseResult.points.length === 0) {
-      const errorMsg = parseResult.errors.length > 0
-        ? parseResult.errors.join(", ")
-        : "No track points found in GPX file";
-      logDebug("=== Parse FAILED ===", { error: errorMsg });
-      setTrackMessage(`Error: ${errorMsg}`);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      return;
-    }
-
-    // Check if admin or prompt for token
-    let token = adminToken;
-    if (!isAdmin) {
-      logDebug("Not admin, prompting for token");
-      const authorized = await promptAdminToken();
-      if (!authorized) {
-        logDebug("Authorization cancelled by user");
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-        return;
-      }
-      token = sessionStorage.getItem("adminToken");
-      logDebug("Token retrieved from session", { hasToken: !!token, length: token?.length || 0 });
-    } else {
-      logDebug("Admin authenticated", { hasToken: !!token });
-    }
-
-    setIsUploading(true);
-    setTrackMessage(null);
-    setUploadProgress(null);
-
-    // Batch configuration
-    const BATCH_SIZE = 1000;
-    const allPoints = parseResult.points;
-    const totalBatches = Math.ceil(allPoints.length / BATCH_SIZE);
-
-    logDebug("Batch upload configuration", {
-      totalPoints: allPoints.length,
-      batchSize: BATCH_SIZE,
-      totalBatches,
-    });
-
-    try {
-      let totalImported = 0;
-      let failedBatches = 0;
-
-      for (let i = 0; i < totalBatches; i++) {
-        const start = i * BATCH_SIZE;
-        const end = Math.min(start + BATCH_SIZE, allPoints.length);
-        const batch = allPoints.slice(start, end);
-        const batchNum = i + 1;
-
-        setUploadProgress({ current: batchNum, total: totalBatches });
-        logDebug(`Sending batch ${batchNum}/${totalBatches}`, {
-          pointsInBatch: batch.length,
-          startIndex: start,
-          endIndex: end,
-        });
-
-        const payload = JSON.stringify({ points: batch });
-        const startTime = Date.now();
-
-        try {
-          const response = await fetch("/api/position/import-gpx", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { "X-API-Key": token } : {}),
-            },
-            body: payload,
-          });
-          const elapsed = Date.now() - startTime;
-
-          const data = await response.json();
-
-          if (response.ok) {
-            totalImported += data.imported || batch.length;
-            logDebug(`Batch ${batchNum} success`, {
-              imported: data.imported,
-              elapsedMs: elapsed,
-            });
-          } else {
-            failedBatches++;
-            const errorMsg = [data.error, data.message, data.details].filter(Boolean).join(": ");
-            logDebug(`Batch ${batchNum} FAILED`, {
-              status: response.status,
-              error: errorMsg,
-            });
-          }
-        } catch (batchErr) {
-          failedBatches++;
-          logDebug(`Batch ${batchNum} EXCEPTION`, {
-            error: batchErr instanceof Error ? batchErr.message : String(batchErr),
-          });
-        }
-
-        // Small delay between batches to avoid overwhelming the server
-        if (i < totalBatches - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-
-      setUploadProgress(null);
-
-      if (failedBatches === 0) {
-        logDebug("=== Upload SUCCESS ===", { totalImported, batches: totalBatches });
-        setTrackMessage(`Imported ${totalImported} waypoints`);
-        await fetchHistory();
-        setTimeout(() => setTrackMessage(null), 3000);
-      } else if (totalImported > 0) {
-        logDebug("=== Upload PARTIAL ===", { totalImported, failedBatches });
-        setTrackMessage(`Imported ${totalImported} waypoints (${failedBatches} batch(es) failed)`);
-        await fetchHistory();
-      } else {
-        logDebug("=== Upload FAILED ===", { failedBatches });
-        setTrackMessage(`Error: All ${failedBatches} batches failed`);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      const errorStack = err instanceof Error ? err.stack : undefined;
-      logDebug("=== Upload EXCEPTION ===", { message: errorMessage, stack: errorStack });
-      setTrackMessage(`Error: ${errorMessage || "Network error"}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(null);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  }, [fetchHistory, isAdmin, adminToken, promptAdminToken, logDebug]);
 
   // Initial load and polling
   useEffect(() => {
@@ -494,104 +196,6 @@ export function LiveTracker({
                 }`}
               />
             </button>
-          </div>
-
-          {/* Track Management */}
-          <div className="pt-2 border-t border-mist/10 space-y-2">
-            <span className="text-xs text-mist/60 uppercase tracking-wider">
-              Track Management
-            </span>
-            {trackMessage && (
-              <p className={`text-xs ${trackMessage.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
-                {trackMessage}
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleClearTrack("gpx")}
-                  disabled={isClearing}
-                  className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-amber-600/80 hover:bg-amber-600 disabled:bg-mist/30 rounded transition-colors"
-                  title="Clear GPX uploaded data only, preserve SignalK live data"
-                >
-                  {isClearing ? "Clearing..." : "Clear GPX"}
-                </button>
-                <button
-                  onClick={() => handleClearTrack("all")}
-                  disabled={isClearing}
-                  className="flex-1 px-3 py-1.5 text-xs font-medium text-salt-white bg-red-600/80 hover:bg-red-600 disabled:bg-mist/30 rounded transition-colors"
-                  title="Clear ALL track data including SignalK"
-                >
-                  {isClearing ? "Clearing..." : "Clear All"}
-                </button>
-              </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="w-full px-3 py-1.5 text-xs font-medium text-salt-white bg-teal-accent/80 hover:bg-teal-accent disabled:bg-mist/30 rounded transition-colors"
-              >
-                {isUploading
-                  ? uploadProgress
-                    ? `Batch ${uploadProgress.current}/${uploadProgress.total}`
-                    : "Parsing..."
-                  : "Upload GPX"}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".gpx,application/gpx+xml"
-                onChange={handleGPXUpload}
-                className="hidden"
-              />
-            </div>
-
-            {/* Upload Progress Bar */}
-            {uploadProgress && (
-              <div className="space-y-1">
-                <div className="w-full bg-mist/20 rounded-full h-1.5">
-                  <div
-                    className="bg-teal-accent h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-mist/60 text-center">
-                  {Math.round((uploadProgress.current / uploadProgress.total) * 100)}% complete
-                </p>
-              </div>
-            )}
-
-            {/* GPX Debug Log */}
-            {gpxDebugLog.length > 0 && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-mist/60 uppercase tracking-wider">
-                    Debug Log
-                  </span>
-                  <button
-                    onClick={() => setGpxDebugLog([])}
-                    className="text-xs text-red-400/70 hover:text-red-400"
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="bg-deep-ocean/50 rounded p-2 max-h-48 overflow-y-auto font-mono text-xs">
-                  {gpxDebugLog.map((log, i) => (
-                    <pre
-                      key={i}
-                      className={`whitespace-pre-wrap break-all ${
-                        log.includes("ERROR") || log.includes("FAILED") || log.includes("EXCEPTION")
-                          ? "text-red-400"
-                          : log.includes("SUCCESS")
-                          ? "text-green-400"
-                          : "text-mist/80"
-                      }`}
-                    >
-                      {log}
-                    </pre>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Waypoints Toggle */}
