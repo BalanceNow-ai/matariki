@@ -49,15 +49,12 @@ function splitIntoSegments(
   positions: VesselPosition[],
   maxGapMeters: number = 50000 // 50km max gap
 ): VesselPosition[][] {
-  console.log("[Segment Debug] splitIntoSegments called with", positions.length, "positions");
   if (positions.length === 0) {
-    console.log("[Segment Debug] Empty positions array, returning empty segments");
     return [];
   }
 
   const segments: VesselPosition[][] = [];
   let currentSegment: VesselPosition[] = [positions[0]];
-  let splitReasons: string[] = [];
 
   for (let i = 1; i < positions.length; i++) {
     const prev = positions[i - 1];
@@ -73,11 +70,6 @@ function splitIntoSegments(
     const largeGap = distance > maxGapMeters;
 
     if (segmentChanged || largeGap) {
-      const reason = segmentChanged
-        ? `segmentIndex changed (${prev.segmentIndex} -> ${curr.segmentIndex})`
-        : `largeGap (${Math.round(distance / 1000)}km > ${maxGapMeters / 1000}km)`;
-      splitReasons.push(`Point ${i}: ${reason}`);
-
       // Start new segment
       if (currentSegment.length > 0) {
         segments.push(currentSegment);
@@ -93,11 +85,6 @@ function splitIntoSegments(
     segments.push(currentSegment);
   }
 
-  console.log("[Segment Debug] Created", segments.length, "segments from", positions.length, "positions");
-  if (splitReasons.length > 0) {
-    console.log("[Segment Debug] Split reasons:", splitReasons);
-  }
-  console.log("[Segment Debug] Segment sizes:", segments.map(s => s.length));
 
   return segments;
 }
@@ -257,19 +244,11 @@ function createWaypointIcon(category?: string): L.DivIcon {
 function MapViewController({
   position,
   autoCenter,
-  onMapReady,
 }: {
   position: VesselPosition;
   autoCenter: boolean;
-  onMapReady?: (map: L.Map) => void;
 }) {
   const map = useMap();
-
-  useEffect(() => {
-    if (onMapReady) {
-      onMapReady(map);
-    }
-  }, [map, onMapReady]);
 
   useEffect(() => {
     if (autoCenter) {
@@ -294,21 +273,6 @@ export function OpenSeaMapClient({
   const [baseLayer, setBaseLayer] = useState<MapBaseLayer>(initialBaseLayer);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-
-  // Fit map to show all track points
-  const fitToTrack = () => {
-    if (!mapInstanceRef.current || trackHistory.length === 0) return;
-
-    const bounds = L.latLngBounds(
-      trackHistory.map(p => [p.latitude, p.longitude] as [number, number])
-    );
-    // Include current position in bounds
-    bounds.extend([position.latitude, position.longitude]);
-
-    mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
-    setAutoCenter(false); // Disable auto-center when manually fitting
-  };
 
   const currentLayer = BASE_LAYERS[baseLayer];
 
@@ -324,29 +288,12 @@ export function OpenSeaMapClient({
   // Split track history into segments to avoid drawing lines across large gaps
   const trackSegments = showTrack ? splitIntoSegments(trackHistory) : [];
 
-  // Debug: Log track data received
-  console.log("[Map Debug] OpenSeaMapClient received:", {
-    showTrack,
-    trackHistoryLength: trackHistory.length,
-    trackSegmentsCount: trackSegments.length,
-    trackHistoryFirst: trackHistory[0],
-    trackHistoryLast: trackHistory[trackHistory.length - 1],
-  });
 
   // Convert each segment to polyline coordinates
   const trackSegmentCoords: [number, number][][] = trackSegments.map(segment =>
     segment.map(pos => [pos.latitude, pos.longitude])
   );
 
-  // Debug: Log segments
-  if (trackSegments.length > 0) {
-    console.log("[Map Debug] Track segments:", trackSegments.map((seg, i) => ({
-      segmentIndex: i,
-      pointCount: seg.length,
-      firstPoint: seg[0],
-      lastPoint: seg[seg.length - 1],
-    })));
-  }
 
   // Add current position to the last segment if showing
   if (showTrack && trackSegmentCoords.length > 0) {
@@ -394,9 +341,7 @@ export function OpenSeaMapClient({
 
         {/* Track history polylines - one per segment to avoid cross-map lines */}
         {showTrack && trackSegmentCoords.map((segmentCoords, idx) => {
-          const willRender = segmentCoords.length > 1;
-          console.log(`[Map Debug] Segment ${idx}: ${segmentCoords.length} points, willRender: ${willRender}`);
-          return willRender ? (
+          return segmentCoords.length > 1 ? (
             <Polyline
               key={`track-segment-${idx}`}
               positions={segmentCoords}
@@ -511,47 +456,9 @@ export function OpenSeaMapClient({
         <MapViewController
           position={position}
           autoCenter={autoCenter}
-          onMapReady={(map) => { mapInstanceRef.current = map; }}
         />
       </MapContainer>
 
-      {/* Debug overlay - shows track data status and bounding box */}
-      {(() => {
-        const lats = trackHistory.map(p => p.latitude);
-        const lngs = trackHistory.map(p => p.longitude);
-        const minLat = lats.length > 0 ? Math.min(...lats).toFixed(4) : 'N/A';
-        const maxLat = lats.length > 0 ? Math.max(...lats).toFixed(4) : 'N/A';
-        const minLng = lngs.length > 0 ? Math.min(...lngs).toFixed(4) : 'N/A';
-        const maxLng = lngs.length > 0 ? Math.max(...lngs).toFixed(4) : 'N/A';
-        const timestamps = trackHistory.map(p => new Date(p.timestamp).getTime()).filter(t => !isNaN(t));
-        const oldest = timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString().slice(0, 16) : 'N/A';
-        const newest = timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString().slice(0, 16) : 'N/A';
-        const renderedCount = trackSegmentCoords.filter(s => s.length > 1).length;
-
-        // Show warning if no track is rendered
-        const noDataMessage = trackHistory.length === 0
-          ? "No track data - upload GPX or wait for SignalK"
-          : renderedCount === 0
-          ? `${trackHistory.length} points but all segments <2 pts (gaps >50km?)`
-          : null;
-
-        return (
-          <div className="absolute top-4 left-4 z-[1000] bg-black/80 text-white text-xs px-3 py-2 rounded font-mono space-y-0.5 max-w-[320px]">
-            {noDataMessage ? (
-              <div className="text-red-400">{noDataMessage}</div>
-            ) : (
-              <>
-                <div className="text-green-400">Track: {trackHistory.length} pts → {trackSegments.length} segs → {renderedCount} rendered</div>
-                <div className="text-yellow-300">Lat: {minLat} to {maxLat}</div>
-                <div className="text-yellow-300">Lng: {minLng} to {maxLng}</div>
-                <div className="text-cyan-300">Time: {oldest}</div>
-                <div className="text-cyan-300">  to: {newest}</div>
-              </>
-            )}
-            <div className="text-green-300">Vessel: {position.latitude.toFixed(4)}, {position.longitude.toFixed(4)}</div>
-          </div>
-        );
-      })()}
 
       {/* Map controls overlay */}
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
@@ -567,19 +474,6 @@ export function OpenSeaMapClient({
           {autoCenter ? "Tracking" : "Track"}
         </button>
 
-        {/* Fit to Track button - only show if there's track data */}
-        {trackHistory.length > 0 && (
-          <button
-            onClick={fitToTrack}
-            className="px-3 py-2 rounded-lg text-xs font-medium shadow-lg transition-colors bg-white/90 text-slate-700 hover:bg-white flex items-center gap-1"
-            title="Zoom to show entire track"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-            Fit Track
-          </button>
-        )}
 
         {/* Layer selector */}
         <div className="relative">
