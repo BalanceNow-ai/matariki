@@ -27,6 +27,47 @@ interface DiagnosticReport {
   rawPosition: Record<string, unknown>;
 }
 
+interface RequestLogEntry {
+  id: string;
+  timestamp: string;
+  method: string;
+  authStatus: "success" | "failed" | "no-secret";
+  authMethod?: string;
+  tokenPreview?: string;
+  payloadFormat: string;
+  payloadSize: number;
+  rawPayload: unknown;
+  parsedPosition?: Record<string, unknown>;
+  responseStatus: number;
+  responseBody: unknown;
+  processingTimeMs: number;
+  error?: string;
+}
+
+interface DebugInfo {
+  timestamp: string;
+  storage: string;
+  currentPosition: {
+    hasLiveData: boolean;
+    source: string;
+    latitude: number;
+    longitude: number;
+    lastUpdate: string;
+    ageMs: number;
+  };
+  stats: {
+    totalRequests: number;
+    requestsLast5Min: number;
+    historySize: number;
+    authStats: { success: number; failed: number; noSecret: number };
+    authMethods: Record<string, number>;
+    formatStats: { signalkDelta: number; simplified: number; nestedPosition: number; invalid: number };
+    avgProcessingTimeMs: number;
+  };
+  requestLog: RequestLogEntry[];
+  webhookConfigured: boolean;
+}
+
 const CHECK_LABELS: Record<string, string> = {
   webhookSecretConfigured: "Webhook Secret Configuration",
   liveDataReceived: "Live Signal K Data",
@@ -84,20 +125,29 @@ function formatCoord(value: number, isLat: boolean): string {
 
 export default function PositionDiagnosticPage() {
   const [report, setReport] = useState<DiagnosticReport | null>(null);
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [showRawPayloads, setShowRawPayloads] = useState(false);
 
   const runDiagnostic = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/position/diagnostic");
-      const data = await res.json();
-      setReport(data);
+      const [diagRes, debugRes] = await Promise.all([
+        fetch("/api/position/diagnostic"),
+        fetch("/api/position/debug"),
+      ]);
+      const [diagData, debugData] = await Promise.all([
+        diagRes.json(),
+        debugRes.json(),
+      ]);
+      setReport(diagData);
+      setDebugInfo(debugData);
     } catch {
       setError("Failed to reach diagnostic endpoint. Is the server running?");
     } finally {
@@ -248,6 +298,189 @@ export default function PositionDiagnosticPage() {
                   <pre className="text-xs text-mist font-mono bg-deep-ocean p-4 rounded overflow-x-auto">
                     {JSON.stringify(report.rawPosition, null, 2)}
                   </pre>
+                </div>
+              </div>
+            )}
+
+            {/* Debug Info - Request Log */}
+            {debugInfo && (
+              <div className="space-y-6 mt-8">
+                <h2 className="text-h2 text-salt-white">Request Log Analysis</h2>
+
+                {/* Stats summary */}
+                <div className="card p-6 rounded-lg">
+                  <h3 className="text-salt-white font-medium mb-4">Webhook Statistics</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-storm-grey block">Total Requests</span>
+                      <span className="text-salt-white text-lg font-mono">{debugInfo.stats.totalRequests}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Last 5 Minutes</span>
+                      <span className="text-salt-white text-lg font-mono">{debugInfo.stats.requestsLast5Min}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Avg Processing</span>
+                      <span className="text-salt-white text-lg font-mono">{debugInfo.stats.avgProcessingTimeMs.toFixed(0)}ms</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Storage</span>
+                      <span className={`text-lg font-mono ${debugInfo.storage === "redis" ? "text-sea-green" : "text-copper-accent"}`}>
+                        {debugInfo.storage}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Auth stats */}
+                <div className="card p-6 rounded-lg">
+                  <h3 className="text-salt-white font-medium mb-4">Authentication Summary</h3>
+                  <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+                    <div>
+                      <span className="text-storm-grey block">Successful</span>
+                      <span className="text-sea-green text-lg font-mono">{debugInfo.stats.authStats.success}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Failed</span>
+                      <span className={`text-lg font-mono ${debugInfo.stats.authStats.failed > 0 ? "text-red-400" : "text-mist"}`}>
+                        {debugInfo.stats.authStats.failed}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">No Secret</span>
+                      <span className="text-copper-accent text-lg font-mono">{debugInfo.stats.authStats.noSecret}</span>
+                    </div>
+                  </div>
+
+                  {Object.keys(debugInfo.stats.authMethods).length > 0 && (
+                    <div>
+                      <span className="text-storm-grey text-xs block mb-2">Auth Methods Used:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(debugInfo.stats.authMethods).map(([method, count]) => (
+                          <span key={method} className="text-xs bg-midnight-blue px-2 py-1 rounded text-mist">
+                            {method}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payload format stats */}
+                <div className="card p-6 rounded-lg">
+                  <h3 className="text-salt-white font-medium mb-4">Payload Formats</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-storm-grey block">Signal K Delta</span>
+                      <span className="text-sea-green text-lg font-mono">{debugInfo.stats.formatStats.signalkDelta}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Simplified</span>
+                      <span className="text-sea-green text-lg font-mono">{debugInfo.stats.formatStats.simplified}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Nested Position</span>
+                      <span className="text-sea-green text-lg font-mono">{debugInfo.stats.formatStats.nestedPosition}</span>
+                    </div>
+                    <div>
+                      <span className="text-storm-grey block">Invalid</span>
+                      <span className={`text-lg font-mono ${debugInfo.stats.formatStats.invalid > 0 ? "text-red-400" : "text-mist"}`}>
+                        {debugInfo.stats.formatStats.invalid}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent requests table */}
+                <div className="card p-6 rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-salt-white font-medium">Recent Requests</h3>
+                    <label className="flex items-center gap-2 text-mist text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showRawPayloads}
+                        onChange={(e) => setShowRawPayloads(e.target.checked)}
+                        className="w-4 h-4 rounded border-storm-grey"
+                      />
+                      Show Raw Payloads
+                    </label>
+                  </div>
+
+                  {debugInfo.requestLog.length === 0 ? (
+                    <p className="text-storm-grey text-sm italic">No requests logged yet. Send a test position or wait for webhook data.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {debugInfo.requestLog.slice(0, 10).map((req) => (
+                        <div key={req.id} className="bg-deep-ocean p-4 rounded-lg border border-slate-water/30">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                req.responseStatus === 200 ? "bg-sea-green/20 text-sea-green" :
+                                req.responseStatus === 401 ? "bg-red-500/20 text-red-400" :
+                                "bg-copper-accent/20 text-copper-accent"
+                              }`}>
+                                {req.responseStatus}
+                              </span>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                req.authStatus === "success" ? "bg-sea-green/20 text-sea-green" :
+                                req.authStatus === "failed" ? "bg-red-500/20 text-red-400" :
+                                "bg-copper-accent/20 text-copper-accent"
+                              }`}>
+                                Auth: {req.authStatus}
+                              </span>
+                              <span className="text-xs bg-midnight-blue px-2 py-0.5 rounded text-mist">
+                                {req.payloadFormat}
+                              </span>
+                            </div>
+                            <span className="text-xs text-storm-grey">
+                              {new Date(req.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-mist space-y-1">
+                            {req.authMethod && (
+                              <div>
+                                <span className="text-storm-grey">Auth Method:</span>{" "}
+                                <span className="font-mono">{req.authMethod}</span>
+                                {req.tokenPreview && (
+                                  <span className="text-storm-grey ml-2">Token: {req.tokenPreview}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {req.parsedPosition && (
+                              <div>
+                                <span className="text-storm-grey">Position:</span>{" "}
+                                <span className="font-mono text-sea-green">
+                                  {(req.parsedPosition.latitude as number)?.toFixed(5)}, {(req.parsedPosition.longitude as number)?.toFixed(5)}
+                                </span>
+                                {req.parsedPosition.speedOverGround !== undefined && (
+                                  <span className="ml-2">SOG: {(req.parsedPosition.speedOverGround as number)?.toFixed(1)}kts</span>
+                                )}
+                              </div>
+                            )}
+
+                            {req.error && (
+                              <div className="text-red-400">
+                                <span className="text-storm-grey">Error:</span> {req.error}
+                              </div>
+                            )}
+
+                            <div>
+                              <span className="text-storm-grey">Payload Size:</span> {req.payloadSize} bytes
+                              <span className="text-storm-grey ml-4">Processing:</span> {req.processingTimeMs}ms
+                            </div>
+                          </div>
+
+                          {showRawPayloads && req.rawPayload && (
+                            <pre className="mt-2 text-xs text-storm-grey font-mono bg-midnight-blue p-2 rounded overflow-x-auto max-h-32">
+                              {JSON.stringify(req.rawPayload, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

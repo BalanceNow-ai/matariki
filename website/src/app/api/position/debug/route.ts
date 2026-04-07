@@ -47,6 +47,7 @@ export async function GET() {
     const formatStats = {
       signalkDelta: requestLog.filter((r) => r.payloadFormat === "signalk-delta").length,
       simplified: requestLog.filter((r) => r.payloadFormat === "simplified").length,
+      nestedPosition: requestLog.filter((r) => r.payloadFormat === "nested-position").length,
       invalid: requestLog.filter((r) => r.payloadFormat === "invalid").length,
     };
 
