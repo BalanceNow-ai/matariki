@@ -138,21 +138,30 @@ export default function PositionDiagnosticPage() {
     setError(null);
 
     try {
-      const [diagRes, debugRes] = await Promise.all([
-        fetch("/api/position/diagnostic"),
-        fetch("/api/position/debug"),
-      ]);
-      const [diagData, debugData] = await Promise.all([
-        diagRes.json(),
-        debugRes.json(),
-      ]);
+      // Fetch diagnostic report
+      const diagRes = await fetch("/api/position/diagnostic");
+      const diagData = await diagRes.json();
       setReport(diagData);
-      setDebugInfo(debugData);
-    } catch {
+    } catch (err) {
+      console.error("[Diagnostic] Failed to fetch diagnostic:", err);
       setError("Failed to reach diagnostic endpoint. Is the server running?");
-    } finally {
-      setLoading(false);
     }
+
+    try {
+      // Fetch debug info separately so it doesn't block diagnostic
+      const debugRes = await fetch("/api/position/debug");
+      if (!debugRes.ok) {
+        console.error("[Diagnostic] Debug endpoint returned:", debugRes.status);
+      } else {
+        const debugData = await debugRes.json();
+        setDebugInfo(debugData);
+      }
+    } catch (err) {
+      console.error("[Diagnostic] Failed to fetch debug info:", err);
+      // Don't set error - debug info is optional
+    }
+
+    setLoading(false);
   };
 
   const sendTestPosition = async () => {
