@@ -472,11 +472,11 @@ export default function PositionDiagnosticPage() {
                             </div>
                           </div>
 
-                          {showRawPayloads && req.rawPayload && (
+                          {showRawPayloads && req.rawPayload ? (
                             <pre className="mt-2 text-xs text-storm-grey font-mono bg-midnight-blue p-2 rounded overflow-x-auto max-h-32">
                               {JSON.stringify(req.rawPayload, null, 2)}
                             </pre>
-                          )}
+                          ) : null}
                         </div>
                       ))}
                     </div>
