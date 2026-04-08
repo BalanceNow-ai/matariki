@@ -52,7 +52,11 @@ function formatTimestamp(datetime: string | undefined): string {
  */
 export async function GET() {
   const position = await getLatestPositionAsync();
-  return NextResponse.json(position);
+  return NextResponse.json(position, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    },
+  });
 }
 
 /**

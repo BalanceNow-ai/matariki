@@ -99,17 +99,32 @@ export async function getLatestPositionAsync(): Promise<SignalKPosition> {
 /**
  * Set the latest position in Redis or memory
  * Also stores to permanent track if position changed by more than 200m
+ *
+ * Includes a staleness guard: if the incoming position is older than the
+ * currently stored position, it is added to history/track but does NOT
+ * overwrite latestPosition.  This prevents msp-webhook replaying queued
+ * old messages from jumping the marker back to an old location.
  */
 export async function setLatestPositionAsync(position: SignalKPosition): Promise<void> {
   const r = getRedis();
   if (r) {
     try {
-      // Set latest position
-      await r.set(KEYS.latestPosition, position);
+      // Staleness guard: only overwrite latestPosition if this position
+      // is newer than (or same age as) the currently stored one.
+      const current = await r.get<SignalKPosition>(KEYS.latestPosition);
+      const incomingTs = new Date(position.timestamp).getTime();
+      const currentTs = current ? new Date(current.timestamp).getTime() : 0;
 
-      // Add to history (LPUSH without LTRIM to preserve GPX historical data)
-      // Historical GPX data is appended at the end; we don't want to trim it
-      // List growth is acceptable for tracking use case
+      if (incomingTs >= currentTs) {
+        await r.set(KEYS.latestPosition, position);
+      } else {
+        console.log(
+          "[Redis] Skipping latestPosition update - incoming position is older:",
+          position.timestamp, "vs current:", current?.timestamp
+        );
+      }
+
+      // Always add to history (even old replayed positions are valuable for track)
       await r.lpush(KEYS.positionHistory, position);
 
       // Check if we should add to permanent track (distance > 200m from last track point)
@@ -135,8 +150,12 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
     }
   }
 
-  // Fallback to memory
-  memoryPosition = position;
+  // Fallback to memory (with staleness guard)
+  const memTs = memoryPosition ? new Date(memoryPosition.timestamp).getTime() : 0;
+  const incTs = new Date(position.timestamp).getTime();
+  if (incTs >= memTs) {
+    memoryPosition = position;
+  }
   memoryHistory.unshift({ ...position });
   // Don't trim memory history to preserve GPX data (same as Redis)
 
