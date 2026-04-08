@@ -4,6 +4,8 @@ import {
   getLatestPositionAsync,
   hasLatestPositionAsync,
   getRequestLogAsync,
+  getPermanentTrackAsync,
+  getRecentPositionHistoryAsync,
   isRedisConfigured,
 } from "../redis-store";
 
@@ -22,10 +24,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const now = Date.now();
 
-  const [hasLive, position, requestLog] = await Promise.all([
+  const [hasLive, position, requestLog, permanentTrack, recentHistory] = await Promise.all([
     hasLatestPositionAsync(),
     getLatestPositionAsync(),
     getRequestLogAsync(),
+    getPermanentTrackAsync(),
+    getRecentPositionHistoryAsync(100), // just count, not full fetch
   ]);
 
   const ageMs = calculatePositionAgeMs(position);
@@ -87,6 +91,11 @@ export async function GET() {
       detail: `HTTP ${lastFail.responseStatus} | auth: ${lastFail.authStatus} | format: ${lastFail.payloadFormat}${lastFail.error ? ` | ${lastFail.error}` : ""}`,
     };
   }
+
+  checks.track_data = {
+    ok: permanentTrack.length > 0,
+    detail: `permanentTrack: ${permanentTrack.length} points, positionHistory (recent 100): ${recentHistory.length} points`,
+  };
 
   const allOk = Object.values(checks).every((c) => c.ok);
 

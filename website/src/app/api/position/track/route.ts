@@ -160,17 +160,17 @@ export async function GET(request: NextRequest) {
       if (ts > newestTrackTs) newestTrackTs = ts;
     }
 
-    // Only fetch positionHistory if the permanent track is stale (>10 min old)
-    // This avoids the extra Redis call when the track is already up to date
-    const trackIsStale = newestTrackTs > 0 && (Date.now() - newestTrackTs > 10 * 60_000);
+    // Always fetch positionHistory when permanentTrack is empty (data may have
+    // been cleared), or when the track's newest point is stale (>10 min old).
+    const needsHistory = track.length === 0 ||
+      (newestTrackTs > 0 && (Date.now() - newestTrackTs > 10 * 60_000));
 
     let merged = track;
-    if (trackIsStale) {
+    if (needsHistory) {
       try {
         const history = await getRecentPositionHistoryAsync(5000);
         merged = mergeRecentHistory(track, history);
       } catch (err) {
-        // If positionHistory fetch fails, still return the full permanentTrack
         console.error("[Track] Failed to fetch recent history, using permanentTrack only:", err);
       }
     }
