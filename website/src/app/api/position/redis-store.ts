@@ -204,6 +204,21 @@ export async function hasLatestPositionAsync(): Promise<boolean> {
 }
 
 /**
+ * Get the lastTrackPosition reference point used for the 200m distance threshold
+ */
+export async function getLastTrackPositionAsync(): Promise<SignalKPosition | null> {
+  const r = getRedis();
+  if (r) {
+    try {
+      return await r.get<SignalKPosition>(KEYS.lastTrackPosition);
+    } catch (error) {
+      console.error("[Redis] Error getting lastTrackPosition:", error);
+    }
+  }
+  return memoryLastTrackPosition;
+}
+
+/**
  * Add a request log entry
  */
 export async function addRequestLogAsync(entry: RequestLogEntry): Promise<void> {
