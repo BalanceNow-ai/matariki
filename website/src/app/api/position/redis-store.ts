@@ -172,6 +172,24 @@ export async function getPositionHistoryAsync(): Promise<SignalKPosition[]> {
 }
 
 /**
+ * Get the most recent N positions from history (LPUSH order = newest first).
+ * Much faster than getPositionHistoryAsync() when the list is large.
+ */
+export async function getRecentPositionHistoryAsync(
+  limit: number = 2000
+): Promise<SignalKPosition[]> {
+  const r = getRedis();
+  if (r) {
+    try {
+      return await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, limit - 1);
+    } catch (error) {
+      console.error("[Redis] Error getting recent history:", error);
+    }
+  }
+  return memoryHistory.slice(0, limit);
+}
+
+/**
  * Get permanent track from Redis or memory
  * This contains positions where the vessel moved > 200m from the previous track point
  */
@@ -201,6 +219,21 @@ export async function hasLatestPositionAsync(): Promise<boolean> {
     }
   }
   return memoryPosition !== null;
+}
+
+/**
+ * Get the lastTrackPosition reference point used for the 200m distance threshold
+ */
+export async function getLastTrackPositionAsync(): Promise<SignalKPosition | null> {
+  const r = getRedis();
+  if (r) {
+    try {
+      return await r.get<SignalKPosition>(KEYS.lastTrackPosition);
+    } catch (error) {
+      console.error("[Redis] Error getting lastTrackPosition:", error);
+    }
+  }
+  return memoryLastTrackPosition;
 }
 
 /**
