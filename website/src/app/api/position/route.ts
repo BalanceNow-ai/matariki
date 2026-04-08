@@ -254,9 +254,13 @@ export async function POST(request: NextRequest) {
     // Format: { position: { value: { latitude, longitude } }, speed: { value, unit }, ... }
     const nestedPosition = body.position as { value?: { latitude?: number; longitude?: number; changedOn?: number } } | null | undefined;
 
-    // If position is explicitly null (msp-webhook sends this when GPS has no fix),
-    // acknowledge the request but don't update position
-    if (body.position === null || (nestedPosition && nestedPosition.value === undefined)) {
+    // If position is explicitly null/empty (msp-webhook sends this when GPS has no fix),
+    // acknowledge the request but don't update position.
+    // msp-webhook may send: position: null, position: { value: null }, or position: { value: undefined }
+    if (
+      body.position === null ||
+      (nestedPosition && (nestedPosition.value === undefined || nestedPosition.value === null))
+    ) {
       logEntry.payloadFormat = "nested-position";
       logEntry.responseStatus = 200;
       logEntry.responseBody = { success: true, message: "No position data in payload, skipped update" };
