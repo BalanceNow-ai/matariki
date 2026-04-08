@@ -32,11 +32,6 @@ function mergeRecentHistory(
     if (ts > newestTrackTs) newestTrackTs = ts;
   }
 
-  // If there's no permanent track at all, return a down-sampled positionHistory
-  if (permanentTrack.length === 0) {
-    return downsample(positionHistory, 500);
-  }
-
   // Collect positionHistory points that are newer than the permanent track
   const recentPoints = positionHistory.filter(
     (p) => new Date(p.timestamp).getTime() > newestTrackTs
@@ -150,21 +145,35 @@ export async function GET(request: NextRequest) {
     };
   }
 
-  // Get position history for track display
-  // permanentTrack is the backbone (positions >200m apart + GPX imports).
-  // We merge in recent positionHistory entries so the map line shows
-  // the vessel's latest movement even when it's <200m from the last
-  // permanent-track point.
+  // Get position history for track display.
+  // Strategy: permanentTrack is the backbone and MUST always be returned.
+  // We only supplement with recent positionHistory to fill the gap between
+  // the newest permanent-track point and the current vessel position.
+  // If the positionHistory fetch fails, we still return permanentTrack intact.
   if (type === "history" || type === "all") {
-    const [track, history] = await Promise.all([
-      getPermanentTrackAsync(),
-      // Fetch the 5000 most recent positions (newest first via LPUSH).
-      // At ~1 update/min this covers ~3.5 days.  Avoids fetching the
-      // full 40K+ list that could timeout on Vercel serverless functions.
-      getRecentPositionHistoryAsync(5000),
-    ]);
+    const track = await getPermanentTrackAsync();
 
-    const merged = mergeRecentHistory(track, history);
+    // Find newest timestamp in permanent track
+    let newestTrackTs = 0;
+    for (const p of track) {
+      const ts = new Date(p.timestamp).getTime();
+      if (ts > newestTrackTs) newestTrackTs = ts;
+    }
+
+    // Only fetch positionHistory if the permanent track is stale (>10 min old)
+    // This avoids the extra Redis call when the track is already up to date
+    const trackIsStale = newestTrackTs > 0 && (Date.now() - newestTrackTs > 10 * 60_000);
+
+    let merged = track;
+    if (trackIsStale) {
+      try {
+        const history = await getRecentPositionHistoryAsync(5000);
+        merged = mergeRecentHistory(track, history);
+      } catch (err) {
+        // If positionHistory fetch fails, still return the full permanentTrack
+        console.error("[Track] Failed to fetch recent history, using permanentTrack only:", err);
+      }
+    }
 
     // Sort by segmentIndex first to maintain segment continuity, then by timestamp
     const sorted = [...merged].sort((a, b) => {
