@@ -4,7 +4,7 @@ import type { SignalKPosition } from "../../store";
 import {
   getLatestPositionAsync,
   hasLatestPositionAsync,
-  getPositionHistoryAsync,
+  getRecentPositionHistoryAsync,
   getPermanentTrackAsync,
   getLastTrackPositionAsync,
   getRequestLogAsync,
@@ -57,7 +57,8 @@ export async function GET() {
     await Promise.all([
       hasLatestPositionAsync(),
       getLatestPositionAsync(),
-      getPositionHistoryAsync(),
+      // Bounded fetch: 5000 most recent (avoids timeout on large lists)
+      getRecentPositionHistoryAsync(5000),
       getPermanentTrackAsync(),
       getLastTrackPositionAsync(),
       getRequestLogAsync(),

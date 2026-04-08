@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getPermanentTrackAsync,
   getLatestPositionAsync,
-  getPositionHistoryAsync,
+  getRecentPositionHistoryAsync,
   isRedisConfigured,
 } from "../redis-store";
 import type { SignalKPosition } from "../store";
@@ -44,8 +44,10 @@ function mergeRecentHistory(
 
   if (recentPoints.length === 0) return permanentTrack;
 
-  // Down-sample to avoid sending thousands of near-duplicate stationary pings
-  const sampled = downsample(recentPoints, 200);
+  // Down-sample to avoid sending thousands of near-duplicate stationary pings.
+  // Use 50m threshold (not 200m like permanentTrack) so short-range movements
+  // like harbour manoeuvring are still visible on the map.
+  const sampled = downsample(recentPoints, 50);
 
   return [...permanentTrack, ...sampled];
 }
@@ -156,7 +158,10 @@ export async function GET(request: NextRequest) {
   if (type === "history" || type === "all") {
     const [track, history] = await Promise.all([
       getPermanentTrackAsync(),
-      getPositionHistoryAsync(),
+      // Fetch the 5000 most recent positions (newest first via LPUSH).
+      // At ~1 update/min this covers ~3.5 days.  Avoids fetching the
+      // full 40K+ list that could timeout on Vercel serverless functions.
+      getRecentPositionHistoryAsync(5000),
     ]);
 
     const merged = mergeRecentHistory(track, history);
