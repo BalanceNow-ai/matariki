@@ -121,7 +121,7 @@ describe('POST /api/subscribe', () => {
             'Authorization': 'Token test-api-key',
             'Content-Type': 'application/json',
           }),
-          body: JSON.stringify({ email: 'test@example.com' }),
+          body: JSON.stringify({ email_address: 'test@example.com' }),
         })
       )
     })
