@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
+import { parseGPXFile, type GPXParseResult, type GPXTrackPoint } from "@/lib/gpx-parser";
 
 interface SignalKPosition {
   latitude: number;
@@ -133,6 +134,24 @@ export default function RedisDataPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [parseResult, setParseResult] = useState<GPXParseResult | null>(null);
+  const [token, setToken] = useState("");
+  const [batchSize, setBatchSize] = useState(1000);
+  const [clearFirst, setClearFirst] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    totalPoints: number;
+    importedPoints: number;
+    totalBatches: number;
+    completedBatches: number;
+  } | null>(null);
+  const [uploadLog, setUploadLog] = useState<string[]>([]);
+
+  const appendUploadLog = (message: string) => {
+    setUploadLog((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -151,6 +170,129 @@ export default function RedisDataPage() {
       setLoading(false);
     }
   }, []);
+
+  const parseSelectedFile = useCallback(async (file: File) => {
+    setIsParsing(true);
+    setParseResult(null);
+    setUploadLog([]);
+    appendUploadLog(`Parsing ${file.name}...`);
+
+    try {
+      const result = await parseGPXFile(file);
+      setParseResult(result);
+
+      if (!result.success) {
+        appendUploadLog(`Parse failed: ${result.errors.join(", ") || "Unknown parse error"}`);
+      } else {
+        appendUploadLog(
+          `Parsed ${result.stats.totalPoints} points (${result.stats.trackPointsFound} track points, ${result.stats.segmentsFound} segments)`
+        );
+        if (result.warnings.length > 0) {
+          result.warnings.forEach((w) => appendUploadLog(`Warning: ${w}`));
+        }
+      }
+    } finally {
+      setIsParsing(false);
+    }
+  }, []);
+
+  const clearGpxData = useCallback(async () => {
+    appendUploadLog("Clearing existing GPX track data...");
+    const headers: HeadersInit = {};
+    if (token.trim()) {
+      headers["X-API-Key"] = token.trim();
+    }
+
+    const res = await fetch("/api/position/clear?mode=gpx", {
+      method: "POST",
+      headers,
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.message || json?.error || `HTTP ${res.status}`);
+    }
+
+    appendUploadLog(`Cleared ${json.cleared ?? 0} GPX points`);
+  }, [token]);
+
+  const uploadPointsInBatches = useCallback(async (points: GPXTrackPoint[]) => {
+    const safeBatchSize = Math.max(1, Math.min(batchSize, 5000));
+    const totalBatches = Math.ceil(points.length / safeBatchSize);
+    let importedPoints = 0;
+
+    setUploadProgress({
+      totalPoints: points.length,
+      importedPoints: 0,
+      totalBatches,
+      completedBatches: 0,
+    });
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (token.trim()) {
+      headers["X-API-Key"] = token.trim();
+    }
+
+    for (let i = 0; i < totalBatches; i++) {
+      const start = i * safeBatchSize;
+      const end = Math.min(start + safeBatchSize, points.length);
+      const batch = points.slice(start, end);
+      const batchNo = i + 1;
+
+      appendUploadLog(`Uploading batch ${batchNo}/${totalBatches} (${batch.length} points)...`);
+
+      const res = await fetch("/api/position/import-gpx", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ points: batch }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          `Batch ${batchNo} failed: ${json?.message || json?.error || `HTTP ${res.status}`}`
+        );
+      }
+
+      const imported = Number(json.imported ?? batch.length);
+      importedPoints += imported;
+      setUploadProgress({
+        totalPoints: points.length,
+        importedPoints,
+        totalBatches,
+        completedBatches: batchNo,
+      });
+      appendUploadLog(`Batch ${batchNo} complete: ${imported} imported`);
+    }
+
+    appendUploadLog(`Upload complete: ${importedPoints}/${points.length} points imported`);
+  }, [batchSize, token]);
+
+  const handleUpload = useCallback(async () => {
+    if (!parseResult?.success || parseResult.points.length === 0) {
+      setError("Select and parse a valid GPX file before uploading");
+      return;
+    }
+
+    setError(null);
+    setIsUploading(true);
+
+    try {
+      if (clearFirst) {
+        await clearGpxData();
+      }
+      await uploadPointsInBatches(parseResult.points);
+      await fetchData();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      appendUploadLog(`Upload error: ${msg}`);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [clearFirst, clearGpxData, fetchData, parseResult, uploadPointsInBatches]);
 
   // Initial fetch
   useEffect(() => {
@@ -174,8 +316,125 @@ export default function RedisDataPage() {
             <SectionLabel label="Debug" className="mb-8" />
             <h1 className="text-h1 text-salt-white mb-4">Redis Track Data</h1>
             <p className="text-mist leading-relaxed mb-8">
-              View all position and track data stored in Redis.
+              Upload historical GPX files and inspect position/track data stored in Redis.
             </p>
+
+            {/* GPX Upload */}
+            <div className="card p-4 rounded-lg mb-8 space-y-4">
+              <h2 className="text-lg text-salt-white">GPX Upload</h2>
+              <p className="text-sm text-mist">
+                Large files are parsed in your browser and uploaded in batches to avoid payload/time limits.
+              </p>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-storm-grey uppercase mb-2">GPX file</label>
+                  <input
+                    type="file"
+                    accept=".gpx,application/gpx+xml,application/xml,text/xml"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setSelectedFile(file);
+                      setParseResult(null);
+                    }}
+                    className="block w-full text-sm text-mist file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-teal-accent/20 file:text-teal-accent hover:file:bg-teal-accent/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-storm-grey uppercase mb-2">Auth token (optional)</label>
+                  <input
+                    type="password"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="SIGNALK_WEBHOOK_SECRET"
+                    className="w-full rounded border border-mist/30 bg-midnight-blue px-3 py-2 text-sm text-salt-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-storm-grey uppercase mb-2">Batch size</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5000}
+                    value={batchSize}
+                    onChange={(e) => setBatchSize(Number(e.target.value) || 1000)}
+                    className="w-full rounded border border-mist/30 bg-midnight-blue px-3 py-2 text-sm text-salt-white"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-sm text-mist cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={clearFirst}
+                      onChange={(e) => setClearFirst(e.target.checked)}
+                      className="rounded border-mist/30"
+                    />
+                    Clear existing GPX data first
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button
+                  onClick={() => selectedFile && parseSelectedFile(selectedFile)}
+                  disabled={!selectedFile || isParsing || isUploading}
+                >
+                  {isParsing ? "Parsing..." : "Parse GPX"}
+                </Button>
+                <Button
+                  onClick={handleUpload}
+                  disabled={!parseResult?.success || isUploading || isParsing}
+                >
+                  {isUploading ? "Uploading..." : "Upload in Batches"}
+                </Button>
+                {selectedFile && (
+                  <span className="text-xs text-mist">{selectedFile.name}</span>
+                )}
+              </div>
+
+              {parseResult && (
+                <div className="rounded border border-mist/20 p-3 text-sm">
+                  <div className="text-salt-white mb-1">
+                    Parse: {parseResult.success ? "Success" : "Failed"}
+                  </div>
+                  <div className="text-mist">
+                    Total points: {parseResult.stats.totalPoints} | Track: {parseResult.stats.trackPointsFound} | Segments: {parseResult.stats.segmentsFound}
+                  </div>
+                  {parseResult.errors.length > 0 && (
+                    <div className="text-red-400 mt-2">
+                      Errors: {parseResult.errors.join("; ")}
+                    </div>
+                  )}
+                  {parseResult.warnings.length > 0 && (
+                    <div className="text-copper-accent mt-2">
+                      Warnings: {parseResult.warnings.join("; ")}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {uploadProgress && (
+                <div className="rounded border border-mist/20 p-3 text-sm text-mist">
+                  Imported {uploadProgress.importedPoints}/{uploadProgress.totalPoints} points
+                  {" • "}
+                  Batches {uploadProgress.completedBatches}/{uploadProgress.totalBatches}
+                </div>
+              )}
+
+              {uploadLog.length > 0 && (
+                <div className="rounded border border-mist/20 p-3 bg-midnight-blue/40">
+                  <h3 className="text-xs text-storm-grey uppercase mb-2">Upload log</h3>
+                  <div className="space-y-1 max-h-48 overflow-y-auto text-xs text-mist font-mono">
+                    {uploadLog.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Controls */}
             <div className="flex items-center gap-4 mb-8">
