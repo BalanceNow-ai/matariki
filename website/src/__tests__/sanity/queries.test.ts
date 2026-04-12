@@ -236,8 +236,8 @@ describe('Sanity GROQ Queries', () => {
 
   describe('LOG_ENTRIES_WITH_COORDS_QUERY', () => {
     it('filters by defined coordinates', () => {
-      expect(LOG_ENTRIES_WITH_COORDS_QUERY).toContain('defined(location.coordinates.lat)')
-      expect(LOG_ENTRIES_WITH_COORDS_QUERY).toContain('defined(location.coordinates.lng)')
+      expect(LOG_ENTRIES_WITH_COORDS_QUERY).toContain('defined(location.latitude.degrees)')
+      expect(LOG_ENTRIES_WITH_COORDS_QUERY).toContain('defined(location.longitude.degrees)')
     })
 
     it('includes voyage references', () => {

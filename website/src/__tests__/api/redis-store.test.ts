@@ -111,18 +111,17 @@ describe('Redis Store', () => {
       )
     })
 
-    it('trims history to max size', async () => {
+    it('stores history without trimming', async () => {
       mockRedis.set.mockResolvedValueOnce('OK')
       mockRedis.lpush.mockResolvedValueOnce(1001)
-      mockRedis.ltrim.mockResolvedValueOnce('OK')
 
       await setLatestPositionAsync(mockPosition)
 
-      expect(mockRedis.ltrim).toHaveBeenCalledWith(
+      expect(mockRedis.lpush).toHaveBeenCalledWith(
         'matariki:position:history',
-        0,
-        999 // MAX_HISTORY_SIZE - 1
+        mockPosition
       )
+      expect(mockRedis.ltrim).not.toHaveBeenCalled()
     })
   })
 
