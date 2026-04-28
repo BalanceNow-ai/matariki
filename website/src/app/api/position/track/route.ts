@@ -9,6 +9,7 @@ import type { SignalKPosition } from "../store";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
+const HISTORY_MERGE_LIMIT = 50_000;
 
 /**
  * Merge recent positionHistory entries into the permanent track.
@@ -153,26 +154,19 @@ export async function GET(request: NextRequest) {
   if (type === "history" || type === "all") {
     const track = await getPermanentTrackAsync();
 
-    // Find newest timestamp in permanent track
-    let newestTrackTs = 0;
-    for (const p of track) {
-      const ts = new Date(p.timestamp).getTime();
-      if (ts > newestTrackTs) newestTrackTs = ts;
-    }
-
-    // Always fetch positionHistory when permanentTrack is empty (data may have
-    // been cleared), or when the track's newest point is stale (>10 min old).
-    const needsHistory = track.length === 0 ||
-      (newestTrackTs > 0 && (Date.now() - newestTrackTs > 10 * 60_000));
-
+    // Always fetch recent history and merge any points newer than the newest
+    // permanent track point.  Only merging when the track looked "stale"
+    // caused the displayed line to shrink/disappear intermittently whenever a
+    // fresh permanent point arrived.
     let merged = track;
-    if (needsHistory) {
-      try {
-        const history = await getRecentPositionHistoryAsync(5000);
-        merged = mergeRecentHistory(track, history);
-      } catch (err) {
-        console.error("[Track] Failed to fetch recent history, using permanentTrack only:", err);
-      }
+    try {
+      // Pull a much deeper history window when merging Signalk points.
+      // 5,000 points is only ~3.5 days at 1-minute updates, which caused
+      // older Signalk track sections to disappear from the rendered line.
+      const history = await getRecentPositionHistoryAsync(HISTORY_MERGE_LIMIT);
+      merged = mergeRecentHistory(track, history);
+    } catch (err) {
+      console.error("[Track] Failed to fetch recent history, using permanentTrack only:", err);
     }
 
     // Sort by segmentIndex first to maintain segment continuity, then by timestamp
