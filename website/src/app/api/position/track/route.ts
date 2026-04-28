@@ -9,6 +9,7 @@ import type { SignalKPosition } from "../store";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
+const HISTORY_MERGE_LIMIT = 50_000;
 
 /**
  * Merge recent positionHistory entries into the permanent track.
@@ -159,7 +160,10 @@ export async function GET(request: NextRequest) {
     // fresh permanent point arrived.
     let merged = track;
     try {
-      const history = await getRecentPositionHistoryAsync(5000);
+      // Pull a much deeper history window when merging Signalk points.
+      // 5,000 points is only ~3.5 days at 1-minute updates, which caused
+      // older Signalk track sections to disappear from the rendered line.
+      const history = await getRecentPositionHistoryAsync(HISTORY_MERGE_LIMIT);
       merged = mergeRecentHistory(track, history);
     } catch (err) {
       console.error("[Track] Failed to fetch recent history, using permanentTrack only:", err);

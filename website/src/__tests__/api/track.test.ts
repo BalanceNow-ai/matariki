@@ -59,7 +59,7 @@ describe("GET /api/position/track", () => {
     const response = await GET(request);
     const data = await response.json();
 
-    expect(getRecentPositionHistoryAsync).toHaveBeenCalledWith(5000);
+    expect(getRecentPositionHistoryAsync).toHaveBeenCalledWith(50000);
     expect(data.positionHistory.count).toBe(3);
 
     const timestamps = data.positionHistory.points.map((p: { timestamp: string }) => p.timestamp);
