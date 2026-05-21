@@ -5,7 +5,7 @@ import {
   getPositionCountAsync,
   isPostgresConfigured,
 } from "../postgres-store";
-import { getPositionHistoryAsync } from "../redis-store";
+import { getRecentPositionHistoryAsync } from "../redis-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 minutes for large migrations
@@ -26,7 +26,7 @@ export async function GET() {
   }
 
   try {
-    const redisHistory = await getPositionHistoryAsync(100000);
+    const redisHistory = await getRecentPositionHistoryAsync(100000);
     redisCount = redisHistory.length;
   } catch {
     redisCount = -1;
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // Get all positions from Redis
     console.log("[Migration] Fetching positions from Redis...");
-    const positions = await getPositionHistoryAsync(100000); // Get up to 100K
+    const positions = await getRecentPositionHistoryAsync(100000); // Get up to 100K
     console.log(`[Migration] Found ${positions.length} positions in Redis`);
 
     if (positions.length === 0) {
