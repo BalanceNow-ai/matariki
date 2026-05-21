@@ -1,10 +1,15 @@
 /**
- * Persistent position storage using Upstash Redis
+ * Persistent position storage using Upstash Redis + Neon Postgres
+ *
+ * Redis: current position, recent buffer (1000 positions), request logs
+ * Postgres: full historical position data (unlimited)
+ *
  * Falls back to in-memory storage if Redis is not configured
  */
 
 import { Redis } from "@upstash/redis";
 import type { SignalKPosition, RequestLogEntry } from "./store";
+import { storePositionAsync as storeInPostgres, isPostgresConfigured } from "./postgres-store";
 
 // Redis keys
 const KEYS = {
@@ -15,9 +20,8 @@ const KEYS = {
   requestLog: "matariki:debug:request-log",
 };
 
-// Max size for position history - increased to preserve historical GPX data
-// Only live SignalK positions are trimmed; GPX imports are preserved
-const MAX_HISTORY_SIZE = 10000;
+// Redis keeps a rolling buffer of recent positions; Postgres stores full history
+const MAX_REDIS_HISTORY_SIZE = 1000;
 const MAX_REQUEST_LOG_SIZE = 50;
 const MIN_TRACK_DISTANCE_METERS = 200; // Minimum distance change to store in permanent track
 
@@ -106,6 +110,13 @@ export async function getLatestPositionAsync(): Promise<SignalKPosition> {
  * old messages from jumping the marker back to an old location.
  */
 export async function setLatestPositionAsync(position: SignalKPosition): Promise<void> {
+  // Store to Postgres for permanent history (non-blocking)
+  if (isPostgresConfigured()) {
+    storeInPostgres(position).catch((err) => {
+      console.error("[Postgres] Failed to store position:", err);
+    });
+  }
+
   const r = getRedis();
   if (r) {
     try {
@@ -124,8 +135,10 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
         );
       }
 
-      // Always add to history (even old replayed positions are valuable for track)
+      // Add to Redis history buffer (recent positions only)
       await r.lpush(KEYS.positionHistory, position);
+      // Trim Redis to keep only recent positions (Postgres has full history)
+      await r.ltrim(KEYS.positionHistory, 0, MAX_REDIS_HISTORY_SIZE - 1);
 
       // Check if we should add to permanent track (distance > 200m from last track point)
       const lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
@@ -157,7 +170,10 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
     memoryPosition = position;
   }
   memoryHistory.unshift({ ...position });
-  // Don't trim memory history to preserve GPX data (same as Redis)
+  // Trim memory history too
+  if (memoryHistory.length > MAX_REDIS_HISTORY_SIZE) {
+    memoryHistory.length = MAX_REDIS_HISTORY_SIZE;
+  }
 
   // Check if we should add to permanent track (memory fallback)
   const shouldAddToTrack = !memoryLastTrackPosition ||
