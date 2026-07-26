@@ -110,7 +110,10 @@ describe('simplifyTrackToBudget', () => {
     const result = simplifyTrackToBudget(points, opts)
     expect(result.points.length).toBeLessThanOrEqual(1000)
     expect(result.toleranceUsed).toBeGreaterThan(12)
-  })
+    // Deliberately the worst case for Douglas-Peucker, so it is seconds rather
+    // than milliseconds. The default 5s limit makes it flaky on a busy machine
+    // without saying anything useful about a regression.
+  }, 30_000)
 
   it('leaves a track that already fits at the requested tolerance', () => {
     const result = simplifyTrackToBudget(straightLine(500), opts)

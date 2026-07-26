@@ -237,28 +237,28 @@ function createWaypointIcon(category?: string): L.DivIcon {
     className: "waypoint-marker",
     html: `
       <div style="
-        width: 40px;
-        height: 40px;
+        width: 80px;
+        height: 80px;
         background: ${bg};
-        border: 4px solid #ffffff;
+        border: 8px solid #ffffff;
         border-radius: 50%;
         /* A white ring separates the marker from dark water and bush; the
            dark hairline outside it does the same over snow and pale rock.
            Between them the marker reads on any basemap. */
-        box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.6);
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.5), 0 6px 16px rgba(0,0,0,0.6);
         display: flex;
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
       ">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         </svg>
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -40],
+    iconSize: [80, 80],
+    iconAnchor: [40, 80],
+    popupAnchor: [0, -80],
   });
 }
 
@@ -393,21 +393,24 @@ export function OpenSeaMapClient({
                 ]}
                 icon={createWaypointIcon(waypoint.category)}
               >
-                <Popup>
-                  <div className="text-base max-w-[330px] min-w-[280px]">
+                {/* Leaflet caps popups at 300px by default, which would clamp
+                    the sizes below and make the change look like it did
+                    nothing. */}
+                <Popup maxWidth={680} minWidth={300}>
+                  <div className="max-w-[min(660px,86vw)] min-w-[300px]">
                     {waypoint.heroImageUrl && (
-                      <div className="mb-2 -mx-3 -mt-3">
+                      <div className="mb-4 -mx-5 -mt-5">
                         <img
                           src={waypoint.heroImageUrl}
                           alt={waypoint.title}
-                          className="w-full h-36 object-cover rounded-t"
+                          className="w-full h-[288px] object-cover rounded-t"
                         />
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-1">
                       {waypoint.category && (
                         <span
-                          className="text-sm px-2 py-0.5 rounded capitalize font-medium"
+                          className="text-[28px] leading-none px-4 py-2 rounded-lg capitalize font-medium"
                           style={{
                             backgroundColor: categoryColor(waypoint.category),
                             color: "white",
@@ -416,24 +419,24 @@ export function OpenSeaMapClient({
                           {waypoint.category}
                         </span>
                       )}
-                      <span className="text-sm text-gray-500">
+                      <span className="text-[28px] text-gray-500">
                         {formatWaypointDate(waypoint.publishedAt)}
                       </span>
                     </div>
-                    <h3 className="font-bold text-lg leading-snug mb-1.5">{waypoint.title}</h3>
+                    <h3 className="font-bold text-[36px] leading-snug mb-3">{waypoint.title}</h3>
                     {waypoint.location.name && (
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="text-[28px] text-gray-600 mb-2">
                         📍 {waypoint.location.name}
                       </p>
                     )}
                     {waypoint.excerpt && (
-                      <p className="text-sm text-gray-600 line-clamp-3 mb-2.5">
+                      <p className="text-[28px] leading-relaxed text-gray-600 line-clamp-3 mb-5">
                         {waypoint.excerpt}
                       </p>
                     )}
                     <a
                       href={`/log/${waypoint.slug.current}`}
-                      className="inline-block text-sm font-semibold text-amber-600 hover:text-amber-700"
+                      className="inline-block text-[28px] font-semibold text-amber-600 hover:text-amber-700"
                     >
                       Read full entry →
                     </a>
