@@ -628,3 +628,49 @@ export async function getTrackPointsAsync(options: {
     truncated: total > hardCap,
   };
 }
+
+/**
+ * Delete every stored position inside a time window.
+ *
+ * Destructive and not recoverable from Postgres. Callers must confirm
+ * explicitly, and should take an export first.
+ */
+export async function deleteRangeAsync(
+  since: Date,
+  until: Date
+): Promise<{ deleted: number }> {
+  const sql = getDb();
+  if (!sql) return { deleted: 0 };
+
+  const before = await countPositionsInRangeAsync(since, until);
+  await sql.query(
+    `DELETE FROM positions WHERE timestamp >= $1 AND timestamp <= $2`,
+    [since.toISOString(), until.toISOString()]
+  );
+  const after = await countPositionsInRangeAsync(since, until);
+
+  return { deleted: Math.max(0, before - after) };
+}
+
+/** What a range delete would remove, without removing it. */
+export async function describeRangeAsync(
+  since: Date,
+  until: Date
+): Promise<{ count: number; bySource: Record<string, number> }> {
+  const sql = getDb();
+  if (!sql) return { count: 0, bySource: {} };
+
+  const rows = (await sql.query(
+    `SELECT source, COUNT(*)::int AS count FROM positions
+     WHERE timestamp >= $1 AND timestamp <= $2 GROUP BY source`,
+    [since.toISOString(), until.toISOString()]
+  )) as { source: string; count: number }[];
+
+  const bySource: Record<string, number> = {};
+  let count = 0;
+  for (const r of rows) {
+    bySource[r.source] = Number(r.count);
+    count += Number(r.count);
+  }
+  return { count, bySource };
+}
