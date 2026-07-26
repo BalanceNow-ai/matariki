@@ -18,6 +18,7 @@ const KEYS = {
   permanentTrack: "matariki:track:permanent",
   lastTrackPosition: "matariki:track:last-position",
   requestLog: "matariki:debug:request-log",
+  migrationComplete: "matariki:migration:postgres-complete",
 };
 
 // Redis keeps a rolling buffer of recent positions; Postgres stores full history
@@ -100,6 +101,93 @@ export async function getLatestPositionAsync(): Promise<SignalKPosition> {
   return memoryPosition || FALLBACK_POSITION;
 }
 
+// Once the backlog is confirmed in Postgres this never goes back to false, so
+// the flag is cached after the first positive read.
+let migrationCompleteCache = false;
+
+/**
+ * Has the historical Redis backlog been copied into Postgres?
+ *
+ * The Redis history list is only ever trimmed once this is true.  Until then
+ * Redis remains the sole copy of everything older than the rolling buffer and
+ * must not be truncated.
+ */
+export async function isPostgresMigrationCompleteAsync(): Promise<boolean> {
+  if (migrationCompleteCache) return true;
+
+  const r = getRedis();
+  if (!r) return false;
+
+  try {
+    const flag = await r.get<string | boolean>(KEYS.migrationComplete);
+    if (flag) {
+      migrationCompleteCache = true;
+      return true;
+    }
+  } catch (error) {
+    console.error("[Redis] Error reading migration flag:", error);
+  }
+  return false;
+}
+
+/** Record that the Postgres migration finished and verified. */
+export async function setPostgresMigrationCompleteAsync(
+  details: Record<string, unknown>
+): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  await r.set(KEYS.migrationComplete, JSON.stringify({ at: new Date().toISOString(), ...details }));
+  migrationCompleteCache = true;
+}
+
+/** Clear the flag (re-enables full retention in Redis). */
+export async function clearPostgresMigrationFlagAsync(): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  await r.del(KEYS.migrationComplete);
+  migrationCompleteCache = false;
+}
+
+/** List lengths without transferring the lists themselves. */
+export async function getStoreLengthsAsync(): Promise<{
+  history: number;
+  permanentTrack: number;
+}> {
+  const r = getRedis();
+  if (!r) {
+    return { history: memoryHistory.length, permanentTrack: memoryPermanentTrack.length };
+  }
+  const [history, permanentTrack] = await Promise.all([
+    r.llen(KEYS.positionHistory),
+    r.llen(KEYS.permanentTrack),
+  ]);
+  return { history, permanentTrack };
+}
+
+/** Read a slice of a stored list, for chunked migration. */
+export async function getListRangeAsync(
+  list: "history" | "permanentTrack",
+  start: number,
+  stop: number
+): Promise<SignalKPosition[]> {
+  const key = list === "history" ? KEYS.positionHistory : KEYS.permanentTrack;
+  const r = getRedis();
+  if (!r) {
+    const source = list === "history" ? memoryHistory : memoryPermanentTrack;
+    return source.slice(start, stop + 1);
+  }
+  return await r.lrange<SignalKPosition>(key, start, stop);
+}
+
+export type PositionWriteResult = {
+  postgres: "ok" | "failed" | "not-configured";
+  redis: "ok" | "failed" | "not-configured";
+  /** Whether the Redis history list was trimmed on this write. */
+  trimmed: boolean;
+  /** True when at least one store that survives a restart accepted the write. */
+  durable: boolean;
+};
+
 /**
  * Set the latest position in Redis or memory
  * Also stores to permanent track if position changed by more than 200m
@@ -109,14 +197,22 @@ export async function getLatestPositionAsync(): Promise<SignalKPosition> {
  * overwrite latestPosition.  This prevents msp-webhook replaying queued
  * old messages from jumping the marker back to an old location.
  */
-export async function setLatestPositionAsync(position: SignalKPosition): Promise<void> {
-  // Store to Postgres for permanent history (non-blocking)
+export async function setLatestPositionAsync(
+  position: SignalKPosition
+): Promise<PositionWriteResult> {
+  // Durable store first — Postgres is the record of last resort, so we want to
+  // know whether it accepted the position before deciding what Redis may drop.
+  let postgres: PositionWriteResult["postgres"] = "not-configured";
   if (isPostgresConfigured()) {
-    storeInPostgres(position).catch((err) => {
-      console.error("[Postgres] Failed to store position:", err);
-    });
+    try {
+      postgres = (await storeInPostgres(position)) ? "ok" : "failed";
+    } catch (error) {
+      console.error("[Postgres] Failed to store position:", error);
+      postgres = "failed";
+    }
   }
 
+  let redisFailed = false;
   const r = getRedis();
   if (r) {
     try {
@@ -135,10 +231,18 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
         );
       }
 
-      // Add to Redis history buffer (recent positions only)
+      // Add to Redis history buffer
       await r.lpush(KEYS.positionHistory, position);
-      // Trim Redis to keep only recent positions (Postgres has full history)
-      await r.ltrim(KEYS.positionHistory, 0, MAX_REDIS_HISTORY_SIZE - 1);
+
+      // Trim ONLY when the historical backlog is confirmed in Postgres and this
+      // position landed there too.  Trimming before the migration has run would
+      // delete history that exists nowhere else — the failure this whole
+      // Postgres layer was introduced to prevent.
+      let trimmed = false;
+      if (postgres === "ok" && (await isPostgresMigrationCompleteAsync())) {
+        await r.ltrim(KEYS.positionHistory, 0, MAX_REDIS_HISTORY_SIZE - 1);
+        trimmed = true;
+      }
 
       // Check if we should add to permanent track (distance > 200m from last track point)
       const lastTrackPos = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
@@ -157,9 +261,10 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
       }
 
       console.log("[Redis] Position saved:", position.latitude, position.longitude);
-      return;
+      return { postgres, redis: "ok", trimmed, durable: true };
     } catch (error) {
       console.error("[Redis] Error setting position:", error);
+      redisFailed = true;
     }
   }
 
@@ -189,6 +294,15 @@ export async function setLatestPositionAsync(position: SignalKPosition): Promise
     memoryLastTrackPosition = { ...position };
     console.log("[Memory] Position added to permanent track:", position.latitude, position.longitude);
   }
+
+  // Per-lambda memory is not durable, so this position only survives if
+  // Postgres accepted it.
+  return {
+    postgres,
+    redis: redisFailed ? "failed" : "not-configured",
+    trimmed: false,
+    durable: postgres === "ok",
+  };
 }
 
 /**
