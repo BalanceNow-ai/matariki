@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "regions": ["syd1"],
+  "crons": [
+    {
+      "path": "/api/position/monitor",
+      "schedule": "0 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/fonts/(.*)",

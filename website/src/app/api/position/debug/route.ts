@@ -19,12 +19,23 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const [position, history, requestLog, hasLive] = await Promise.all([
+    // A failed history read must not be reported as "0 positions stored" —
+    // that is what made a broken read look identical to lost data.
+    let historySize: number | null = null;
+    let historyError: string | null = null;
+
+    const [position, requestLog, hasLive] = await Promise.all([
       getLatestPositionAsync(),
-      getPositionHistoryAsync(),
       getRequestLogAsync(),
       hasLatestPositionAsync(),
     ]);
+
+    try {
+      historySize = (await getPositionHistoryAsync()).length;
+    } catch (error) {
+      historyError = error instanceof Error ? error.message : String(error);
+      console.error("[Debug API] History read failed:", error);
+    }
 
     // Calculate stats
     const last5Minutes = requestLog.filter((r) => {
@@ -71,7 +82,8 @@ export async function GET() {
       stats: {
         totalRequests: requestLog.length,
         requestsLast5Min: last5Minutes.length,
-        historySize: history.length,
+        historySize,
+        historyError,
         authStats,
         authMethods,
         formatStats,

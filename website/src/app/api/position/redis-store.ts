@@ -70,6 +70,20 @@ let memoryLastTrackPosition: SignalKPosition | null = null;
 const memoryRequestLog: RequestLogEntry[] = [];
 
 /**
+ * A read from durable storage failed.
+ *
+ * Distinct from "there is nothing stored". Read failures used to be swallowed
+ * and reported as an empty list, so an unreachable database looked exactly
+ * like a vessel that had never transmitted.
+ */
+export class StorageReadError extends Error {
+  constructor(what: string, readonly cause: unknown) {
+    super(`Failed to read ${what}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = "StorageReadError";
+  }
+}
+
+/**
  * Calculate distance between two coordinates using Haversine formula
  * @returns Distance in meters
  */
@@ -394,6 +408,12 @@ export async function getPositionHistoryAsync(): Promise<SignalKPosition[]> {
       return await r.lrange<SignalKPosition>(KEYS.positionHistory, 0, -1);
     } catch (error) {
       console.error("[Redis] Error getting history:", error);
+      // Do not fall through to the in-memory list. On a serverless instance
+      // that list is empty, so a failed read would be reported as "no
+      // positions stored" — indistinguishable from the history genuinely
+      // having been lost, and the reason the debug endpoint currently claims
+      // zero points for a list that holds thousands.
+      throw new StorageReadError("position history", error);
     }
   }
   return [...memoryHistory];

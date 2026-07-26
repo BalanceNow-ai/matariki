@@ -140,12 +140,13 @@ describe('Redis Store', () => {
       )
     })
 
-    it('returns empty array on Redis error', async () => {
+    // A failed read must not masquerade as an empty history. Returning [] here
+    // is what let a broken Redis read be reported as "no positions stored",
+    // indistinguishable from the track genuinely having been lost.
+    it('throws on Redis error rather than reporting an empty history', async () => {
       mockRedis.lrange.mockRejectedValueOnce(new Error('Redis error'))
 
-      const result = await getPositionHistoryAsync()
-
-      expect(result).toEqual([])
+      await expect(getPositionHistoryAsync()).rejects.toThrow(/Failed to read position history/)
     })
   })
 

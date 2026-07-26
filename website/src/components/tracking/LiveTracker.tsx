@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { OpenSeaMap, VesselPosition, LogEntryWaypoint } from "@/components/map/OpenSeaMap";
-import { VesselDataPanel } from "./VesselDataPanel";
+import { VesselDataPanel, type TrackingStatus } from "./VesselDataPanel";
 import { VoyageContextPanel, Voyage } from "./VoyageContextPanel";
 import { WeatherConditionsPanel } from "./WeatherConditionsPanel";
 import { SignalKPosition } from "@/app/api/position/store";
@@ -36,6 +36,7 @@ export function LiveTracker({
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus | null>(null);
 
   // Filter waypoints by selected voyage
   const filteredWaypoints = selectedVoyageId
@@ -59,6 +60,19 @@ export function LiveTracker({
     }
   }, []);
 
+  // Fetch tracking status: whether the boat is in contact, and whether it has
+  // a fix. Without this the UI cannot tell a silent vessel from one that is
+  // transmitting with no GPS.
+  const fetchStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/position/status", { cache: "no-store" });
+      if (!response.ok) return;
+      setTrackingStatus(await response.json());
+    } catch (err) {
+      console.error("Failed to fetch tracking status:", err);
+    }
+  }, []);
+
   // Fetch track history
   const fetchHistory = useCallback(async () => {
     try {
@@ -70,12 +84,17 @@ export function LiveTracker({
 
       const points: SignalKPosition[] = data.positionHistory?.points || [];
 
-      // Sort by segmentIndex first to maintain segment continuity, then by timestamp within segments
+      // Chronological, matching the server. Sorting by segment first placed
+      // every imported GPX point ahead of every live one regardless of when it
+      // was recorded, which drew the track back and forth in time.
       points.sort((a, b) => {
-        const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-        const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
+        const ta = new Date(a.timestamp).getTime();
+        const tb = new Date(b.timestamp).getTime();
+        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+        const segA = a.segmentIndex ?? 0;
+        const segB = b.segmentIndex ?? 0;
         if (segA !== segB) return segA - segB;
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        return (a.pointIndex ?? 0) - (b.pointIndex ?? 0);
       });
 
       const mappedHistory = points.map((p: SignalKPosition) => ({
@@ -98,10 +117,14 @@ export function LiveTracker({
   // Initial load and polling
   useEffect(() => {
     fetchPosition();
+    fetchStatus();
     fetchHistory();
 
     // Poll for updates every 60 seconds
-    const positionInterval = setInterval(fetchPosition, 60000);
+    const positionInterval = setInterval(() => {
+      fetchPosition();
+      fetchStatus();
+    }, 60000);
     // Refresh history every 5 minutes
     const historyInterval = setInterval(fetchHistory, 300000);
 
@@ -109,7 +132,7 @@ export function LiveTracker({
       clearInterval(positionInterval);
       clearInterval(historyInterval);
     };
-  }, [fetchPosition, fetchHistory]);
+  }, [fetchPosition, fetchStatus, fetchHistory]);
 
   // Convert to map position format
   const mapPosition: VesselPosition = position
@@ -159,10 +182,22 @@ export function LiveTracker({
         )}
 
         {/* Vessel Data */}
+        {/* The error state was previously recorded but never rendered, so a
+            failing fetch looked identical to everything working. */}
+        {error && (
+          <div
+            role="status"
+            className="bg-deep-ocean/95 border border-copper-accent/40 rounded-xl p-4 text-sm text-copper-accent"
+          >
+            {error}. Showing the last position received.
+          </div>
+        )}
+
         <VesselDataPanel
           position={position}
           isLoading={isLoading}
           lastUpdated={lastUpdated}
+          trackingStatus={trackingStatus}
         />
 
         {/* Weather & Conditions */}

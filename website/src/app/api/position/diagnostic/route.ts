@@ -61,7 +61,25 @@ export async function GET() {
   // Check 2: Live position data received
   const hasLive = await hasLatestPositionAsync();
   const position = await getLatestPositionAsync();
-  const history = await getPositionHistoryAsync();
+
+  // Report an unreadable history as a failure, not as an empty one. A
+  // diagnostic that says "0 positions" when the read simply broke sends you
+  // looking for lost data that is still there.
+  let history: SignalKPosition[] = [];
+  let historyReadFailed: string | null = null;
+  try {
+    history = await getPositionHistoryAsync();
+  } catch (error) {
+    historyReadFailed = error instanceof Error ? error.message : String(error);
+  }
+
+  if (historyReadFailed) {
+    checks.historyReadable = {
+      status: "fail",
+      message: "Could not read position history from storage",
+      detail: historyReadFailed,
+    };
+  }
 
   if (hasLive && position.source === "signalk") {
     const ageMs = calculatePositionAgeMs(position);
