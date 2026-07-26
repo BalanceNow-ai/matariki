@@ -186,8 +186,12 @@ export default function AdminImportPage() {
             points: batch,
             importId,
             filename: file.name,
-            startTime: startTime || undefined,
-            endTime: endTime || undefined,
+            // A datetime-local input has no timezone, so the server would
+            // read "2026-02-18T20:00" as UTC and land the track 13 hours out
+            // for anyone in New Zealand. Convert here, where the browser knows
+            // what offset the typed time actually meant.
+            startTime: startTime ? new Date(startTime).toISOString() : undefined,
+            endTime: endTime ? new Date(endTime).toISOString() : undefined,
           }),
         });
 
@@ -375,7 +379,9 @@ export default function AdminImportPage() {
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
-                      <span className="block text-xs text-storm-grey mb-1">Start (required)</span>
+                      <span className="block text-xs text-storm-grey mb-1">
+                        Start (required) &mdash; your local time
+                      </span>
                       <input
                         type="datetime-local"
                         value={startTime}
@@ -384,7 +390,9 @@ export default function AdminImportPage() {
                       />
                     </label>
                     <label className="block">
-                      <span className="block text-xs text-storm-grey mb-1">End (optional)</span>
+                      <span className="block text-xs text-storm-grey mb-1">
+                        End (optional) &mdash; your local time
+                      </span>
                       <input
                         type="datetime-local"
                         value={endTime}
