@@ -23,6 +23,7 @@ const KEYS = {
   lastTrackPosition: "matariki:track:last-position",
   requestLog: "matariki:debug:request-log",
   migrationComplete: "matariki:migration:postgres-complete",
+  alertState: "matariki:alert:state",
 };
 
 // Redis keeps a rolling buffer of recent positions; Postgres stores full history
@@ -62,12 +63,25 @@ const FALLBACK_POSITION: SignalKPosition = {
   location: "Whangarei, New Zealand",
 };
 
+/**
+ * What the monitor last told us about, so it can stay quiet about a fault it
+ * has already reported.
+ */
+export type AlertState = {
+  condition: string;
+  /** When a notification was last sent for this condition. */
+  notifiedAt: string;
+  /** When this condition was first observed. */
+  since: string;
+};
+
 // In-memory fallback stores
 let memoryPosition: SignalKPosition | null = null;
 const memoryHistory: SignalKPosition[] = [];
 const memoryPermanentTrack: SignalKPosition[] = [];
 let memoryLastTrackPosition: SignalKPosition | null = null;
 const memoryRequestLog: RequestLogEntry[] = [];
+let memoryAlertState: AlertState | null = null;
 
 /**
  * A read from durable storage failed.
@@ -785,4 +799,47 @@ export async function importTrackFromGPX(
  */
 export function isRedisConfigured(): boolean {
   return getRedis() !== null;
+}
+
+export async function getAlertStateAsync(): Promise<AlertState | null> {
+  const r = getRedis();
+  if (!r) return memoryAlertState;
+
+  try {
+    return (await r.get<AlertState>(KEYS.alertState)) ?? null;
+  } catch (error) {
+    // Treat an unreadable state as "nothing recorded". The consequence is a
+    // duplicate notification, which is the right way to fail for an alerting
+    // path — silence is the failure mode that matters here.
+    console.error("[Redis] Error reading alert state:", error);
+    return null;
+  }
+}
+
+export async function setAlertStateAsync(state: AlertState): Promise<void> {
+  const r = getRedis();
+  if (!r) {
+    memoryAlertState = state;
+    return;
+  }
+
+  try {
+    await r.set(KEYS.alertState, state);
+  } catch (error) {
+    console.error("[Redis] Error writing alert state:", error);
+  }
+}
+
+export async function clearAlertStateAsync(): Promise<void> {
+  const r = getRedis();
+  if (!r) {
+    memoryAlertState = null;
+    return;
+  }
+
+  try {
+    await r.del(KEYS.alertState);
+  } catch (error) {
+    console.error("[Redis] Error clearing alert state:", error);
+  }
 }
