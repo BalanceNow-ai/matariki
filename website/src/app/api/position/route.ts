@@ -6,6 +6,7 @@ import {
   addRequestLogAsync,
   type PositionWriteResult,
 } from "./redis-store";
+import { tokensMatch } from "./auth";
 
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
@@ -181,19 +182,19 @@ export async function POST(request: NextRequest) {
     authMethod = "query-auth_key";
   }
 
-  // Log auth details for debugging
-  logEntry.tokenPreview = token ? `${token.substring(0, 8)}...` : undefined;
+  // Record which mechanism was used, never any part of the credential itself.
+  // The debug endpoint is public, and previously published an 8-character
+  // prefix of the token alongside 20 characters of the Authorization header —
+  // between them, most of the secret.
   logEntry.authMethod = authMethod;
-
-  // Log all received headers for debugging (only auth-related ones)
   logEntry.receivedAuthHeaders = {
-    authorization: authHeader ? `${authHeader.substring(0, 20)}...` : null,
-    "x-auth-token": xAuthToken ? `${xAuthToken.substring(0, 8)}...` : null,
-    "x-api-key": xApiKey ? `${xApiKey.substring(0, 8)}...` : null,
-    "api-key": apiKey ? `${apiKey.substring(0, 8)}...` : null,
+    authorization: authHeader ? "present" : null,
+    "x-auth-token": xAuthToken ? "present" : null,
+    "x-api-key": xApiKey ? "present" : null,
+    "api-key": apiKey ? "present" : null,
   };
 
-  if (SIGNALK_SECRET && token !== SIGNALK_SECRET) {
+  if (SIGNALK_SECRET && !tokensMatch(token, SIGNALK_SECRET)) {
     logEntry.authStatus = "failed";
     logEntry.responseStatus = 401;
     logEntry.responseBody = { error: "Unauthorized" };
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
     logEntry.processingTimeMs = Date.now() - startTime;
     await addRequestLogAsync(logEntry as RequestLogEntry);
 
-    console.log("[Signal K] Auth failed - method:", authMethod, "token:", token?.substring(0, 8) + "...", "expected:", SIGNALK_SECRET?.substring(0, 8) + "...");
+    console.log("[Signal K] Auth failed - method:", authMethod);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -10,7 +10,6 @@ interface RequestLogEntry {
   timestamp: string;
   method: string;
   authStatus: "success" | "failed" | "no-secret";
-  tokenPreview?: string;
   payloadFormat: "signalk-delta" | "simplified" | "invalid" | "unknown";
   payloadSize: number;
   rawPayload: unknown;
@@ -169,7 +168,6 @@ function RequestRow({
 
           <div className="flex gap-4 text-xs text-storm-grey">
             <span>ID: {entry.id}</span>
-            {entry.tokenPreview && <span>Token: {entry.tokenPreview}</span>}
             {entry.error && <span className="text-red-400">Error: {entry.error}</span>}
           </div>
         </div>

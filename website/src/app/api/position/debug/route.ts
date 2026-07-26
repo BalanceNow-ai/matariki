@@ -8,6 +8,7 @@ import {
   isRedisConfigured,
 } from "../redis-store";
 import { calculatePositionAgeMs } from "../store";
+import { requireAuth } from "../auth";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
@@ -110,18 +111,29 @@ export async function GET() {
 
 /**
  * DELETE /api/position/debug
- * Clears the request log
+ * Clears the request log. Authenticated — the log is the only record of what
+ * the boat actually sent, and is the first thing consulted when tracking fails.
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
+
   await clearRequestLogAsync();
   return NextResponse.json({ success: true, message: "Request log cleared" });
 }
 
 /**
  * POST /api/position/debug
- * Sends a test request to the position endpoint
+ * Sends a test position to the position endpoint.
+ *
+ * Authenticated: this writes a synthetic position into the live track using
+ * the server's own webhook secret, so leaving it open let anyone move the
+ * vessel on the public map.
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
+
   const format = request.nextUrl.searchParams.get("format") || "simplified";
   const fail = request.nextUrl.searchParams.get("fail") === "true";
 

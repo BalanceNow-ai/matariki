@@ -33,7 +33,6 @@ interface RequestLogEntry {
   method: string;
   authStatus: "success" | "failed" | "no-secret";
   authMethod?: string;
-  tokenPreview?: string;
   payloadFormat: string;
   payloadSize: number;
   rawPayload: unknown;
@@ -451,9 +450,6 @@ export default function PositionDiagnosticPage() {
                               <div>
                                 <span className="text-storm-grey">Auth Method:</span>{" "}
                                 <span className="font-mono">{req.authMethod}</span>
-                                {req.tokenPreview && (
-                                  <span className="text-storm-grey ml-2">Token: {req.tokenPreview}</span>
-                                )}
                               </div>
                             )}
 

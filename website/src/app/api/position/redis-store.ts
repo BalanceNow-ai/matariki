@@ -93,6 +93,40 @@ function calculateDistanceMeters(
 }
 
 /**
+ * Replace a list's contents without ever leaving the real key empty.
+ *
+ * The new contents are assembled under a scratch key and swapped in with
+ * RENAME, which is atomic. If anything fails while building, the original list
+ * is still intact and the scratch key is discarded.
+ */
+async function replaceListAtomically(
+  r: NonNullable<ReturnType<typeof getRedis>>,
+  key: string,
+  items: SignalKPosition[]
+): Promise<void> {
+  if (items.length === 0) {
+    await r.del(key);
+    return;
+  }
+
+  const tempKey = `${key}:rebuild:${Date.now()}`;
+  try {
+    await r.del(tempKey);
+
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      await r.rpush(tempKey, ...items.slice(i, i + BATCH_SIZE));
+    }
+
+    await r.rename(tempKey, key);
+  } catch (error) {
+    // Leave the original untouched and clean up the partial rebuild.
+    await r.del(tempKey).catch(() => {});
+    throw error;
+  }
+}
+
+/**
  * Identity of a track point for deduplication.
  *
  * Timestamps are bucketed to the nearest two seconds rather than compared as
@@ -546,19 +580,12 @@ export async function clearTrackHistoryAsync(): Promise<{ cleared: number }> {
       const trackCleared = track.length - nonGpxTrack.length;
       clearedCount = historyCleared + trackCleared;
 
-      // Clear and repopulate with non-GPX data
-      await r.del(KEYS.positionHistory);
-      await r.del(KEYS.permanentTrack);
-
-      if (nonGpxHistory.length > 0) {
-        // Restore non-GPX history (rpush to maintain order)
-        await r.rpush(KEYS.positionHistory, ...nonGpxHistory);
-      }
-
-      if (nonGpxTrack.length > 0) {
-        // Restore non-GPX permanent track
-        await r.rpush(KEYS.permanentTrack, ...nonGpxTrack);
-      }
+      // Build the replacement lists under temporary keys and swap them in.
+      // The previous delete-then-repush left a window in which the real key
+      // was empty; a failure or timeout inside that window destroyed the
+      // preserved live positions along with the GPX data being removed.
+      await replaceListAtomically(r, KEYS.positionHistory, nonGpxHistory);
+      await replaceListAtomically(r, KEYS.permanentTrack, nonGpxTrack);
 
       // Only clear lastTrackPosition if no track data remains
       if (nonGpxTrack.length === 0) {

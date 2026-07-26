@@ -56,7 +56,7 @@ export async function GET() {
   checks.webhook_secret = {
     ok: !!process.env.SIGNALK_WEBHOOK_SECRET,
     detail: process.env.SIGNALK_WEBHOOK_SECRET
-      ? `Set (starts with ${process.env.SIGNALK_WEBHOOK_SECRET.substring(0, 4)}...)`
+      ? "Set"
       : "NOT set - endpoint accepts any request (insecure)",
   };
 

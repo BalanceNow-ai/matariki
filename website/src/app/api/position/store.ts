@@ -41,7 +41,6 @@ export type RequestLogEntry = {
   method: string;
   authStatus: "success" | "failed" | "no-secret";
   authMethod?: string;
-  tokenPreview?: string;
   receivedAuthHeaders?: Record<string, string | null>;
   payloadFormat: "signalk-delta" | "simplified" | "nested-position" | "invalid" | "unknown";
   payloadSize: number;

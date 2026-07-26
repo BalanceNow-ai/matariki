@@ -7,6 +7,7 @@ import {
   isRedisConfigured,
 } from "../redis-store";
 import type { SignalKPosition } from "../store";
+import { requireAuth } from "../auth";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET() {
     checks.webhookSecretConfigured = {
       status: "pass",
       message: "Webhook secret is configured",
-      detail: `Secret starts with: ${webhookSecret.substring(0, 8)}...`,
+      detail: `Configured (${webhookSecret.length} characters)`,
     };
   } else {
     checks.webhookSecretConfigured = {
@@ -188,6 +189,11 @@ export async function GET() {
  * Test the webhook endpoint with a test position
  */
 export async function POST(request: NextRequest) {
+  // Writes a synthetic position into the live track using the server's own
+  // secret, so it must not be callable anonymously.
+  const denied = requireAuth(request);
+  if (denied) return denied;
+
   const testMode = request.nextUrl.searchParams.get("test") === "true";
 
   if (!testMode) {
