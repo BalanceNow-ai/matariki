@@ -82,7 +82,10 @@ export function LiveTracker({
       if (!response.ok) return;
       const data = await response.json();
 
-      const points: SignalKPosition[] = data.positionHistory?.points || [];
+      // track.points is the current shape; positionHistory is the older one,
+      // kept so a cached response from the previous deploy still renders.
+      const points: SignalKPosition[] =
+        data.track?.points || data.positionHistory?.points || [];
 
       // Chronological, matching the server. Sorting by segment first placed
       // every imported GPX point ahead of every live one regardless of when it

@@ -581,3 +581,50 @@ export async function getLatestStoredPositionAsync(): Promise<SignalKPosition | 
     return null;
   }
 }
+
+/** Just enough of a position to draw it. */
+export type LeanTrackPoint = {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+};
+
+/**
+ * Every stored point in a window, carrying only the fields the map draws.
+ *
+ * The full row has twenty columns of sensor data that the track line has no
+ * use for; selecting three instead cuts both the database transfer and the
+ * response by roughly an order of magnitude, which is what makes it practical
+ * to simplify by geometry rather than by discarding every Nth point.
+ */
+export async function getTrackPointsAsync(options: {
+  since?: Date;
+  until?: Date;
+  hardCap?: number;
+}): Promise<{ points: LeanTrackPoint[]; total: number; truncated: boolean }> {
+  const sql = getDb();
+  if (!sql) return { points: [], total: 0, truncated: false };
+
+  const { since, until, hardCap = 400_000 } = options;
+  const total = await countPositionsInRangeAsync(since, until);
+  if (total === 0) return { points: [], total: 0, truncated: false };
+
+  const rows = (await sql.query(
+    `SELECT latitude, longitude, timestamp FROM positions
+     WHERE ($1::timestamptz IS NULL OR timestamp >= $1)
+       AND ($2::timestamptz IS NULL OR timestamp <= $2)
+     ORDER BY timestamp ASC
+     LIMIT $3`,
+    [since ? since.toISOString() : null, until ? until.toISOString() : null, hardCap]
+  )) as { latitude: number; longitude: number; timestamp: Date | string }[];
+
+  return {
+    points: rows.map((r) => ({
+      latitude: r.latitude,
+      longitude: r.longitude,
+      timestamp: toIso(r.timestamp),
+    })),
+    total,
+    truncated: total > hardCap,
+  };
+}

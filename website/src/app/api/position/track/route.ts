@@ -5,15 +5,31 @@ import {
   getRecentPositionHistoryAsync,
   isRedisConfigured,
 } from "../redis-store";
-import { getTrackAsync, isPostgresConfigured } from "../postgres-store";
+import { getTrackPointsAsync, isPostgresConfigured } from "../postgres-store";
+import { simplifyTrackToBudget } from "@/lib/simplify";
 import type { SignalKPosition } from "../store";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
 
 const HISTORY_MERGE_LIMIT = 50_000;
-/** Upper bound on points returned to the map in one response. */
-const DEFAULT_MAX_POINTS = 8000;
+
+/**
+ * Upper bound on points returned to the map. Higher than it once was because
+ * each point now carries only latitude, longitude and time, so this budget
+ * costs a fraction of what a tenth as many full position records did.
+ */
+const DEFAULT_MAX_POINTS = 60_000;
+
+/**
+ * How far a point may sit from the line between its neighbours before it is
+ * kept. Roughly a boat length: fine enough that a track through a fiord still
+ * follows the water, coarse enough to collapse a straight ocean passage.
+ */
+const DEFAULT_TOLERANCE_M = 12;
+
+/** A jump longer than this is a break in the record, not a course sailed. */
+const SEGMENT_GAP_MS = 6 * 60 * 60_000;
 
 /**
  * Merge recent positionHistory entries into the permanent track.
@@ -134,8 +150,8 @@ function parseLimit(value: string | null, fallback: number): number {
  * as a fallback when Postgres is unavailable.
  *
  * Query params:
- *   type   "permanent" | "history" | "all" (default "all")
- *   limit  max points returned (default 8000, thinned server-side)
+ *   limit      max points returned (default 60000)
+ *   tolerance  simplification tolerance in metres (default 12)
  *   since / until  ISO timestamps bounding the window
  */
 export async function GET(request: NextRequest) {
@@ -144,13 +160,14 @@ export async function GET(request: NextRequest) {
   const maxPoints = parseLimit(params.get("limit"), DEFAULT_MAX_POINTS);
   const since = parseDate(params.get("since"));
   const until = parseDate(params.get("until"));
+  const tolerance = parseLimit(params.get("tolerance"), DEFAULT_TOLERANCE_M);
 
   const latestPosition = await getLatestPositionAsync();
 
   // Preferred path: the durable store.
   if (isPostgresConfigured()) {
     try {
-      const { points, total, stride } = await getTrackAsync({ since, until, maxPoints });
+      const { points, total, truncated } = await getTrackPointsAsync({ since, until });
 
       // An empty durable store must not blank a map that Redis can still
       // draw. This matters during the migration: the table is created before
@@ -160,6 +177,12 @@ export async function GET(request: NextRequest) {
       if (points.length === 0 && !since && !until) {
         console.warn("[Track] Postgres holds no points; falling back to Redis");
       } else {
+        const simplified = simplifyTrackToBudget(points, {
+          toleranceMetres: tolerance,
+          maxPoints,
+          maxGapMs: SEGMENT_GAP_MS,
+        });
+
         return NextResponse.json(
           {
             source: "postgres",
@@ -167,16 +190,22 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
             latestPosition,
             track: {
-              count: points.length,
+              count: simplified.points.length,
               totalStored: total,
-              downsampledBy: stride,
-              points,
+              toleranceMetres: simplified.toleranceUsed,
+              segments: simplified.segments,
+              truncated,
+              points: simplified.points,
             },
-            // Retained for the existing map client, which reads positionHistory.
-            positionHistory: { count: points.length, points },
-            permanentTrack: { count: points.length, points },
           },
-          { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
+          {
+            headers: {
+              // The track changes at most once a minute, and is identical for
+              // every visitor. Caching at the edge keeps the cost of reading
+              // and simplifying the whole track off the per-request path.
+              "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+            },
+          }
         );
       }
     } catch (error) {
