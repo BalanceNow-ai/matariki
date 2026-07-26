@@ -210,38 +210,46 @@ function createVesselIcon(heading?: number): L.DivIcon {
 
 // Create waypoint icon for log entries
 function createWaypointIcon(category?: string): L.DivIcon {
-  // Color based on category
-  const colors: Record<string, { bg: string; border: string }> = {
-    sailing: { bg: "#3d7a6e", border: "#5fa89a" },
-    hunting: { bg: "#a63d3d", border: "#c45c5c" },
-    diving: { bg: "#3d5a7a", border: "#5c7a9a" },
-    fishing: { bg: "#7a6e3d", border: "#9a8e5c" },
-    general: { bg: "#6b7280", border: "#9ca3af" },
+  // Category fills, saturated enough to hold their own against satellite
+  // imagery. The muted originals were chosen to sit quietly on the site's dark
+  // chrome, but over forest and rock they simply disappeared.
+  const colors: Record<string, string> = {
+    sailing: "#0d9488",
+    hunting: "#dc2626",
+    diving: "#2563eb",
+    // Not the copper of the track line — a fishing marker in that colour
+    // reads as part of the route rather than a point on it.
+    fishing: "#eab308",
+    general: "#64748b",
   };
-  const { bg, border } = colors[category || "general"] || colors.general;
+  const bg = colors[category || "general"] || colors.general;
 
   return L.divIcon({
     className: "waypoint-marker",
     html: `
       <div style="
-        width: 24px;
-        height: 24px;
+        width: 30px;
+        height: 30px;
         background: ${bg};
-        border: 2px solid ${border};
+        border: 3px solid #ffffff;
         border-radius: 50%;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        /* A white ring separates the marker from dark water and bush; the
+           dark hairline outside it does the same over snow and pale rock.
+           Between them the marker reads on any basemap. */
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.55);
         display: flex;
         align-items: center;
         justify-content: center;
+        box-sizing: border-box;
       ">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         </svg>
       </div>
     `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 24],
-    popupAnchor: [0, -24],
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -30],
   });
 }
 
