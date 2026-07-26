@@ -54,7 +54,7 @@ export default async function VoyagesPage() {
             <SectionLabel label="Voyages" className="mb-4" />
             <h1 className="text-h1 text-salt-white mb-4">Our Expeditions</h1>
             <p className="text-mist max-w-2xl">
-              Follow Matariki III on her voyages through New Zealand's remote waters and beyond.
+              Follow Matariki III on her voyages through New Zealand&apos;s remote waters and beyond.
             </p>
           </div>
 

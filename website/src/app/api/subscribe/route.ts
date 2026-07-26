@@ -1,10 +1,32 @@
 import { NextResponse } from "next/server";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
+
+/**
+ * Basic shape check. Not a full RFC 5322 validator — that is a job for the
+ * confirmation email — but enough to reject the obviously invalid, where the
+ * previous check was `includes("@")` and accepted "@".
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+const MAX_EMAIL_LENGTH = 254;
 
 export async function POST(request: Request) {
   try {
+    // Unauthenticated and it writes to a third-party list, so it needs a cap.
+    const limit = checkRateLimit(clientKey(request), { windowMs: 60_000, max: 5 });
+    if (limit.limited) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const { email } = await request.json();
 
-    if (!email || !email.includes("@")) {
+    if (
+      typeof email !== "string" ||
+      email.length > MAX_EMAIL_LENGTH ||
+      !EMAIL_PATTERN.test(email)
+    ) {
       return NextResponse.json(
         { error: "Valid email is required" },
         { status: 400 }

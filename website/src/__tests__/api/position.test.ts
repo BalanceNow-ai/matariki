@@ -26,7 +26,7 @@ const fallbackPosition = {
   latitude: -35.7275,
   longitude: 174.3278,
   timestamp: expect.any(String),
-  source: 'fallback',
+  source: 'fallback' as const,
   name: 'Matariki III',
   location: 'Whangarei, New Zealand',
 }

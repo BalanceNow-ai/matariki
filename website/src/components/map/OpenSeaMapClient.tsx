@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -285,9 +285,13 @@ export function OpenSeaMapClient({
     });
   };
 
-  // Split track history into segments to avoid drawing lines across large gaps
-  const trackSegments = showTrack ? splitIntoSegments(trackHistory) : [];
-
+  // Split track history into segments to avoid drawing lines across large gaps.
+  // Memoised: this walks the whole track, which now runs to thousands of
+  // points, and it was re-running on every render of the map.
+  const trackSegments = useMemo(
+    () => (showTrack ? splitIntoSegments(trackHistory) : []),
+    [showTrack, trackHistory]
+  );
 
   // Convert each segment to polyline coordinates
   const trackSegmentCoords: [number, number][][] = trackSegments.map(segment =>

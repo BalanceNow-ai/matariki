@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { SignalKPosition } from "@/app/api/position/store";
 
 /** Shape returned by /api/position/status. */
@@ -122,12 +123,29 @@ export function VesselDataPanel({
   trackingStatus,
   className = "",
 }: VesselDataPanelProps) {
+  // A ticking clock rather than Date.now() during render: the age must keep
+  // counting up between polls, and reading the clock while rendering would
+  // give the server and the client different answers.
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Deferred rather than set synchronously here, so the first paint matches
+    // what the server rendered and React is not asked to re-render mid-effect.
+    const initial = setTimeout(() => setNow(Date.now()), 0);
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
+  }, []);
+
   // Age of the fix itself, not of our last poll. These were conflated before,
   // so the panel read "LIVE / Just now" throughout a 45-day tracking outage
   // simply because the browser had successfully fetched a stale position.
-  const fixAgeMs = position?.timestamp
-    ? Date.now() - new Date(position.timestamp).getTime()
-    : null;
+  const fixAgeMs =
+    now !== null && position?.timestamp
+      ? now - new Date(position.timestamp).getTime()
+      : null;
 
   const isLive =
     position?.source === "signalk" &&
@@ -181,9 +199,9 @@ export function VesselDataPanel({
         </p>
       )}
 
-      {lastUpdated && (
+      {lastUpdated && now !== null && (
         <p className="sr-only">
-          Data last checked {formatAgo(Date.now() - lastUpdated.getTime())}
+          Data last checked {formatAgo(now - lastUpdated.getTime())}
         </p>
       )}
 

@@ -80,7 +80,7 @@ export default async function AboutPage() {
               </h1>
               <p className="text-mist leading-relaxed text-lg">
                 Matariki III represents a lifelong dream of blue-water sailing, combining
-                a passion for the sea with a love of New Zealand's wild coastline and
+                a passion for the sea with a love of New Zealand&apos;s wild coastline and
                 the adventures it offers.
               </p>
             </div>
@@ -135,7 +135,7 @@ export default async function AboutPage() {
               Why We Sail
             </h2>
             <p className="text-mist leading-relaxed mb-6">
-              The sea has always called to us. There's something about the rhythm of the waves,
+              The sea has always called to us. There&apos;s something about the rhythm of the waves,
               the challenge of navigation, and the reward of reaching a remote anchorage that
               feeds the soul in ways that life ashore never could.
             </p>
