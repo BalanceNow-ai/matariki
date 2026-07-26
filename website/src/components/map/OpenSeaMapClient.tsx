@@ -65,9 +65,14 @@ function splitIntoSegments(
       curr.segmentIndex !== undefined &&
       prev.segmentIndex !== curr.segmentIndex;
 
-    // Check if there's a large gap in position
+    // Distance is only a usable signal when the server has not told us where
+    // the breaks are. Once points carry a segmentIndex, a long straight run
+    // between two of them is simplification doing its job on an ocean leg —
+    // not a gap in the record — and splitting there would break the line.
+    const hasServerSegments =
+      prev.segmentIndex !== undefined && curr.segmentIndex !== undefined;
     const distance = distanceMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
-    const largeGap = distance > maxGapMeters;
+    const largeGap = !hasServerSegments && distance > maxGapMeters;
 
     if (segmentChanged || largeGap) {
       // Start new segment

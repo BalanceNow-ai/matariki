@@ -183,6 +183,14 @@ export async function GET(request: NextRequest) {
           maxGapMs: SEGMENT_GAP_MS,
         });
 
+        // Tag each point with the segment it belongs to. The map needs an
+        // explicit boundary: it cannot infer one from distance, because
+        // simplification legitimately leaves long straight runs between
+        // consecutive points on an ocean passage.
+        const labelled = simplified.segmented.flatMap((segment, index) =>
+          segment.map((point) => ({ ...point, segmentIndex: index }))
+        );
+
         return NextResponse.json(
           {
             source: "postgres",
@@ -190,12 +198,12 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
             latestPosition,
             track: {
-              count: simplified.points.length,
+              count: labelled.length,
               totalStored: total,
               toleranceMetres: simplified.toleranceUsed,
               segments: simplified.segments,
               truncated,
-              points: simplified.points,
+              points: labelled,
             },
           },
           {

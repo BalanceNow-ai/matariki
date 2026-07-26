@@ -224,7 +224,7 @@ export function simplifyTrackToBudget<
 >(
   points: T[],
   options: { toleranceMetres: number; maxPoints: number; maxGapMs: number }
-): { points: T[]; toleranceUsed: number; segments: number } {
+): { points: T[]; segmented: T[][]; toleranceUsed: number; segments: number } {
   const { maxPoints, maxGapMs } = options;
   let tolerance = options.toleranceMetres;
 
@@ -232,8 +232,8 @@ export function simplifyTrackToBudget<
 
   // Each retry re-simplifies the previous (already smaller) result rather than
   // the full track, so widening the tolerance stays cheap.
-  let working = segments;
-  let simplified = working.flatMap((segment) => simplifyTrack(segment, tolerance));
+  let working = segments.map((segment) => simplifyTrack(segment, tolerance));
+  let simplified = working.flat();
 
   for (let attempt = 0; attempt < 12 && simplified.length > maxPoints; attempt++) {
     tolerance *= 2;
@@ -241,8 +241,10 @@ export function simplifyTrackToBudget<
     simplified = working.flat();
   }
 
+  const capped = simplified.length > maxPoints;
   return {
-    points: simplified.length > maxPoints ? simplified.slice(0, maxPoints) : simplified,
+    points: capped ? simplified.slice(0, maxPoints) : simplified,
+    segmented: capped ? [simplified.slice(0, maxPoints)] : working,
     toleranceUsed: tolerance,
     segments: segments.length,
   };

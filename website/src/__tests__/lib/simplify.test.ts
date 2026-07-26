@@ -141,3 +141,41 @@ describe('simplifyTrackToBudget', () => {
     expect(simplifyTrackToBudget(straightLine(100), opts).segments).toBe(1)
   })
 })
+
+describe('segment boundaries for rendering', () => {
+  const opts = { toleranceMetres: 12, maxPoints: 10_000, maxGapMs: 6 * 3600_000 }
+
+  // The map cannot infer a break from distance: simplification legitimately
+  // leaves hundreds of kilometres between two consecutive points on a straight
+  // ocean leg. The server has to say where the breaks are.
+  it('returns the simplified points grouped by segment', () => {
+    const leg = (lonBase: number, minuteBase: number) =>
+      Array.from({ length: 30 }, (_, i) => ({
+        latitude: -45 + Math.sin(i / 3) * 0.02,
+        longitude: lonBase + i * 0.002,
+        timestamp: new Date(Date.UTC(2026, 2, 1, 0, minuteBase + i)).toISOString(),
+      }))
+
+    const result = simplifyTrackToBudget(
+      [...leg(166, 0), ...leg(175, 60 * 24 * 30)],
+      opts
+    )
+
+    expect(result.segmented).toHaveLength(2)
+    expect(result.segmented.flat()).toHaveLength(result.points.length)
+
+    // Each group stays on its own side of the break.
+    expect(result.segmented[0].every((p) => p.longitude < 170)).toBe(true)
+    expect(result.segmented[1].every((p) => p.longitude > 170)).toBe(true)
+  })
+
+  it('groups a continuous track into a single segment', () => {
+    const points = Array.from({ length: 100 }, (_, i) => ({
+      latitude: -45 + Math.sin(i / 5) * 0.02,
+      longitude: 166 + i * 0.002,
+      timestamp: new Date(Date.UTC(2026, 2, 1, 0, i)).toISOString(),
+    }))
+
+    expect(simplifyTrackToBudget(points, opts).segmented).toHaveLength(1)
+  })
+})
