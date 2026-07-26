@@ -237,28 +237,28 @@ function createWaypointIcon(category?: string): L.DivIcon {
     className: "waypoint-marker",
     html: `
       <div style="
-        width: 80px;
-        height: 80px;
+        width: 40px;
+        height: 40px;
         background: ${bg};
-        border: 8px solid #ffffff;
+        border: 4px solid #ffffff;
         border-radius: 50%;
         /* A white ring separates the marker from dark water and bush; the
            dark hairline outside it does the same over snow and pale rock.
            Between them the marker reads on any basemap. */
-        box-shadow: 0 0 0 3px rgba(0,0,0,0.5), 0 6px 16px rgba(0,0,0,0.6);
+        box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.6);
         display: flex;
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
       ">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         </svg>
       </div>
     `,
-    iconSize: [80, 80],
-    iconAnchor: [40, 80],
-    popupAnchor: [0, -80],
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40],
   });
 }
 
