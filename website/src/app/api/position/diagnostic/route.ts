@@ -7,6 +7,7 @@ import {
   isRedisConfigured,
 } from "../redis-store";
 import type { SignalKPosition } from "../store";
+import { requireAuth } from "../auth";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET() {
     checks.webhookSecretConfigured = {
       status: "pass",
       message: "Webhook secret is configured",
-      detail: `Secret starts with: ${webhookSecret.substring(0, 8)}...`,
+      detail: `Configured (${webhookSecret.length} characters)`,
     };
   } else {
     checks.webhookSecretConfigured = {
@@ -60,7 +61,25 @@ export async function GET() {
   // Check 2: Live position data received
   const hasLive = await hasLatestPositionAsync();
   const position = await getLatestPositionAsync();
-  const history = await getPositionHistoryAsync();
+
+  // Report an unreadable history as a failure, not as an empty one. A
+  // diagnostic that says "0 positions" when the read simply broke sends you
+  // looking for lost data that is still there.
+  let history: SignalKPosition[] = [];
+  let historyReadFailed: string | null = null;
+  try {
+    history = await getPositionHistoryAsync();
+  } catch (error) {
+    historyReadFailed = error instanceof Error ? error.message : String(error);
+  }
+
+  if (historyReadFailed) {
+    checks.historyReadable = {
+      status: "fail",
+      message: "Could not read position history from storage",
+      detail: historyReadFailed,
+    };
+  }
 
   if (hasLive && position.source === "signalk") {
     const ageMs = calculatePositionAgeMs(position);
@@ -188,6 +207,11 @@ export async function GET() {
  * Test the webhook endpoint with a test position
  */
 export async function POST(request: NextRequest) {
+  // Writes a synthetic position into the live track using the server's own
+  // secret, so it must not be callable anonymously.
+  const denied = requireAuth(request);
+  if (denied) return denied;
+
   const testMode = request.nextUrl.searchParams.get("test") === "true";
 
   if (!testMode) {

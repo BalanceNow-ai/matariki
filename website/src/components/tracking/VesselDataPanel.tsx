@@ -1,11 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { SignalKPosition } from "@/app/api/position/store";
+
+/** Shape returned by /api/position/status. */
+export type TrackingStatus = {
+  condition: "ok" | "no-gps-fix" | "no-contact" | "never-reported";
+  summary: string;
+  lastFixAt: string | null;
+  lastFixAgeMs: number;
+  lastContactAt: string | null;
+  lastContactAgeMs: number | null;
+};
 
 type VesselDataPanelProps = {
   position: SignalKPosition | null;
   isLoading?: boolean;
   lastUpdated?: Date | null;
+  /** Why the position may not be current — distinguishes silence from no fix. */
+  trackingStatus?: TrackingStatus | null;
   className?: string;
 };
 
@@ -91,22 +104,62 @@ function DataItem({
   );
 }
 
-// Time since last update
-function formatTimeSince(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+// Age of a position, in words
+function formatAgo(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
   if (seconds < 60) return "Just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+/** Past this, a fix is history, not a live position. */
+const LIVE_THRESHOLD_MS = 30 * 60_000;
+
 export function VesselDataPanel({
   position,
   isLoading = false,
   lastUpdated,
+  trackingStatus,
   className = "",
 }: VesselDataPanelProps) {
-  const isLive = position?.source === "signalk";
+  // A ticking clock rather than Date.now() during render: the age must keep
+  // counting up between polls, and reading the clock while rendering would
+  // give the server and the client different answers.
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Deferred rather than set synchronously here, so the first paint matches
+    // what the server rendered and React is not asked to re-render mid-effect.
+    const initial = setTimeout(() => setNow(Date.now()), 0);
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
+  }, []);
+
+  // Age of the fix itself, not of our last poll. These were conflated before,
+  // so the panel read "LIVE / Just now" throughout a 45-day tracking outage
+  // simply because the browser had successfully fetched a stale position.
+  const fixAgeMs =
+    now !== null && position?.timestamp
+      ? now - new Date(position.timestamp).getTime()
+      : null;
+
+  const isLive =
+    position?.source === "signalk" &&
+    fixAgeMs !== null &&
+    fixAgeMs >= 0 &&
+    fixAgeMs < LIVE_THRESHOLD_MS;
+
+  const staleNotice =
+    !isLive && !isLoading && position
+      ? trackingStatus?.summary ??
+        (fixAgeMs !== null
+          ? `Last position ${formatAgo(fixAgeMs)}`
+          : "Position age unknown")
+      : null;
 
   return (
     <div
@@ -118,19 +171,39 @@ export function VesselDataPanel({
           <h3 className="text-lg font-display text-salt-white">
             Matariki III
           </h3>
-          {isLive && (
+          {isLive ? (
             <span className="flex items-center gap-1 text-xs text-sea-green">
               <span className="w-2 h-2 bg-sea-green rounded-full animate-pulse" />
               LIVE
             </span>
+          ) : (
+            !isLoading &&
+            position && (
+              <span className="flex items-center gap-1 text-xs text-copper-accent">
+                <span className="w-2 h-2 bg-copper-accent rounded-full" />
+                {trackingStatus?.condition === "no-gps-fix" ? "NO GPS FIX" : "DELAYED"}
+              </span>
+            )
           )}
         </div>
-        {lastUpdated && (
-          <span className="text-xs text-mist/60">
-            {formatTimeSince(lastUpdated)}
-          </span>
+        {fixAgeMs !== null && (
+          <span className="text-xs text-mist/60">{formatAgo(fixAgeMs)}</span>
         )}
       </div>
+
+      {/* Say plainly why the position is not current, rather than showing an
+          old fix as though it were live. */}
+      {staleNotice && (
+        <p className="mb-4 text-xs leading-relaxed text-copper-accent/90 bg-copper-accent/10 border border-copper-accent/20 rounded-lg px-3 py-2">
+          {staleNotice}
+        </p>
+      )}
+
+      {lastUpdated && now !== null && (
+        <p className="sr-only">
+          Data last checked {formatAgo(now - lastUpdated.getTime())}
+        </p>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

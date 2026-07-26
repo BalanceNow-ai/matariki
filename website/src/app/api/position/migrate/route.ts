@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import {
   initializePostgres,
   storePositionsBatchAsync,
@@ -14,6 +13,7 @@ import {
   isPostgresMigrationCompleteAsync,
   setPostgresMigrationCompleteAsync,
 } from "../redis-store";
+import { requireAuth } from "../auth";
 
 export const dynamic = "force-dynamic";
 // Kept within the Hobby-plan ceiling; the endpoint is resumable, so a large
@@ -25,40 +25,12 @@ const TIME_BUDGET_MS = 45_000;
 /** Positions pulled from Redis per LRANGE. */
 const READ_CHUNK = 2000;
 
-const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
-
-function tokenMatches(provided: string | null): boolean {
-  if (!provided || !SIGNALK_SECRET) return false;
-  const a = Buffer.from(provided);
-  const b = Buffer.from(SIGNALK_SECRET);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-function extractToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) return authHeader.substring(7);
-  return request.nextUrl.searchParams.get("token");
-}
-
 /**
  * Fail closed: without a configured secret this endpoint can read and rewrite
  * the entire position history, so it must not be publicly callable.
+ * Shared with the other position endpoints so there is one implementation.
  */
-function authorize(request: NextRequest): NextResponse | null {
-  if (!SIGNALK_SECRET) {
-    return NextResponse.json(
-      {
-        error: "Refusing to run without SIGNALK_WEBHOOK_SECRET configured",
-      },
-      { status: 503 }
-    );
-  }
-  if (!tokenMatches(extractToken(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return null;
-}
+const authorize = requireAuth;
 
 /**
  * GET /api/position/migrate

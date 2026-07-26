@@ -10,23 +10,23 @@ describe('Badge component', () => {
     })
 
     it('renders sailing category', () => {
-      render(<Badge category="sailing">Sailing</Badge>)
+      render(<Badge variant="sailing">Sailing</Badge>)
       const badge = screen.getByText('Sailing')
       expect(badge).toBeInTheDocument()
     })
 
     it('renders hunting category', () => {
-      render(<Badge category="hunting">Hunting</Badge>)
+      render(<Badge variant="hunting">Hunting</Badge>)
       expect(screen.getByText('Hunting')).toBeInTheDocument()
     })
 
     it('renders diving category', () => {
-      render(<Badge category="diving">Diving</Badge>)
+      render(<Badge variant="diving">Diving</Badge>)
       expect(screen.getByText('Diving')).toBeInTheDocument()
     })
 
     it('renders fishing category', () => {
-      render(<Badge category="fishing">Fishing</Badge>)
+      render(<Badge variant="fishing">Fishing</Badge>)
       expect(screen.getByText('Fishing')).toBeInTheDocument()
     })
   })

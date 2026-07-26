@@ -4,7 +4,9 @@ import {
   getLatestPositionAsync,
   setLatestPositionAsync,
   addRequestLogAsync,
+  type PositionWriteResult,
 } from "./redis-store";
+import { tokensMatch } from "./auth";
 
 // Re-export type for consumers
 export type { SignalKPosition } from "./store";
@@ -14,6 +16,36 @@ export const dynamic = "force-dynamic";
 
 // Secret token to authenticate position updates from Signal K
 const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
+
+/**
+ * Turn the storage outcome into the webhook response.
+ *
+ * Previously this endpoint returned 200 unconditionally, so a position that
+ * reached no store at all still looked accepted and was never retried — the
+ * behaviour that let tracking fail silently for weeks.  A 503 now tells the
+ * sender the fix was not recorded.
+ */
+function storageResponse(
+  result: PositionWriteResult,
+  position: SignalKPosition
+): { status: number; body: Record<string, unknown> } {
+  const stores = { postgres: result.postgres, redis: result.redis };
+
+  if (!result.durable) {
+    console.error("[Signal K] Position not stored by any backend:", stores);
+    return {
+      status: 503,
+      body: {
+        success: false,
+        error: "Position could not be stored",
+        stores,
+        position,
+      },
+    };
+  }
+
+  return { status: 200, body: { success: true, position, stores } };
+}
 
 /**
  * Format a datetime string for storage in ISO 8601 format
@@ -150,19 +182,19 @@ export async function POST(request: NextRequest) {
     authMethod = "query-auth_key";
   }
 
-  // Log auth details for debugging
-  logEntry.tokenPreview = token ? `${token.substring(0, 8)}...` : undefined;
+  // Record which mechanism was used, never any part of the credential itself.
+  // The debug endpoint is public, and previously published an 8-character
+  // prefix of the token alongside 20 characters of the Authorization header —
+  // between them, most of the secret.
   logEntry.authMethod = authMethod;
-
-  // Log all received headers for debugging (only auth-related ones)
   logEntry.receivedAuthHeaders = {
-    authorization: authHeader ? `${authHeader.substring(0, 20)}...` : null,
-    "x-auth-token": xAuthToken ? `${xAuthToken.substring(0, 8)}...` : null,
-    "x-api-key": xApiKey ? `${xApiKey.substring(0, 8)}...` : null,
-    "api-key": apiKey ? `${apiKey.substring(0, 8)}...` : null,
+    authorization: authHeader ? "present" : null,
+    "x-auth-token": xAuthToken ? "present" : null,
+    "x-api-key": xApiKey ? "present" : null,
+    "api-key": apiKey ? "present" : null,
   };
 
-  if (SIGNALK_SECRET && token !== SIGNALK_SECRET) {
+  if (SIGNALK_SECRET && !tokensMatch(token, SIGNALK_SECRET)) {
     logEntry.authStatus = "failed";
     logEntry.responseStatus = 401;
     logEntry.responseBody = { error: "Unauthorized" };
@@ -172,7 +204,7 @@ export async function POST(request: NextRequest) {
     logEntry.processingTimeMs = Date.now() - startTime;
     await addRequestLogAsync(logEntry as RequestLogEntry);
 
-    console.log("[Signal K] Auth failed - method:", authMethod, "token:", token?.substring(0, 8) + "...", "expected:", SIGNALK_SECRET?.substring(0, 8) + "...");
+    console.log("[Signal K] Auth failed - method:", authMethod);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -201,15 +233,18 @@ export async function POST(request: NextRequest) {
       logEntry.payloadFormat = "signalk-delta";
       const position = parseSignalKDelta(body as { updates: Array<{ values: Array<{ path: string; value: unknown }> }> });
       if (position) {
-        await setLatestPositionAsync(position);
+        const writeResult = await setLatestPositionAsync(position);
+        const response = storageResponse(writeResult, position);
         logEntry.parsedPosition = position;
-        logEntry.responseStatus = 200;
-        logEntry.responseBody = { success: true, position };
+        logEntry.responseStatus = response.status;
+        logEntry.responseBody = response.body;
         logEntry.processingTimeMs = Date.now() - startTime;
         await addRequestLogAsync(logEntry as RequestLogEntry);
 
-        console.log("[Signal K] Position updated:", position.latitude, position.longitude);
-        return NextResponse.json({ success: true, position });
+        if (response.status === 200) {
+          console.log("[Signal K] Position updated:", position.latitude, position.longitude);
+        }
+        return NextResponse.json(response.body, { status: response.status });
       }
     }
 
@@ -242,16 +277,19 @@ export async function POST(request: NextRequest) {
         mmsi: (body.mmsi as string) || "512004962",
       };
 
-      await setLatestPositionAsync(position);
+      const writeResult = await setLatestPositionAsync(position);
+      const response = storageResponse(writeResult, position);
       logEntry.parsedPosition = position;
-      logEntry.responseStatus = 200;
-      logEntry.responseBody = { success: true, position };
+      logEntry.responseStatus = response.status;
+      logEntry.responseBody = response.body;
       logEntry.processingTimeMs = Date.now() - startTime;
       await addRequestLogAsync(logEntry as RequestLogEntry);
 
-      console.log("[Signal K] Position updated:", position.latitude, position.longitude,
-        "SOG:", position.speedOverGround, "AWS:", position.apparentWindSpeed);
-      return NextResponse.json({ success: true, position });
+      if (response.status === 200) {
+        console.log("[Signal K] Position updated:", position.latitude, position.longitude,
+          "SOG:", position.speedOverGround, "AWS:", position.apparentWindSpeed);
+      }
+      return NextResponse.json(response.body, { status: response.status });
     }
 
     // Handle nested position format from msp-webhook/Signal K
@@ -350,17 +388,20 @@ export async function POST(request: NextRequest) {
         mmsi: "512004962",
       };
 
-      await setLatestPositionAsync(position);
+      const writeResult = await setLatestPositionAsync(position);
+      const response = storageResponse(writeResult, position);
       logEntry.parsedPosition = position;
-      logEntry.responseStatus = 200;
-      logEntry.responseBody = { success: true, position };
+      logEntry.responseStatus = response.status;
+      logEntry.responseBody = response.body;
       logEntry.processingTimeMs = Date.now() - startTime;
       await addRequestLogAsync(logEntry as RequestLogEntry);
 
-      console.log("[Signal K] Position updated (nested format):", position.latitude, position.longitude,
-        "SOG:", position.speedOverGround?.toFixed(1), "kts",
-        "Time:", position.timestamp);
-      return NextResponse.json({ success: true, position });
+      if (response.status === 200) {
+        console.log("[Signal K] Position updated (nested format):", position.latitude, position.longitude,
+          "SOG:", position.speedOverGround?.toFixed(1), "kts",
+          "Time:", position.timestamp);
+      }
+      return NextResponse.json(response.body, { status: response.status });
     }
 
     logEntry.payloadFormat = "invalid";

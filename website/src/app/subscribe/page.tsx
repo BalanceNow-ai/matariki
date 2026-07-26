@@ -21,7 +21,7 @@ export default function SubscribePage() {
             </h1>
             <p className="text-mist leading-relaxed mb-4">
               Join our mailing list to receive updates from aboard Matariki III.
-              We'll send you new log entries, photography highlights, and
+              We&apos;ll send you new log entries, photography highlights, and
               voyage announcements — typically once or twice a month.
             </p>
             <p className="text-sm text-storm-grey mb-8">
@@ -64,7 +64,7 @@ export default function SubscribePage() {
                 </div>
                 <h3 className="text-salt-white font-medium mb-2">Voyage Updates</h3>
                 <p className="text-sm text-mist">
-                  Where we're headed next and highlights from current expeditions.
+                  Where we&apos;re headed next and highlights from current expeditions.
                 </p>
               </div>
             </div>

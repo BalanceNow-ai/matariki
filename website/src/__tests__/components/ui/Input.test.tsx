@@ -58,11 +58,6 @@ describe('Input component', () => {
     })
 
     it('updates value on change', () => {
-      const TestComponent = () => {
-        const [value, setValue] = vi.fn().mockImplementation((v) => v)
-        return <Input value={value} onChange={(e) => setValue(e.target.value)} />
-      }
-
       render(<Input defaultValue="" />)
       const input = screen.getByRole('textbox')
 

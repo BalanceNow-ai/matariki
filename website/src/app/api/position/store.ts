@@ -28,6 +28,10 @@ export type SignalKPosition = {
   location?: string;
   // Track segment info (for GPX imports - points in same segment form continuous track)
   segmentIndex?: number;
+  /** Order of this point within its segment, for GPX files that carry no times. */
+  pointIndex?: number;
+  /** Identifies the GPX upload this point came from, so one import can be undone. */
+  importId?: string;
 };
 
 // Request log entry for debugging
@@ -37,7 +41,6 @@ export type RequestLogEntry = {
   method: string;
   authStatus: "success" | "failed" | "no-secret";
   authMethod?: string;
-  tokenPreview?: string;
   receivedAuthHeaders?: Record<string, string | null>;
   payloadFormat: "signalk-delta" | "simplified" | "nested-position" | "invalid" | "unknown";
   payloadSize: number;

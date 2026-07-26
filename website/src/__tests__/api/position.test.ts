@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // Mock Redis store
@@ -26,7 +26,7 @@ const fallbackPosition = {
   latitude: -35.7275,
   longitude: 174.3278,
   timestamp: expect.any(String),
-  source: 'fallback',
+  source: 'fallback' as const,
   name: 'Matariki III',
   location: 'Whangarei, New Zealand',
 }
@@ -57,12 +57,26 @@ describe('GET /api/position', () => {
   })
 })
 
+/** A write that both stores accepted. */
+const okWrite = { postgres: 'ok', redis: 'ok', trimmed: false, durable: true } as const
+
+/** A write that reached nothing — the case that must not report success. */
+const failedWrite = {
+  postgres: 'failed',
+  redis: 'failed',
+  trimmed: false,
+  durable: false,
+} as const
+
 describe('POST /api/position', () => {
   const originalEnv = process.env
 
   beforeEach(() => {
     vi.clearAllMocks()
     process.env = { ...originalEnv }
+    // Default: storage succeeds. Individual tests override to assert failure
+    // handling.
+    vi.mocked(setLatestPositionAsync).mockResolvedValue(okWrite)
   })
 
   afterAll(() => {
@@ -253,6 +267,68 @@ describe('POST /api/position', () => {
 
       expect(response.status).toBe(200)
       expect(data.position.courseOverGround).toBeCloseTo(180, 0)
+    })
+  })
+
+  // The webhook used to answer 200 no matter what happened downstream, so a
+  // position that reached no store still looked accepted and was never resent.
+  // That is how tracking went dark for 45 days without anyone noticing.
+  describe('storage failure reporting', () => {
+    const payloads: Array<[string, object]> = [
+      ['simplified', { latitude: -35.7, longitude: 174.3 }],
+      [
+        'nested position',
+        { position: { value: { latitude: -35.7, longitude: 174.3 } } },
+      ],
+      [
+        'Signal K delta',
+        {
+          updates: [
+            {
+              values: [
+                { path: 'navigation.position', value: { latitude: -35.7, longitude: 174.3 } },
+              ],
+            },
+          ],
+        },
+      ],
+    ]
+
+    it.each(payloads)('returns 503 when no store accepts a %s payload', async (_name, body) => {
+      vi.mocked(setLatestPositionAsync).mockResolvedValue(failedWrite)
+
+      const request = new NextRequest('http://localhost/api/position', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(503)
+      expect(data.success).toBe(false)
+      expect(data.error).toMatch(/could not be stored/i)
+    })
+
+    it('still reports success when only Postgres is unavailable', async () => {
+      vi.mocked(setLatestPositionAsync).mockResolvedValue({
+        postgres: 'not-configured',
+        redis: 'ok',
+        trimmed: false,
+        durable: true,
+      })
+
+      const request = new NextRequest('http://localhost/api/position', {
+        method: 'POST',
+        body: JSON.stringify({ latitude: -35.7, longitude: 174.3 }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.stores).toEqual({ postgres: 'not-configured', redis: 'ok' })
     })
   })
 })

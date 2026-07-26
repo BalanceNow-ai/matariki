@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { POST } from '@/app/api/subscribe/route'
+import { resetRateLimits } from '@/lib/rate-limit'
 
 describe('POST /api/subscribe', () => {
   const originalEnv = process.env
   const originalFetch = global.fetch
 
   beforeEach(() => {
+    resetRateLimits()
     vi.clearAllMocks()
     process.env = { ...originalEnv }
     process.env.BUTTONDOWN_API_KEY = 'test-api-key'

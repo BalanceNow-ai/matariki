@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculatePositionAgeMs } from "../store";
+import { assessTracking, formatAge } from "../tracking-status";
 import {
   getLatestPositionAsync,
   hasLatestPositionAsync,
@@ -10,17 +11,6 @@ import {
 } from "../redis-store";
 
 export const dynamic = "force-dynamic";
-
-/**
- * GET /api/position/health
- *
- * Quick health check designed to be curled from the boat.
- * Returns a single-screen summary of what's working and what's not.
- *
- * Usage:
- *   curl https://matarikiyacht.com/api/position/health
- *   curl https://matarikiyacht.com/api/position/health?test=1  (sends a test webhook)
- */
 export async function GET() {
   const now = Date.now();
 
@@ -56,7 +46,7 @@ export async function GET() {
   checks.webhook_secret = {
     ok: !!process.env.SIGNALK_WEBHOOK_SECRET,
     detail: process.env.SIGNALK_WEBHOOK_SECRET
-      ? `Set (starts with ${process.env.SIGNALK_WEBHOOK_SECRET.substring(0, 4)}...)`
+      ? "Set"
       : "NOT set - endpoint accepts any request (insecure)",
   };
 
@@ -97,10 +87,43 @@ export async function GET() {
     detail: `permanentTrack: ${permanentTrack.length} points, positionHistory (recent 100): ${recentHistory.length} points`,
   };
 
+  // Requests that arrived and were accepted but carried no position at all —
+  // the signature of a transmitter running without a GPS fix.
+  const acceptedWithoutPosition = recentRequests.filter(
+    (r) => r.responseStatus === 200 && !r.parsedPosition
+  ).length;
+
+  const tracking = assessTracking({
+    now,
+    lastContactAt: lastRequest?.timestamp ?? null,
+    lastFixAt: position.timestamp ?? null,
+    fixAgeMs: ageMs,
+    hasLiveFix: hasLive && position.source !== "fallback",
+  });
+
+  checks.gps_fix = {
+    ok: tracking.condition === "ok",
+    detail:
+      acceptedWithoutPosition > 0
+        ? `${tracking.summary}. ${acceptedWithoutPosition} of the last ${recentRequests.length} requests carried no position.`
+        : tracking.summary,
+  };
+
   const allOk = Object.values(checks).every((c) => c.ok);
 
   return NextResponse.json({
     status: allOk ? "healthy" : "unhealthy",
+    tracking: {
+      condition: tracking.condition,
+      summary: tracking.summary,
+      lastContactAt: lastRequest?.timestamp ?? null,
+      lastContactAgeMs: lastRequestAge,
+      lastContactAge: lastRequestAge !== null ? formatAge(lastRequestAge) : null,
+      lastFixAt: position.timestamp,
+      lastFixAgeMs: ageMs,
+      lastFixAge: formatAge(ageMs),
+      requestsWithoutPositionLastHour: acceptedWithoutPosition,
+    },
     position: {
       latitude: position.latitude,
       longitude: position.longitude,
@@ -114,9 +137,3 @@ export async function GET() {
   });
 }
 
-function formatAge(ms: number): string {
-  if (ms < 60_000) return `${Math.floor(ms / 1000)}s`;
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `${(ms / 3_600_000).toFixed(1)}h`;
-  return `${(ms / 86_400_000).toFixed(1)}d`;
-}
