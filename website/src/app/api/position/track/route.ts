@@ -33,7 +33,7 @@ const DEFAULT_TOLERANCE_M = 12;
  * passage, so six hours was breaking the line wherever reporting thinned out
  * rather than wherever the record actually stopped.
  */
-const SEGMENT_GAP_MS = 18 * 60 * 60_000;
+const SEGMENT_GAP_MS = 24 * 60 * 60_000;
 
 /**
  * Above this, the straight line across a gap is not a believable summary of

@@ -250,3 +250,44 @@ describe('speed test only applies to long gaps', () => {
     expect(splitOnGaps(points, { ...rule, minGapForSpeedCheckMs: 60_000 })).toHaveLength(2)
   })
 })
+
+describe('gaps where the vessel stayed put', () => {
+  const rule = { maxGapMs: 24 * 3600_000, maxImpliedKnots: 20 }
+
+  // Most breaks in the real track were of exactly this kind: 31, 28, 19 and 47
+  // hours with the vessel 0km from where she was before. She was at anchor and
+  // the logger was off. The connecting line has no length to be wrong about.
+  it('joins a long gap when the vessel has not moved', () => {
+    const points = [
+      { latitude: -41.2800, longitude: 174.7800, timestamp: '2026-02-26T04:52:00Z' },
+      { latitude: -41.2801, longitude: 174.7801, timestamp: '2026-02-27T11:52:00Z' }, // 31h, ~14m
+    ]
+    expect(splitOnGaps(points, rule)).toHaveLength(1)
+  })
+
+  it('still breaks a long gap when she has moved a long way', () => {
+    const points = [
+      { latitude: -39.3260, longitude: 169.4240, timestamp: '2026-02-18T16:13:00Z' },
+      { latitude: -43.1333, longitude: 168.9446, timestamp: '2026-02-24T11:38:00Z' }, // 5.8 days, 425km
+    ]
+    expect(splitOnGaps(points, rule)).toHaveLength(2)
+  })
+
+  it('joins a passage under way that runs past the gap limit', () => {
+    // 19.7h at about 5 knots — a night at sea, not a break in the record.
+    const points = [
+      { latitude: -37.9555, longitude: 170.6983, timestamp: '2026-02-17T20:32:00Z' },
+      { latitude: -39.3263, longitude: 169.4244, timestamp: '2026-02-18T16:13:00Z' },
+    ]
+    expect(splitOnGaps(points, rule)).toHaveLength(1)
+  })
+
+  it('respects an explicit stationary threshold', () => {
+    const points = [
+      { latitude: -41.28, longitude: 174.78, timestamp: '2026-02-26T04:52:00Z' },
+      { latitude: -41.30, longitude: 174.78, timestamp: '2026-02-27T11:52:00Z' }, // ~2.2km
+    ]
+    expect(splitOnGaps(points, { ...rule, stationaryMetres: 5000 })).toHaveLength(1)
+    expect(splitOnGaps(points, { ...rule, stationaryMetres: 100 })).toHaveLength(2)
+  })
+})

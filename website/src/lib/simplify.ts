@@ -192,8 +192,13 @@ export function simplifyTrack<T extends { latitude: number; longitude: number }>
  * knots means the vessel went somewhere in between that was never recorded, and
  * drawing the line would invent a course.
  *
- * So a break is declared when the gap is longer than `maxGapMs`, or when the
- * implied speed across it is not something a boat could have done.
+ * A gap with the vessel in the same place on both sides is not a gap in the
+ * track at all — she sat at anchor and the logger was off. Joining those costs
+ * nothing and invents nothing, because the connecting line has no length to be
+ * wrong about. Most breaks in this track are of exactly that kind.
+ *
+ * Otherwise a break is declared when the gap is longer than `maxGapMs`, or
+ * when the implied speed across it is not something a boat could have done.
  *
  * The speed test applies only to gaps longer than `minGapForSpeedCheckMs`.
  * Imported tracks are sampled every second or two, and across one second the
@@ -207,11 +212,18 @@ export function splitOnGaps<T extends { latitude: number; longitude: number; tim
     maxGapMs: number;
     maxImpliedKnots: number;
     minGapForSpeedCheckMs?: number;
+    /** Movement across a gap below this is treated as the vessel staying put. */
+    stationaryMetres?: number;
   }
 ): T[][] {
   if (points.length === 0) return [];
 
-  const { maxGapMs, maxImpliedKnots, minGapForSpeedCheckMs = 10 * 60_000 } = options;
+  const {
+    maxGapMs,
+    maxImpliedKnots,
+    minGapForSpeedCheckMs = 10 * 60_000,
+    stationaryMetres = 1000,
+  } = options;
   const segments: T[][] = [];
   let current: T[] = [points[0]];
 
@@ -220,15 +232,19 @@ export function splitOnGaps<T extends { latitude: number; longitude: number; tim
     const next = new Date(points[i].timestamp).getTime();
     const gap = next - previous;
 
-    let breakHere = !Number.isFinite(gap) || gap > maxGapMs;
+    const cosLat = Math.cos(points[i - 1].latitude * DEG_TO_RAD);
+    const a = project(points[i - 1], cosLat);
+    const b = project(points[i], cosLat);
+    const metres = Math.hypot(b.x - a.x, b.y - a.y);
 
-    if (!breakHere && gap >= minGapForSpeedCheckMs) {
-      const cosLat = Math.cos(points[i - 1].latitude * DEG_TO_RAD);
-      const a = project(points[i - 1], cosLat);
-      const b = project(points[i], cosLat);
-      const metres = Math.hypot(b.x - a.x, b.y - a.y);
-      const knots = metres / 1852 / (gap / 3_600_000);
-      breakHere = knots > maxImpliedKnots;
+    let breakHere = false;
+    if (metres > stationaryMetres) {
+      breakHere = !Number.isFinite(gap) || gap > maxGapMs;
+
+      if (!breakHere && gap >= minGapForSpeedCheckMs) {
+        const knots = metres / 1852 / (gap / 3_600_000);
+        breakHere = knots > maxImpliedKnots;
+      }
     }
 
     if (breakHere) {
@@ -259,15 +275,23 @@ export function simplifyTrackToBudget<
     maxGapMs: number;
     maxImpliedKnots: number;
     minGapForSpeedCheckMs?: number;
+    stationaryMetres?: number;
   }
 ): { points: T[]; segmented: T[][]; toleranceUsed: number; segments: number } {
-  const { maxPoints, maxGapMs, maxImpliedKnots, minGapForSpeedCheckMs } = options;
+  const {
+    maxPoints,
+    maxGapMs,
+    maxImpliedKnots,
+    minGapForSpeedCheckMs,
+    stationaryMetres,
+  } = options;
   let tolerance = options.toleranceMetres;
 
   const segments = splitOnGaps(points, {
     maxGapMs,
     maxImpliedKnots,
     minGapForSpeedCheckMs,
+    stationaryMetres,
   });
 
   // Each retry re-simplifies the previous (already smaller) result rather than
