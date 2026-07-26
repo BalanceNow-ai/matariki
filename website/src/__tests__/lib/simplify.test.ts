@@ -214,3 +214,39 @@ describe('segment boundaries for rendering', () => {
     expect(simplifyTrackToBudget(points, opts).segmented).toHaveLength(1)
   })
 })
+
+describe('speed test only applies to long gaps', () => {
+  const rule = { maxGapMs: 18 * 3600_000, maxImpliedKnots: 20 }
+
+  // Imported tracks sample every second or two. Across one second, ten metres
+  // of ordinary GPS scatter implies twenty knots — applying the speed test
+  // there measures noise, not movement, and shredded a continuous track into
+  // dozens of pieces.
+  it('ignores GPS jitter between points a second apart', () => {
+    const points = Array.from({ length: 60 }, (_, i) => ({
+      latitude: -43.1334 + (i % 2 ? 0.0001 : 0), // ~11m of scatter
+      longitude: 168.9446 + i * 0.00002,
+      timestamp: new Date(Date.UTC(2026, 1, 24, 6, 21, i)).toISOString(),
+    }))
+
+    expect(splitOnGaps(points, rule)).toHaveLength(1)
+  })
+
+  it('still applies the speed test across a long gap', () => {
+    const points = [
+      { latitude: -45, longitude: 166, timestamp: '2026-02-18T00:00:00Z' },
+      { latitude: -36, longitude: 175, timestamp: '2026-02-18T12:00:00Z' },
+    ]
+    expect(splitOnGaps(points, rule)).toHaveLength(2)
+  })
+
+  it('honours an explicit minimum gap for the speed test', () => {
+    const points = [
+      { latitude: -45, longitude: 166, timestamp: '2026-02-18T00:00:00Z' },
+      { latitude: -45.2, longitude: 166, timestamp: '2026-02-18T00:05:00Z' }, // ~267kn
+    ]
+    // Below the threshold the pair is left alone; above it, the jump is caught.
+    expect(splitOnGaps(points, { ...rule, minGapForSpeedCheckMs: 10 * 60_000 })).toHaveLength(1)
+    expect(splitOnGaps(points, { ...rule, minGapForSpeedCheckMs: 60_000 })).toHaveLength(2)
+  })
+})

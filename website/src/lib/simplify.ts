@@ -194,14 +194,24 @@ export function simplifyTrack<T extends { latitude: number; longitude: number }>
  *
  * So a break is declared when the gap is longer than `maxGapMs`, or when the
  * implied speed across it is not something a boat could have done.
+ *
+ * The speed test applies only to gaps longer than `minGapForSpeedCheckMs`.
+ * Imported tracks are sampled every second or two, and across one second the
+ * ordinary ten metres of GPS scatter implies twenty knots — so applied to
+ * every pair the test measures noise, not movement, and shreds a perfectly
+ * continuous track into hundreds of pieces.
  */
 export function splitOnGaps<T extends { latitude: number; longitude: number; timestamp: string }>(
   points: T[],
-  options: { maxGapMs: number; maxImpliedKnots: number }
+  options: {
+    maxGapMs: number;
+    maxImpliedKnots: number;
+    minGapForSpeedCheckMs?: number;
+  }
 ): T[][] {
   if (points.length === 0) return [];
 
-  const { maxGapMs, maxImpliedKnots } = options;
+  const { maxGapMs, maxImpliedKnots, minGapForSpeedCheckMs = 10 * 60_000 } = options;
   const segments: T[][] = [];
   let current: T[] = [points[0]];
 
@@ -212,7 +222,7 @@ export function splitOnGaps<T extends { latitude: number; longitude: number; tim
 
     let breakHere = !Number.isFinite(gap) || gap > maxGapMs;
 
-    if (!breakHere && gap > 0) {
+    if (!breakHere && gap >= minGapForSpeedCheckMs) {
       const cosLat = Math.cos(points[i - 1].latitude * DEG_TO_RAD);
       const a = project(points[i - 1], cosLat);
       const b = project(points[i], cosLat);
@@ -248,12 +258,17 @@ export function simplifyTrackToBudget<
     maxPoints: number;
     maxGapMs: number;
     maxImpliedKnots: number;
+    minGapForSpeedCheckMs?: number;
   }
 ): { points: T[]; segmented: T[][]; toleranceUsed: number; segments: number } {
-  const { maxPoints, maxGapMs, maxImpliedKnots } = options;
+  const { maxPoints, maxGapMs, maxImpliedKnots, minGapForSpeedCheckMs } = options;
   let tolerance = options.toleranceMetres;
 
-  const segments = splitOnGaps(points, { maxGapMs, maxImpliedKnots });
+  const segments = splitOnGaps(points, {
+    maxGapMs,
+    maxImpliedKnots,
+    minGapForSpeedCheckMs,
+  });
 
   // Each retry re-simplifies the previous (already smaller) result rather than
   // the full track, so widening the tolerance stays cheap.
