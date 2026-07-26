@@ -27,7 +27,7 @@ describe('simplify performance on realistic tracks', () => {
       const track = makeTrack(n)
       const start = performance.now()
       const r = simplifyTrackToBudget(track, {
-        toleranceMetres: 12, maxPoints: 60_000, maxGapMs: 6 * 3600_000,
+        toleranceMetres: 12, maxPoints: 60_000, maxGapMs: 18 * 3600_000, maxImpliedKnots: 20,
       })
       const ms = performance.now() - start
       const mb = JSON.stringify(r.points).length / 1048576

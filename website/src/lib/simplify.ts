@@ -179,20 +179,29 @@ export function simplifyTrack<T extends { latitude: number; longitude: number }>
 }
 
 /**
- * Break a track wherever it jumps in time.
+ * Break a track where the record genuinely stops.
  *
- * A gap means the vessel was not recorded in between — a passage with the
- * logger off, or the boundary between two voyages. Simplifying across such a
- * gap would let the straight line spanning it dominate the geometry and
- * swallow real detail on both sides, and rendering it as one continuous line
- * draws a course that was never sailed.
+ * Time alone is a poor test. Position reporting is not always minute-by-minute:
+ * on an offshore passage the only fix for half a day may come from a satellite
+ * report, and joining those is the best record of the passage that exists.
+ * Refusing to join them leaves the track in pieces for no good reason.
+ *
+ * What actually distinguishes the two cases is whether the straight line is a
+ * believable summary of the interval. Two reports thirteen hours apart implying
+ * ten knots describe a passage under way. The same interval implying forty
+ * knots means the vessel went somewhere in between that was never recorded, and
+ * drawing the line would invent a course.
+ *
+ * So a break is declared when the gap is longer than `maxGapMs`, or when the
+ * implied speed across it is not something a boat could have done.
  */
-export function splitOnTimeGaps<T extends { timestamp: string }>(
+export function splitOnGaps<T extends { latitude: number; longitude: number; timestamp: string }>(
   points: T[],
-  maxGapMs: number
+  options: { maxGapMs: number; maxImpliedKnots: number }
 ): T[][] {
   if (points.length === 0) return [];
 
+  const { maxGapMs, maxImpliedKnots } = options;
   const segments: T[][] = [];
   let current: T[] = [points[0]];
 
@@ -201,7 +210,18 @@ export function splitOnTimeGaps<T extends { timestamp: string }>(
     const next = new Date(points[i].timestamp).getTime();
     const gap = next - previous;
 
-    if (Number.isFinite(gap) && gap > maxGapMs) {
+    let breakHere = !Number.isFinite(gap) || gap > maxGapMs;
+
+    if (!breakHere && gap > 0) {
+      const cosLat = Math.cos(points[i - 1].latitude * DEG_TO_RAD);
+      const a = project(points[i - 1], cosLat);
+      const b = project(points[i], cosLat);
+      const metres = Math.hypot(b.x - a.x, b.y - a.y);
+      const knots = metres / 1852 / (gap / 3_600_000);
+      breakHere = knots > maxImpliedKnots;
+    }
+
+    if (breakHere) {
       segments.push(current);
       current = [];
     }
@@ -223,12 +243,17 @@ export function simplifyTrackToBudget<
   T extends { latitude: number; longitude: number; timestamp: string },
 >(
   points: T[],
-  options: { toleranceMetres: number; maxPoints: number; maxGapMs: number }
+  options: {
+    toleranceMetres: number;
+    maxPoints: number;
+    maxGapMs: number;
+    maxImpliedKnots: number;
+  }
 ): { points: T[]; segmented: T[][]; toleranceUsed: number; segments: number } {
-  const { maxPoints, maxGapMs } = options;
+  const { maxPoints, maxGapMs, maxImpliedKnots } = options;
   let tolerance = options.toleranceMetres;
 
-  const segments = splitOnTimeGaps(points, maxGapMs);
+  const segments = splitOnGaps(points, { maxGapMs, maxImpliedKnots });
 
   // Each retry re-simplifies the previous (already smaller) result rather than
   // the full track, so widening the tolerance stays cheap.

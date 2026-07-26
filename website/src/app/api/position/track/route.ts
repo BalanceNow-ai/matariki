@@ -28,8 +28,19 @@ const DEFAULT_MAX_POINTS = 60_000;
  */
 const DEFAULT_TOLERANCE_M = 12;
 
-/** A jump longer than this is a break in the record, not a course sailed. */
-const SEGMENT_GAP_MS = 6 * 60 * 60_000;
+/**
+ * Position reports can legitimately be half a day apart on an offshore
+ * passage, so six hours was breaking the line wherever reporting thinned out
+ * rather than wherever the record actually stopped.
+ */
+const SEGMENT_GAP_MS = 18 * 60 * 60_000;
+
+/**
+ * Above this, the straight line across a gap is not a believable summary of
+ * what the vessel did, so the record is treated as broken rather than drawn.
+ * Comfortably clear of an Oyster 68 surfing, well under a teleport.
+ */
+const MAX_IMPLIED_KNOTS = 20;
 
 /**
  * Merge recent positionHistory entries into the permanent track.
@@ -181,6 +192,7 @@ export async function GET(request: NextRequest) {
           toleranceMetres: tolerance,
           maxPoints,
           maxGapMs: SEGMENT_GAP_MS,
+          maxImpliedKnots: MAX_IMPLIED_KNOTS,
         });
 
         // Tag each point with the segment it belongs to. The map needs an
