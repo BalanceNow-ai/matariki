@@ -62,8 +62,8 @@ const okWrite = { postgres: 'ok', redis: 'ok', trimmed: false, durable: true } a
 
 /** A write that reached nothing — the case that must not report success. */
 const failedWrite = {
-  postgres: 'error',
-  redis: 'error',
+  postgres: 'failed',
+  redis: 'failed',
   trimmed: false,
   durable: false,
 } as const
@@ -312,7 +312,7 @@ describe('POST /api/position', () => {
 
     it('still reports success when only Postgres is unavailable', async () => {
       vi.mocked(setLatestPositionAsync).mockResolvedValue({
-        postgres: 'skipped',
+        postgres: 'not-configured',
         redis: 'ok',
         trimmed: false,
         durable: true,
@@ -328,7 +328,7 @@ describe('POST /api/position', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.stores).toEqual({ postgres: 'skipped', redis: 'ok' })
+      expect(data.stores).toEqual({ postgres: 'not-configured', redis: 'ok' })
     })
   })
 })

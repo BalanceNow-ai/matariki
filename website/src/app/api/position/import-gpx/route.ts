@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importTrackFromGPX } from "../redis-store";
 import { parseGPX, type GPXTrackPoint } from "@/lib/gpx-parser";
+import { requireAuth } from "../auth";
 
 // Force dynamic to prevent caching
 export const dynamic = "force-dynamic";
 
 // Allow longer execution time for large GPX files (60 seconds)
 export const maxDuration = 60;
-
-// Secret token to authenticate track management
-const SIGNALK_SECRET = process.env.SIGNALK_WEBHOOK_SECRET;
 
 /** Default spacing applied to untimed points when no end time is supplied. */
 const DEFAULT_POINT_SPACING_MS = 60_000;
@@ -111,6 +109,17 @@ function makeImportId(filename: string | undefined): string {
 }
 
 /**
+ * A large file is uploaded in several requests. The client passes the same id
+ * for each one so the whole file remains a single undoable import rather than
+ * a dozen unrelated fragments.
+ */
+function sanitizeImportId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 120);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+/**
  * POST /api/position/import-gpx
  *
  * Imports track points from a GPX file or pre-parsed track points.
@@ -126,43 +135,17 @@ function makeImportId(filename: string | undefined): string {
  * - endTime    ISO 8601, when it ends (defaults to one minute per point)
  */
 export async function POST(request: NextRequest) {
-  // Fail closed: without a configured secret this endpoint would accept
+  // Fails closed when no secret is configured, rather than accepting
   // anonymous writes to the durable track store.
-  if (!SIGNALK_SECRET) {
-    return NextResponse.json(
-      {
-        error: "Import disabled",
-        message: "SIGNALK_WEBHOOK_SECRET is not configured on the server",
-      },
-      { status: 503 }
-    );
-  }
-
-  const authHeader = request.headers.get("authorization");
-  const xApiKey = request.headers.get("x-api-key");
-  const queryToken = request.nextUrl.searchParams.get("token");
-
-  let token: string | null = null;
-  if (authHeader?.startsWith("Bearer ")) {
-    token = authHeader.substring(7);
-  } else if (xApiKey) {
-    token = xApiKey;
-  } else if (queryToken) {
-    token = queryToken;
-  }
-
-  if (token !== SIGNALK_SECRET) {
-    return NextResponse.json(
-      { error: "Unauthorized", message: "Invalid or missing authentication token" },
-      { status: 401 }
-    );
-  }
+  const denied = requireAuth(request);
+  if (denied) return denied;
 
   try {
     let trackPoints: GPXTrackPoint[];
     let filename: string | undefined;
     let startTime: string | undefined;
     let endTime: string | undefined;
+    let suppliedImportId: string | null = null;
 
     const contentType = request.headers.get("content-type") || "";
 
@@ -171,6 +154,7 @@ export async function POST(request: NextRequest) {
       startTime = json.startTime;
       endTime = json.endTime;
       filename = json.filename;
+      suppliedImportId = sanitizeImportId(json.importId);
 
       if (json.points && Array.isArray(json.points)) {
         // Pre-parsed track points from client-side GPX parsing.
@@ -235,6 +219,7 @@ export async function POST(request: NextRequest) {
       filename = file.name;
       startTime = (formData.get("startTime") as string) || undefined;
       endTime = (formData.get("endTime") as string) || undefined;
+      suppliedImportId = sanitizeImportId(formData.get("importId"));
       trackPoints = parseGPX(await file.text()).points;
     } else if (contentType.includes("xml") || contentType.includes("text/plain")) {
       startTime = request.nextUrl.searchParams.get("startTime") ?? undefined;
@@ -273,7 +258,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const importId = makeImportId(filename);
+    const importId = suppliedImportId ?? makeImportId(filename);
     const result = await importTrackFromGPX(resolved.points, { importId });
 
     // An import that reached no durable store is a failure, not a success —
