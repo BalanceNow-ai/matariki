@@ -396,21 +396,21 @@ export function OpenSeaMapClient({
                 {/* Leaflet caps popups at 300px by default, which would clamp
                     the sizes below and make the change look like it did
                     nothing. */}
-                <Popup maxWidth={680} minWidth={300}>
-                  <div className="max-w-[min(660px,86vw)] min-w-[300px]">
+                <Popup maxWidth={350} minWidth={280}>
+                  <div className="text-base max-w-[min(330px,86vw)] min-w-[280px]">
                     {waypoint.heroImageUrl && (
-                      <div className="mb-4 -mx-5 -mt-5">
+                      <div className="mb-2 -mx-3 -mt-3">
                         <img
                           src={waypoint.heroImageUrl}
                           alt={waypoint.title}
-                          className="w-full h-[288px] object-cover rounded-t"
+                          className="w-full h-36 object-cover rounded-t"
                         />
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-1">
                       {waypoint.category && (
                         <span
-                          className="text-[28px] leading-none px-4 py-2 rounded-lg capitalize font-medium"
+                          className="text-sm px-2 py-0.5 rounded capitalize font-medium"
                           style={{
                             backgroundColor: categoryColor(waypoint.category),
                             color: "white",
@@ -419,24 +419,24 @@ export function OpenSeaMapClient({
                           {waypoint.category}
                         </span>
                       )}
-                      <span className="text-[28px] text-gray-500">
+                      <span className="text-sm text-gray-500">
                         {formatWaypointDate(waypoint.publishedAt)}
                       </span>
                     </div>
-                    <h3 className="font-bold text-[36px] leading-snug mb-3">{waypoint.title}</h3>
+                    <h3 className="font-bold text-lg leading-snug mb-1.5">{waypoint.title}</h3>
                     {waypoint.location.name && (
-                      <p className="text-[28px] text-gray-600 mb-2">
+                      <p className="text-sm text-gray-600 mb-1">
                         📍 {waypoint.location.name}
                       </p>
                     )}
                     {waypoint.excerpt && (
-                      <p className="text-[28px] leading-relaxed text-gray-600 line-clamp-3 mb-5">
+                      <p className="text-sm text-gray-600 line-clamp-3 mb-2.5">
                         {waypoint.excerpt}
                       </p>
                     )}
                     <a
                       href={`/log/${waypoint.slug.current}`}
-                      className="inline-block text-[28px] font-semibold text-amber-600 hover:text-amber-700"
+                      className="inline-block text-sm font-semibold text-amber-600 hover:text-amber-700"
                     >
                       Read full entry →
                     </a>
