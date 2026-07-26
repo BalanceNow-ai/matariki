@@ -9,7 +9,11 @@
 
 import { Redis } from "@upstash/redis";
 import type { SignalKPosition, RequestLogEntry } from "./store";
-import { storePositionAsync as storeInPostgres, isPostgresConfigured } from "./postgres-store";
+import {
+  storePositionAsync as storeInPostgres,
+  storePositionsBatchAsync as storeBatchInPostgres,
+  isPostgresConfigured,
+} from "./postgres-store";
 
 // Redis keys
 const KEYS = {
@@ -23,6 +27,9 @@ const KEYS = {
 
 // Redis keeps a rolling buffer of recent positions; Postgres stores full history
 const MAX_REDIS_HISTORY_SIZE = 1000;
+// The permanent track is a render cache, not the archive.  Postgres holds the
+// full track; leaving this list unbounded is what exhausted Redis previously.
+const MAX_PERMANENT_TRACK_SIZE = 5000;
 const MAX_REQUEST_LOG_SIZE = 50;
 const MIN_TRACK_DISTANCE_METERS = 200; // Minimum distance change to store in permanent track
 
@@ -83,6 +90,40 @@ function calculateDistanceMeters(
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+/**
+ * Identity of a track point for deduplication.
+ *
+ * Timestamps are bucketed to the nearest two seconds rather than compared as
+ * strings, so the same instant written as "...T00:00:00Z" and
+ * "...T00:00:00.000Z" — routinely produced by different GPX exporters —
+ * collapses to one point instead of drawing the track twice.
+ */
+function dedupKey(p: SignalKPosition): string {
+  const ms = new Date(p.timestamp).getTime();
+  const bucket = Number.isNaN(ms) ? p.timestamp : Math.round(ms / 2000);
+  return `${bucket}|${p.latitude.toFixed(5)}|${p.longitude.toFixed(5)}`;
+}
+
+/**
+ * Chronological ordering across every source.
+ *
+ * Ordering used to key on segmentIndex first, which sorted all GPX points
+ * before all live points regardless of when they were recorded and drew the
+ * track back and forth in time.  Time comes first now; segment and point index
+ * only break ties for files that carry no timestamps.
+ */
+function compareChronological(a: SignalKPosition, b: SignalKPosition): number {
+  const ta = new Date(a.timestamp).getTime();
+  const tb = new Date(b.timestamp).getTime();
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+
+  const segA = a.segmentIndex ?? 0;
+  const segB = b.segmentIndex ?? 0;
+  if (segA !== segB) return segA - segB;
+
+  return (a.pointIndex ?? 0) - (b.pointIndex ?? 0);
 }
 
 /**
@@ -257,6 +298,10 @@ export async function setLatestPositionAsync(
       if (shouldAddToTrack) {
         await r.lpush(KEYS.permanentTrack, position);
         await r.set(KEYS.lastTrackPosition, position);
+        // Bound the render cache once the point is durable in Postgres.
+        if (postgres === "ok") {
+          await r.ltrim(KEYS.permanentTrack, 0, MAX_PERMANENT_TRACK_SIZE - 1);
+        }
         console.log("[Redis] Position added to permanent track:", position.latitude, position.longitude);
       }
 
@@ -566,25 +611,37 @@ function normalizeTimestamp(timestamp: string): string {
 }
 
 /**
- * Import track points from GPX data
- * Adds to the same position history AND permanentTrack used by SignalK (unified data store)
- * All points are imported with timestamps preserved for proper track ordering
- * Deduplication is by timestamp only (vessel may revisit locations)
+ * Import track points from a GPX upload.
+ *
+ * Postgres is the durable destination — this is the store that must survive
+ * Redis being evicted or flushed, which is how previous imports were lost.
+ * The Redis permanent track is maintained afterwards only as a bounded render
+ * cache, and is trimmed once the points are known to be safe in Postgres.
+ *
+ * Every point carries an importId so a single bad upload can be removed later
+ * without disturbing live data or other imports.
  */
 export async function importTrackFromGPX(
-  trackPoints: Array<{ latitude: number; longitude: number; timestamp: string; name?: string; segmentIndex?: number }>
-): Promise<{ imported: number; total: number }> {
-  const r = getRedis();
+  trackPoints: Array<{
+    latitude: number;
+    longitude: number;
+    timestamp: string;
+    name?: string;
+    segmentIndex?: number;
+    pointIndex?: number;
+  }>,
+  options: { importId?: string } = {}
+): Promise<{
+  imported: number;
+  total: number;
+  durable: boolean;
+  skipped: number;
+  failed: number;
+  importId: string;
+}> {
+  const importId = options.importId ?? `gpx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // Keep all points - timestamps are preserved for proper track ordering
-  // No filtering needed - the track renderer sorts by timestamp
-  const filteredPoints = trackPoints;
-
-  console.log(`[GPX Import] Importing all ${filteredPoints.length} track points with timestamps`);
-
-  // Convert to SignalKPosition format - mark as "gpx" source to distinguish from live data
-  // Normalize timestamps to ISO format for consistency with SignalK data
-  const positions: SignalKPosition[] = filteredPoints.map((point) => ({
+  const positions: SignalKPosition[] = trackPoints.map((point, i) => ({
     latitude: point.latitude,
     longitude: point.longitude,
     timestamp: normalizeTimestamp(point.timestamp),
@@ -592,90 +649,88 @@ export async function importTrackFromGPX(
     name: point.name || "Matariki III",
     mmsi: "512004962",
     segmentIndex: point.segmentIndex,
+    pointIndex: point.pointIndex ?? i,
+    importId,
   }));
 
+  // 1. Durable write.  ON CONFLICT DO NOTHING makes re-uploading the same file
+  //    a no-op rather than a source of duplicates.
+  let durable = false;
+  let skipped = 0;
+  let failed = 0;
+  let imported = 0;
+
+  if (isPostgresConfigured()) {
+    const result = await storeBatchInPostgres(positions);
+    imported = result.attempted;
+    skipped = result.skipped;
+    failed = result.failed;
+    durable = result.failed === 0;
+  } else {
+    console.warn("[GPX Import] Postgres not configured — import is not durable");
+  }
+
+  // 2. Best-effort render cache in Redis.
+  const r = getRedis();
   if (r) {
     try {
-      // Deduplicate against permanentTrack by timestamp
-      // (positionHistory is not reliably populated; permanentTrack is the authoritative store)
       const existingTrack = await r.lrange<SignalKPosition>(KEYS.permanentTrack, 0, -1);
-      const existingTimestamps = new Set(existingTrack.map(p => p.timestamp));
+      const seen = new Set(existingTrack.map((p) => dedupKey(p)));
+      const fresh = positions.filter((p) => !seen.has(dedupKey(p)));
 
-      // Filter out positions with duplicate timestamps only
-      const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
+      if (fresh.length > 0) {
+        // Chronological order; points with no time keep file order via pointIndex.
+        fresh.sort(compareChronological);
 
-      if (newPositions.length > 0) {
-        // Sort by segmentIndex first, then by timestamp within segments
-        // This maintains GPX track segment continuity
-        newPositions.sort((a, b) => {
-          const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-          const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-          if (segA !== segB) return segA - segB;
-          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-        });
-
-        // Write to permanentTrack (the reliable store) instead of positionHistory
         const BATCH_SIZE = 100;
-        for (let i = 0; i < newPositions.length; i += BATCH_SIZE) {
-          const batch = newPositions.slice(i, i + BATCH_SIZE);
-          await r.rpush(KEYS.permanentTrack, ...batch);
+        for (let i = 0; i < fresh.length; i += BATCH_SIZE) {
+          await r.rpush(KEYS.permanentTrack, ...fresh.slice(i, i + BATCH_SIZE));
         }
 
-        // Update lastTrackPosition to the last imported point for SignalK consistency
-        const lastImportedPos = newPositions[newPositions.length - 1];
-        await r.set(KEYS.lastTrackPosition, lastImportedPos);
-        console.log(`[Redis] Updated lastTrackPosition to ${lastImportedPos.latitude}, ${lastImportedPos.longitude}`);
+        // Only advance the 200m reference point if this import actually ends
+        // later than what we already have.  Previously any import — including
+        // an old historical track — moved the reference, which distorted the
+        // distance filter applied to subsequent live positions.
+        const newest = fresh.reduce((a, b) =>
+          new Date(a.timestamp).getTime() >= new Date(b.timestamp).getTime() ? a : b
+        );
+        const currentRef = await r.get<SignalKPosition>(KEYS.lastTrackPosition);
+        const currentRefTs = currentRef ? new Date(currentRef.timestamp).getTime() : 0;
+        if (new Date(newest.timestamp).getTime() > currentRefTs) {
+          await r.set(KEYS.lastTrackPosition, newest);
+        }
       }
 
-      console.log(`[Redis] Imported ${newPositions.length} new GPX track points to permanentTrack (${positions.length - newPositions.length} duplicates skipped)`);
-      return { imported: newPositions.length, total: trackPoints.length };
+      // Keep the cache bounded.  Only safe once Postgres holds the points —
+      // an unbounded permanent track list is what exhausted Redis before.
+      if (durable) {
+        await r.ltrim(KEYS.permanentTrack, -MAX_PERMANENT_TRACK_SIZE, -1);
+      }
+
+      if (!isPostgresConfigured()) {
+        imported = fresh.length;
+      }
+      console.log(
+        `[GPX Import] ${imported} points stored (durable=${durable}), ${fresh.length} cached in Redis`
+      );
+      return { imported, total: trackPoints.length, durable, skipped, failed, importId };
     } catch (error) {
-      console.error("[Redis] Error importing GPX:", error);
+      console.error("[Redis] Error caching GPX import:", error);
+      return { imported, total: trackPoints.length, durable, skipped, failed, importId };
     }
   }
 
-  // Fallback to memory - add to history AND permanent track
-  // Deduplicate by timestamp only (not location - vessel may revisit areas)
-  const existingTimestamps = new Set(memoryHistory.map(p => normalizeTimestamp(p.timestamp)));
-  const newPositions = positions.filter(newPos => !existingTimestamps.has(newPos.timestamp));
-
-  // Sort by segmentIndex first, then by timestamp within segments
-  newPositions.sort((a, b) => {
-    const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-    const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-    if (segA !== segB) return segA - segB;
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-  });
-
-  memoryHistory.push(...newPositions);
-  // Sort the entire history by segmentIndex, then timestamp
-  memoryHistory.sort((a, b) => {
-    const segA = a.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-    const segB = b.segmentIndex ?? Number.MAX_SAFE_INTEGER;
-    if (segA !== segB) return segA - segB;
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-  });
-
-  // Also add to permanent track with distance filtering (same as SignalK)
-  let trackPointsAdded = 0;
-  for (const pos of newPositions) {
-    const shouldAddToTrack = !memoryLastTrackPosition ||
-      calculateDistanceMeters(
-        memoryLastTrackPosition.latitude,
-        memoryLastTrackPosition.longitude,
-        pos.latitude,
-        pos.longitude
-      ) >= MIN_TRACK_DISTANCE_METERS;
-
-    if (shouldAddToTrack) {
-      memoryPermanentTrack.push({ ...pos });
-      memoryLastTrackPosition = { ...pos };
-      trackPointsAdded++;
-    }
+  // No Redis: memory fallback so local development still renders something.
+  const existing = new Set(memoryHistory.map((p) => dedupKey(p)));
+  const fresh = positions.filter((p) => !existing.has(dedupKey(p)));
+  fresh.sort(compareChronological);
+  memoryHistory.push(...fresh);
+  memoryPermanentTrack.push(...fresh);
+  if (!isPostgresConfigured()) {
+    imported = fresh.length;
   }
 
-  console.log(`[Memory] Imported ${newPositions.length} track points from GPX, ${trackPointsAdded} added to permanent track`);
-  return { imported: newPositions.length, total: trackPoints.length };
+  return { imported, total: trackPoints.length, durable, skipped, failed, importId };
 }
 
 /**

@@ -8,10 +8,20 @@
 export type GPXTrackPoint = {
   latitude: number;
   longitude: number;
-  timestamp: string;
+  /**
+   * The time recorded in the file, or null when the file carries none.
+   *
+   * Null is deliberate: this parser used to invent year-9999 timestamps for
+   * untimed points, which then sorted after every real position and broke the
+   * merge with live tracking.  Untimed points are now reported honestly and the
+   * caller must supply a time window before they can be stored.
+   */
+  timestamp: string | null;
   name?: string;
   /** Segment index - points in the same segment form a continuous track */
   segmentIndex?: number;
+  /** Position of this point within its segment, preserving file order. */
+  pointIndex: number;
 };
 
 export type GPXParseResult = {
@@ -49,20 +59,14 @@ function extractLatLon(attributeStr: string): { lat: number; lon: number } | nul
   return { lat, lon };
 }
 
-/**
- * Generate a synthetic timestamp for points without real timestamps.
- * Uses a far-future base date (9999-01-01) to avoid conflicts with real timestamps.
- * Encodes segment and point index to maintain order and uniqueness.
- */
-function generateSyntheticTimestamp(segmentIndex: number, pointIndex: number): string {
-  // Use segment as hours (0-23 supports 24 segments)
-  // Use pointIndex encoded in minutes and seconds (supports 3600 points per segment)
-  const hours = segmentIndex % 24;
-  const minutes = Math.floor(pointIndex / 60) % 60;
-  const seconds = pointIndex % 60;
-  const millis = Math.floor(pointIndex / 3600); // For overflow beyond 3600 points
-
-  return `9999-01-01T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}Z`;
+/** A timestamp is only usable if it parses and lands in a plausible range. */
+function normalizeParsedTime(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  if (Number.isNaN(ms)) return null;
+  const year = new Date(ms).getUTCFullYear();
+  if (year < 1970 || year > 2200) return null;
+  return raw;
 }
 
 /**
@@ -93,18 +97,16 @@ function parseTrackPoints(
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
 
-    const hasTimestamp = !!timeMatch;
-    if (hasTimestamp) pointsWithTimestamps++;
+    const timestamp = normalizeParsedTime(timeMatch?.[1]);
+    if (timestamp) pointsWithTimestamps++;
 
     points.push({
       latitude: coords.lat,
       longitude: coords.lon,
-      // Use actual timestamp, or generate synthetic for ordering/deduplication
-      timestamp: timeMatch
-        ? timeMatch[1]
-        : generateSyntheticTimestamp(segmentIndex, pointIndexInSegment),
+      timestamp,
       name: nameMatch ? nameMatch[1] : undefined,
       segmentIndex,
+      pointIndex: pointIndexInSegment,
     });
     pointIndexInSegment++;
   }
@@ -142,15 +144,16 @@ export function parseGPX(gpxContent: string): GPXParseResult {
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
 
-    const hasTimestamp = !!timeMatch;
-    if (hasTimestamp) pointsWithTimestamps++;
+    const timestamp = normalizeParsedTime(timeMatch?.[1]);
+    if (timestamp) pointsWithTimestamps++;
 
     points.push({
       latitude: coords.lat,
       longitude: coords.lon,
-      timestamp: timeMatch ? timeMatch[1] : "",
+      timestamp,
       name: nameMatch ? nameMatch[1] : undefined,
       segmentIndex: -1, // Waypoints are standalone
+      pointIndex: waypointsFound,
     });
     waypointsFound++;
   }
@@ -199,41 +202,42 @@ export function parseGPX(gpxContent: string): GPXParseResult {
     const timeMatch = innerContent.match(/<time>([^<]+)<\/time>/i);
     const nameMatch = innerContent.match(/<name>([^<]+)<\/name>/i);
 
-    const hasTimestamp = !!timeMatch;
-    if (hasTimestamp) pointsWithTimestamps++;
+    const timestamp = normalizeParsedTime(timeMatch?.[1]);
+    if (timestamp) pointsWithTimestamps++;
 
     points.push({
       latitude: coords.lat,
       longitude: coords.lon,
-      timestamp: timeMatch
-        ? timeMatch[1]
-        : generateSyntheticTimestamp(segmentsFound, routePointIndex),
+      timestamp,
       name: nameMatch ? nameMatch[1] : undefined,
       segmentIndex: segmentsFound, // All route points in same segment (continuous route)
+      pointIndex: routePointIndex,
     });
     routePointsFound++;
     routePointIndex++;
   }
 
-  // Sort by segment first, then by timestamp within segment
-  // Points without timestamps stay in their original order within the segment
+  // Chronological where the file gives us times, falling back to segment and
+  // file order where it does not.  Time comes first so that imported points
+  // interleave correctly with live positions rather than being grouped ahead of
+  // them by segment.
   points.sort((a, b) => {
-    // First sort by segment
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : NaN;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : NaN;
+
+    if (!isNaN(timeA) && !isNaN(timeB)) {
+      if (timeA !== timeB) return timeA - timeB;
+    } else if (!isNaN(timeA)) {
+      return -1; // Timed points before untimed ones
+    } else if (!isNaN(timeB)) {
+      return 1;
+    }
+
     const segA = a.segmentIndex ?? 0;
     const segB = b.segmentIndex ?? 0;
     if (segA !== segB) return segA - segB;
 
-    // Then by timestamp within segment
-    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : NaN;
-    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : NaN;
-
-    // If both have no timestamp or invalid timestamps, keep original order
-    if (isNaN(timeA) && isNaN(timeB)) return 0;
-    // Points without timestamps go to the end of their segment
-    if (isNaN(timeA)) return 1;
-    if (isNaN(timeB)) return -1;
-
-    return timeA - timeB;
+    return a.pointIndex - b.pointIndex;
   });
 
   // Add warnings
