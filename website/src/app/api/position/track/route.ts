@@ -152,24 +152,33 @@ export async function GET(request: NextRequest) {
     try {
       const { points, total, stride } = await getTrackAsync({ since, until, maxPoints });
 
-      return NextResponse.json(
-        {
-          source: "postgres",
-          redisConfigured: isRedisConfigured(),
-          timestamp: new Date().toISOString(),
-          latestPosition,
-          track: {
-            count: points.length,
-            totalStored: total,
-            downsampledBy: stride,
-            points,
+      // An empty durable store must not blank a map that Redis can still
+      // draw. This matters during the migration: the table is created before
+      // it is populated, so preferring Postgres unconditionally would erase
+      // the visible track for the duration of the copy, and for good if the
+      // migration were never finished.
+      if (points.length === 0 && !since && !until) {
+        console.warn("[Track] Postgres holds no points; falling back to Redis");
+      } else {
+        return NextResponse.json(
+          {
+            source: "postgres",
+            redisConfigured: isRedisConfigured(),
+            timestamp: new Date().toISOString(),
+            latestPosition,
+            track: {
+              count: points.length,
+              totalStored: total,
+              downsampledBy: stride,
+              points,
+            },
+            // Retained for the existing map client, which reads positionHistory.
+            positionHistory: { count: points.length, points },
+            permanentTrack: { count: points.length, points },
           },
-          // Retained for the existing map client, which reads positionHistory.
-          positionHistory: { count: points.length, points },
-          permanentTrack: { count: points.length, points },
-        },
-        { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
-      );
+          { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
+        );
+      }
     } catch (error) {
       console.error("[Track] Postgres read failed, falling back to Redis:", error);
     }
