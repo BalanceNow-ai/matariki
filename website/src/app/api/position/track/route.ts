@@ -43,6 +43,24 @@ const SEGMENT_GAP_MS = 24 * 60 * 60_000;
 const MAX_IMPLIED_KNOTS = 20;
 
 /**
+ * Whether the drawn line is allowed to break where the record does.
+ *
+ * The track is rendered as one continuous line by default, at the owner's
+ * request: a broken line reads as a broken website, and he would rather see
+ * the voyage joined up than see it accurately punctuated. Where the record
+ * genuinely stops the line therefore runs straight between the last known
+ * position and the next, which is not a course that was sailed.
+ *
+ * Pass ?breaks=true to draw the honest version instead.
+ *
+ * Note this only affects how the points are grouped for drawing.
+ * Simplification still runs per real segment, because measuring perpendicular
+ * distance against a 500km spanning line would let it swallow genuine detail
+ * on both sides of the join.
+ */
+const DRAW_AS_ONE_LINE = true;
+
+/**
  * Merge recent positionHistory entries into the permanent track.
  *
  * Only used for the Redis fallback path.  The permanent track only stores
@@ -163,6 +181,8 @@ function parseLimit(value: string | null, fallback: number): number {
  * Query params:
  *   limit      max points returned (default 60000)
  *   tolerance  simplification tolerance in metres (default 12)
+ *   breaks     "true" to draw a break wherever the record stops, instead of
+ *              joining the track into one continuous line
  *   since / until  ISO timestamps bounding the window
  */
 export async function GET(request: NextRequest) {
@@ -199,8 +219,12 @@ export async function GET(request: NextRequest) {
         // explicit boundary: it cannot infer one from distance, because
         // simplification legitimately leaves long straight runs between
         // consecutive points on an ocean passage.
+        //
+        // Giving every point the same index joins the whole track into one
+        // line while leaving the simplification above untouched.
+        const drawBreaks = params.get("breaks") === "true" || !DRAW_AS_ONE_LINE;
         const labelled = simplified.segmented.flatMap((segment, index) =>
-          segment.map((point) => ({ ...point, segmentIndex: index }))
+          segment.map((point) => ({ ...point, segmentIndex: drawBreaks ? index : 0 }))
         );
 
         return NextResponse.json(
@@ -213,7 +237,8 @@ export async function GET(request: NextRequest) {
               count: labelled.length,
               totalStored: total,
               toleranceMetres: simplified.toleranceUsed,
-              segments: simplified.segments,
+              segments: drawBreaks ? simplified.segments : 1,
+              recordSegments: simplified.segments,
               truncated,
               points: labelled,
             },
