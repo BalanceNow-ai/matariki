@@ -208,48 +208,57 @@ function createVesselIcon(heading?: number): L.DivIcon {
   });
 }
 
+/**
+ * Category fills, saturated enough to hold their own against satellite
+ * imagery. The muted originals were chosen to sit quietly on the site's dark
+ * chrome, but over forest and rock they simply disappeared.
+ *
+ * Shared with the popup badge so the two cannot drift apart.
+ */
+const CATEGORY_COLORS: Record<string, string> = {
+  sailing: "#0d9488",
+  hunting: "#dc2626",
+  diving: "#2563eb",
+  // Not the copper of the track line — a fishing marker in that colour reads
+  // as part of the route rather than a point on it.
+  fishing: "#eab308",
+  general: "#64748b",
+};
+
+function categoryColor(category?: string): string {
+  return CATEGORY_COLORS[category || "general"] || CATEGORY_COLORS.general;
+}
+
 // Create waypoint icon for log entries
 function createWaypointIcon(category?: string): L.DivIcon {
-  // Category fills, saturated enough to hold their own against satellite
-  // imagery. The muted originals were chosen to sit quietly on the site's dark
-  // chrome, but over forest and rock they simply disappeared.
-  const colors: Record<string, string> = {
-    sailing: "#0d9488",
-    hunting: "#dc2626",
-    diving: "#2563eb",
-    // Not the copper of the track line — a fishing marker in that colour
-    // reads as part of the route rather than a point on it.
-    fishing: "#eab308",
-    general: "#64748b",
-  };
-  const bg = colors[category || "general"] || colors.general;
+  const bg = categoryColor(category);
 
   return L.divIcon({
     className: "waypoint-marker",
     html: `
       <div style="
-        width: 30px;
-        height: 30px;
+        width: 40px;
+        height: 40px;
         background: ${bg};
-        border: 3px solid #ffffff;
+        border: 4px solid #ffffff;
         border-radius: 50%;
         /* A white ring separates the marker from dark water and bush; the
            dark hairline outside it does the same over snow and pale rock.
            Between them the marker reads on any basemap. */
-        box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.55);
+        box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.6);
         display: flex;
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
       ">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="white">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         </svg>
       </div>
     `,
-    iconSize: [30, 30],
-    iconAnchor: [15, 30],
-    popupAnchor: [0, -30],
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40],
   });
 }
 
@@ -385,55 +394,46 @@ export function OpenSeaMapClient({
                 icon={createWaypointIcon(waypoint.category)}
               >
                 <Popup>
-                  <div className="text-sm max-w-[250px]">
+                  <div className="text-base max-w-[330px] min-w-[280px]">
                     {waypoint.heroImageUrl && (
                       <div className="mb-2 -mx-3 -mt-3">
                         <img
                           src={waypoint.heroImageUrl}
                           alt={waypoint.title}
-                          className="w-full h-24 object-cover rounded-t"
+                          className="w-full h-36 object-cover rounded-t"
                         />
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-1">
                       {waypoint.category && (
                         <span
-                          className="text-xs px-1.5 py-0.5 rounded capitalize"
+                          className="text-sm px-2 py-0.5 rounded capitalize font-medium"
                           style={{
-                            backgroundColor:
-                              waypoint.category === "sailing"
-                                ? "#3d7a6e"
-                                : waypoint.category === "hunting"
-                                ? "#a63d3d"
-                                : waypoint.category === "diving"
-                                ? "#3d5a7a"
-                                : waypoint.category === "fishing"
-                                ? "#7a6e3d"
-                                : "#6b7280",
+                            backgroundColor: categoryColor(waypoint.category),
                             color: "white",
                           }}
                         >
                           {waypoint.category}
                         </span>
                       )}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-sm text-gray-500">
                         {formatWaypointDate(waypoint.publishedAt)}
                       </span>
                     </div>
-                    <h3 className="font-bold text-base mb-1">{waypoint.title}</h3>
+                    <h3 className="font-bold text-lg leading-snug mb-1.5">{waypoint.title}</h3>
                     {waypoint.location.name && (
-                      <p className="text-xs text-gray-600 mb-1">
+                      <p className="text-sm text-gray-600 mb-1">
                         📍 {waypoint.location.name}
                       </p>
                     )}
                     {waypoint.excerpt && (
-                      <p className="text-xs text-gray-600 line-clamp-2 mb-2">
+                      <p className="text-sm text-gray-600 line-clamp-3 mb-2.5">
                         {waypoint.excerpt}
                       </p>
                     )}
                     <a
                       href={`/log/${waypoint.slug.current}`}
-                      className="inline-block text-xs font-medium text-amber-600 hover:text-amber-700"
+                      className="inline-block text-sm font-semibold text-amber-600 hover:text-amber-700"
                     >
                       Read full entry →
                     </a>
