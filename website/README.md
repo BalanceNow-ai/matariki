@@ -87,6 +87,11 @@ Every variable is listed with a comment in `.env.example`.
 
 ### Flags
 
+- `CREW_PAGE_PUBLIC` (default `false`) controls whether the feature is public. While it is `false`,
+  `/crew` and `/crew/apply` still open by direct URL, for testing, but send a `noindex, nofollow`
+  robots tag. The "Apply to crew" sections on the `/crew-info` pages and the crew brief's toolbar link
+  are also hidden. Set it to `true` and redeploy to show everything. (The site has no `sitemap.xml`
+  yet; if one is added, list the crew pages only when this is `true`.)
 - `CREW_INTERVIEW_ENABLED=false` turns the AI interview off. Applicants submit the form and CV, their
   application goes straight to `submitted`, and the emails go out as usual.
 
@@ -128,7 +133,9 @@ Anyone holding `CREW_ADMIN_TOKEN` can download a CV with
 
 `vercel.json` schedules `/api/cron/crew-purge` daily at 15:17 UTC (about 3–4am NZ). It deletes
 applications past `deleteAfter`, along with their CV blobs. `deleteAfter` is 12 months after
-submission, or 30 days after creation for drafts that were never finished. To run it by hand:
+submission, or 30 days after creation for drafts that were never finished. Until the crew dataset
+is set up (`SANITY_CREW_WRITE_TOKEN` unset, or the dataset doesn't exist yet) it logs one info line
+and returns 200 with `{"skipped":"crew dataset not configured"}`. To run it by hand:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://matarikiyacht.com/api/cron/crew-purge

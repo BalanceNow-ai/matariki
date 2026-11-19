@@ -3,13 +3,16 @@ import { Header, Footer } from "@/components/layout";
 import { SectionLabel } from "@/components/ui";
 import { ApplyWizard } from "@/components/crew/ApplyWizard";
 import { openPassages } from "@/lib/crew/passages";
+import { crewRobots } from "@/lib/crew/visibility";
 import type { Passage } from "@/lib/crew/types";
 
-export const metadata: Metadata = {
-  title: "Apply to crew",
-  description: "Apply to crew aboard Matariki III.",
-  robots: { index: false },
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: "Apply to crew",
+    description: "Apply to crew aboard Matariki III.",
+    robots: crewRobots({ index: false }),
+  };
+}
 
 export const dynamic = "force-dynamic";
 
