@@ -29,10 +29,13 @@ export function VoyageTimeline({ legs, keyEvents = [], voyageSlug }: { legs: Leg
       </div>
 
       <div className="relative">
-        {/* Key-event guide lines run behind every row */}
-        {timeline.markers.map((m) => (
-          <div key={m.event._key ?? m.event.name} className="absolute top-0 bottom-0 w-px bg-sea-green/30" style={{ left: `${m.at}%` }} aria-hidden />
-        ))}
+        {/* Key-event guide lines run behind every row, across the same width as the bars
+            (on desktop the bars start after the 14rem label column and its 1rem gap). */}
+        <div className="absolute inset-y-0 left-0 right-0 md:left-[15rem] pointer-events-none" data-testid="timeline-guides" aria-hidden>
+          {timeline.markers.map((m) => (
+            <div key={m.event._key ?? m.event.name} className="absolute top-0 bottom-0 w-px bg-sea-green/30" style={{ left: `${m.at}%` }} />
+          ))}
+        </div>
 
         <ol className="relative space-y-4">
           {timeline.rows.map(({ leg, planned, actual, progress }, i) => (

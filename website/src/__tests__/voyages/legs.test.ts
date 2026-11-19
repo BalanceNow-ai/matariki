@@ -109,6 +109,11 @@ describe("routeLinesFromGeoJson", () => {
     expect(routeLinesFromGeoJson(undefined)).toEqual([]);
     expect(routeLinesFromGeoJson("not json")).toEqual([]);
     expect(routeLinesFromGeoJson('{"type":"LineString","coordinates":[[1,2]]}')).toEqual([]);
+    // Accepted by the Studio check (it has a type) but malformed: must not throw.
+    expect(routeLinesFromGeoJson('{"type":"FeatureCollection","features":{}}')).toEqual([]);
+    expect(routeLinesFromGeoJson('{"type":"GeometryCollection","geometries":"x"}')).toEqual([]);
+    expect(routeLinesFromGeoJson('{"type":"MultiLineString","coordinates":{}}')).toEqual([]);
+    expect(routeLinesFromGeoJson('{"type":"Feature","geometry":null}')).toEqual([]);
   });
 });
 
