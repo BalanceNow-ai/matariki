@@ -23,12 +23,15 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 9
+          # The repo-root package.json pins packageManager for the legacy
+          # Vite app; the action refuses two versions, so read the website's.
+          package_json_file: website/package.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: website/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
