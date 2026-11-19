@@ -97,7 +97,8 @@ export const voyage = defineType({
     defineField({
       name: "legs",
       title: "Legs",
-      description: "The voyage's legs in sailing order. Drag to reorder. Only legs that belong to this voyage can be added.",
+      description:
+        "Sets the order legs appear on the site (drag to reorder). Published legs of this voyage that aren't listed still show, after these, by their Order field.",
       type: "array",
       of: [
         defineArrayMember({

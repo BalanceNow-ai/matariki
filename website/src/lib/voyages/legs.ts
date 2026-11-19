@@ -48,22 +48,24 @@ export function isOpenForCrew(leg: Pick<Leg, "status" | "crewPlaces">): boolean 
 }
 
 /**
- * The voyage's legs in order: the voyage's own `legs` array when it has any
- * (that is the editor's ordering), otherwise every leg referencing the voyage
- * sorted by `order`, then planned start. Missing (unpublished) references drop out.
+ * The voyage's legs in order. Legs in the voyage's own `legs` list come first,
+ * in that order (the editor's ordering); every other published leg that
+ * references the voyage follows, sorted by `order` then planned start. So a
+ * leg is never hidden just because it wasn't added to the list. Missing
+ * (unpublished) references and duplicates drop out.
  */
 export function orderLegs(listed: (Leg | null | undefined)[] | null | undefined, referencing: Leg[] | null | undefined): Leg[] {
-  const fromList = (listed ?? []).filter((l): l is Leg => Boolean(l && l._id));
-  if (fromList.length) {
-    const seen = new Set<string>();
-    return fromList.filter((l) => !seen.has(l._id) && seen.add(l._id));
-  }
-  return [...(referencing ?? [])].sort((a, b) => {
-    const ao = a.order ?? Number.POSITIVE_INFINITY;
-    const bo = b.order ?? Number.POSITIVE_INFINITY;
-    if (ao !== bo) return ao - bo;
-    return (a.plannedStart ?? "9999").localeCompare(b.plannedStart ?? "9999");
-  });
+  const seen = new Set<string>();
+  const fromList = (listed ?? []).filter((l): l is Leg => Boolean(l && l._id) && !seen.has(l!._id) && Boolean(seen.add(l!._id)));
+  const rest = (referencing ?? [])
+    .filter((l) => !seen.has(l._id) && Boolean(seen.add(l._id)))
+    .sort((a, b) => {
+      const ao = a.order ?? Number.POSITIVE_INFINITY;
+      const bo = b.order ?? Number.POSITIVE_INFINITY;
+      if (ao !== bo) return ao - bo;
+      return (a.plannedStart ?? "9999").localeCompare(b.plannedStart ?? "9999");
+    });
+  return [...fromList, ...rest];
 }
 
 function angleToDecimal(a: Angle | undefined, negative: string): number | null {

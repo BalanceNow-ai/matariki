@@ -43,8 +43,8 @@ A voyage is split into legs. A leg is the existing **Crew Passage** (`passage`) 
 carries its voyage, order, kind (ocean passage, cruising ground or port stay), from/to places and map
 points, planned and actual dates and distances, waypoints and a gallery.
 
-- **Order.** The voyage's **Legs** list sets the order. If that list is empty, the site falls back to
-  every leg that references the voyage, sorted by `order` then planned start.
+- **Order.** Legs in the voyage's **Legs** list come first, in that order. Any other published leg that
+  references the voyage still shows, after them, sorted by `order` then planned start.
 - **Pages.** `/voyages/[slug]` shows a timeline (planned vs actual, with the voyage's key events as
   markers), a chart of all leg tracks, and leg cards. `/voyages/[slug]/[legSlug]` shows one leg: track,
   dates, distance, its log entries (set **Leg** on a log entry) and gallery.
