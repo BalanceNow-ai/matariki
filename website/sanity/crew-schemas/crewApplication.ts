@@ -145,6 +145,14 @@ export const crewApplication = defineType({
         defineField({ name: "finalisedBy", type: "string" }),
       ],
     }),
+    defineField({
+      name: "redFlags",
+      title: "System red flags",
+      description: "Raised by the system, e.g. a model refusal. Present even when there is no AI assessment.",
+      type: "array",
+      readOnly: true,
+      of: [defineArrayMember({ type: "string" })],
+    }),
     defineField({ name: "ownerNotes", title: "Greg's notes", type: "text", rows: 6 }),
     defineField({
       name: "audit",

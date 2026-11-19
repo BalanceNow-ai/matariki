@@ -104,11 +104,15 @@ export async function appendNotes(id: string, notes: Omit<InterviewNote, "_key">
     .commit();
 }
 
-/** Write the assessment and move the application to `submitted`. */
+/**
+ * Write the assessment (if any) and move the application to `submitted`.
+ * `redFlags` are application-level flags, recorded even without an assessment.
+ */
 export async function submitWithAssessment(
   id: string,
   assessment: Assessment | null,
-  now = new Date()
+  now = new Date(),
+  redFlags: string[] = []
 ): Promise<void> {
   const set: Record<string, unknown> = {
     status: "submitted",
@@ -116,14 +120,17 @@ export async function submitWithAssessment(
     deleteAfter: addMonths(now, RETENTION_MONTHS).toISOString(),
   };
   if (assessment) set.assessment = assessment;
-  await getCrewClient()
-    .patch(id)
-    .set(set)
-    .setIfMissing({ audit: [] })
+  let patch = getCrewClient().patch(id).set(set).setIfMissing({ audit: [] });
+  if (redFlags.length) patch = patch.setIfMissing({ redFlags: [] }).append("redFlags", redFlags);
+  await patch
     .append("audit", [
       audit(
         "submitted",
-        assessment ? `assessment by ${assessment.finalisedBy ?? "model"}` : "interview disabled",
+        assessment
+          ? `assessment by ${assessment.finalisedBy ?? "model"}`
+          : redFlags.length
+            ? `no assessment; ${redFlags.join("; ")}`
+            : "no assessment",
         now
       ),
     ])
@@ -203,7 +210,7 @@ export async function listApplications(filters: ListFilters = {}): Promise<Appli
     passages,
     "weightedScore": assessment.weightedScore,
     "recommendation": assessment.recommendation,
-    "redFlagCount": count(coalesce(assessment.redFlags, [])),
+    "redFlagCount": count(coalesce(assessment.redFlags, [])) + count(coalesce(redFlags, [])),
     "offshoreMiles": applicant.offshoreMiles,
     submittedAt,
     createdAt

@@ -46,8 +46,21 @@ export const crewPage = {
     { q: "How many crew are aboard?", a: `${PLACEHOLDER}` },
     { q: "What gear do I need?", a: "See the What to Bring page under Crew Info." },
   ] as FaqItem[],
-  privacy: `We keep your application in a private store used only for crew selection. Submitted applications are deleted 12 months after submission, and unfinished ones after 30 days. An AI assistant summarises your interview for Greg; it never accepts or rejects anyone, and Greg makes every decision. ${PLACEHOLDER} Contact address for access or deletion requests.`,
+  privacy: `We keep your application in a private store used only for crew selection. Submitted applications are deleted 12 months after submission, and unfinished ones after 30 days. An AI assistant summarises your interview for Greg; it never accepts or rejects anyone, and Greg makes every decision.`,
 };
+
+/**
+ * Where applicants send access or deletion requests. Set CREW_PRIVACY_CONTACT
+ * (an email address or a URL); until then the page shows a placeholder.
+ * Read at request time, so /crew must stay dynamically rendered.
+ */
+export function privacyContact(): { text: string; href?: string } {
+  const value = process.env.CREW_PRIVACY_CONTACT?.trim();
+  if (!value) return { text: `${PLACEHOLDER} contact address` };
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return { text: value, href: `mailto:${value}` };
+  if (/^https?:\/\//i.test(value)) return { text: value, href: value };
+  return { text: value };
+}
 
 /** Plain-text facts the interview assistant may draw on when answering questions. */
 export function pageFactsForPrompt(): string {

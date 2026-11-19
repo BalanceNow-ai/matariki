@@ -1,6 +1,7 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import type { Metadata } from "next";
+import { ApplyToCrewCta } from "@/components/crew/ApplyToCrewCta";
 
 export const metadata: Metadata = {
   title: "What to Bring | Crew Info",
@@ -270,6 +271,7 @@ export default function WhatToBringPage() {
             </Button>
           </div>
         </Section>
+        <ApplyToCrewCta />
       </main>
       <Footer />
     </>

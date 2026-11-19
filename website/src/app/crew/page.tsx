@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import { listedPassages } from "@/lib/crew/passages";
-import { crewPage } from "@/lib/crew/pageContent";
+import { crewPage, privacyContact } from "@/lib/crew/pageContent";
 import type { Passage } from "@/lib/crew/types";
 
 export const metadata: Metadata = {
@@ -67,6 +67,7 @@ function List({ items }: { items: string[] }) {
 }
 
 export default async function CrewPage() {
+  const contact = privacyContact();
   let passages: Passage[] = [];
   try {
     passages = await listedPassages();
@@ -198,7 +199,18 @@ export default async function CrewPage() {
             <SectionLabel number="08" label="Privacy" className="mb-6" withLine />
             <h2 className="text-h2 text-salt-white mb-6">Your information</h2>
             {/* GREG: write this — check against the site privacy policy */}
-            <p className="text-mist leading-relaxed mb-8">{crewPage.privacy}</p>
+            <p className="text-mist leading-relaxed mb-4">{crewPage.privacy}</p>
+            <p className="text-mist leading-relaxed mb-8">
+              To see or delete what we hold about you, contact{" "}
+              {contact.href ? (
+                <a href={contact.href} className="text-copper-accent hover:underline">
+                  {contact.text}
+                </a>
+              ) : (
+                contact.text
+              )}
+              .
+            </p>
             <p className="text-mist text-sm">
               See also our <Link href="/privacy" className="text-copper-accent hover:underline">privacy policy</Link>.
             </p>

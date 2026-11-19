@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { validApplication } from "./fixtures";
 
-const createDraft = vi.fn(async (_input: unknown) => "app-new");
+const createDraft = vi.fn<(input: unknown) => Promise<string>>(async () => "app-new");
 vi.mock("@/lib/crew/store", () => ({ createDraft: (input: unknown) => createDraft(input) }));
 vi.mock("@/lib/crew/passages", () => ({
   openPassages: vi.fn(async () => [{ _id: "passage-tonga", title: "Tonga", type: "offshore", status: "open" }]),
 }));
-const verifyTurnstile = vi.fn(async (_t?: string, _ip?: string) => true);
+const verifyTurnstile = vi.fn<(t?: string, ip?: string) => Promise<boolean>>(async () => true);
 vi.mock("@/lib/crew/turnstile", () => ({ verifyTurnstile: (t?: string, ip?: string) => verifyTurnstile(t, ip) }));
 
 process.env.CREW_SESSION_SECRET = "z".repeat(40);

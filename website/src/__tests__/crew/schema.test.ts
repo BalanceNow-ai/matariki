@@ -88,3 +88,16 @@ describe("createApplicationBodySchema", () => {
     expect(createApplicationBodySchema.safeParse({ turnstileToken: "t", application: validApplication() }).success).toBe(true);
   });
 });
+
+describe("privacyContact", () => {
+  it("falls back to a placeholder, and links emails and URLs", async () => {
+    const { privacyContact } = await import("@/lib/crew/pageContent");
+    delete process.env.CREW_PRIVACY_CONTACT;
+    expect(privacyContact().text).toMatch(/\[PLACEHOLDER\]/);
+    process.env.CREW_PRIVACY_CONTACT = "privacy@example.com";
+    expect(privacyContact()).toEqual({ text: "privacy@example.com", href: "mailto:privacy@example.com" });
+    process.env.CREW_PRIVACY_CONTACT = "https://example.com/privacy";
+    expect(privacyContact().href).toBe("https://example.com/privacy");
+    delete process.env.CREW_PRIVACY_CONTACT;
+  });
+});

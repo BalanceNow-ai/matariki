@@ -75,6 +75,11 @@ export type CrewApplication = {
   interviewStartedAt?: string;
   notes?: InterviewNote[];
   assessment?: Assessment;
+  /**
+   * Flags raised by the system rather than the model's assessment, e.g.
+   * "model refusal during interview". Kept even when there is no assessment.
+   */
+  redFlags?: string[];
   ownerNotes?: string;
   audit?: AuditEntry[];
   consent: { privacyAt: string; aiInterviewAt: string; ipHash: string };

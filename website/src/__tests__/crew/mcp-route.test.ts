@@ -62,6 +62,18 @@ describe("/api/mcp", () => {
     expect((await rpc("tools/list", {}, "wrong-token")).res.status).toBe(401);
   });
 
+  it("requires the 'Bearer ' prefix on the Authorization header", async () => {
+    const { POST } = await import("@/app/api/mcp/route");
+    const res = await POST(
+      new Request("http://localhost/api/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: TOKEN },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      })
+    );
+    expect(res.status).toBe(401);
+  });
+
   it("returns 401 when no admin token is configured", async () => {
     delete process.env.CREW_ADMIN_TOKEN;
     expect((await rpc("tools/list", {}, TOKEN)).res.status).toBe(401);

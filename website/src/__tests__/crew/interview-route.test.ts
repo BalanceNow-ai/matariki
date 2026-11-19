@@ -19,11 +19,12 @@ vi.mock("@/lib/crew/store", () => ({
     const app = db.get(id)!;
     app.notes = [...(app.notes ?? []), ...notes.map((n) => ({ _key: `n${keyN++}`, ...n }))] as CrewApplication["notes"];
   }),
-  submitWithAssessment: vi.fn(async (id: string, assessment: CrewApplication["assessment"] | null) => {
+  submitWithAssessment: vi.fn(async (id: string, assessment: CrewApplication["assessment"] | null, _now?: Date, redFlags: string[] = []) => {
     const app = db.get(id)!;
     app.status = "submitted";
     app.submittedAt = new Date().toISOString();
     if (assessment) app.assessment = assessment;
+    if (redFlags.length) app.redFlags = [...(app.redFlags ?? []), ...redFlags];
   }),
 }));
 
@@ -64,8 +65,8 @@ function fakeStream(msg: Scripted) {
 vi.mock("@/lib/crew/anthropic", () => ({
   INTERVIEW_MODEL: "claude-sonnet-5-5",
   getAnthropic: () => ({
-    beta: {
-      messages: {
+    // Only the GA messages API: no beta endpoint, so no fallback model.
+    messages: {
         stream: (params: Record<string, unknown>) => {
           streamCalls.push(structuredClone(params));
           const next = streamScript.shift();
@@ -78,7 +79,6 @@ vi.mock("@/lib/crew/anthropic", () => ({
           if (!next) throw new Error("No scripted create response left");
           return { id: "msg", type: "message", role: "assistant", model: "m", usage: {}, ...next };
         },
-      },
     },
   }),
 }));
@@ -342,5 +342,57 @@ describe("POST /api/crew/interview", () => {
     const params = streamCalls.at(-1) as { messages: { content: unknown }[] };
     expect(String(params.messages[0].content)).toContain("<earlier_conversation_summary>");
     expect(params.messages.length).toBeLessThan(app.transcript!.length);
+  });
+
+  it("ends the interview on a model refusal, flags it and submits without an assessment", async () => {
+    db.set("app1", makeApp(transcriptOf(4)));
+    streamScript.push({ content: [{ type: "text", text: "Hmm, " }], stop_reason: "refusal" });
+    const { events, text } = await call({ applicationId: "app1", message: "Tell me about the boat's insurance policy." });
+
+    // Exactly one model call: no retry on another model, no forced finalise.
+    expect(streamCalls).toHaveLength(1);
+    expect(createCalls).toHaveLength(0);
+    expect(events.at(-1)).toEqual({ type: "done", finished: true, turnsRemaining: 0 });
+    expect(spokenText(events)).toMatch(/Greg/);
+    expect(text).not.toContain("model refusal");
+
+    const app = db.get("app1")!;
+    expect(app.status).toBe("submitted");
+    expect(app.assessment).toBeUndefined();
+    expect(app.redFlags).toEqual(["model refusal during interview"]);
+    expect(app.transcript!.at(-1)).toMatchObject({ role: "assistant" });
+    expect(sendSubmissionEmails).toHaveBeenCalledOnce();
+  });
+
+  it("treats a refusal of the forced assessment the same way", async () => {
+    db.set("app1", makeApp(transcriptOf(3, 31)));
+    createScript.push({ content: [], stop_reason: "refusal" });
+    await call({ applicationId: "app1", message: "hi" });
+    expect(createCalls).toHaveLength(1);
+    const app = db.get("app1")!;
+    expect(app.status).toBe("submitted");
+    expect(app.assessment).toBeUndefined();
+    expect(app.redFlags).toEqual(["model refusal during interview"]);
+  });
+
+  it("sends no fallback model and keeps thinking off on every call", async () => {
+    db.set("app1", makeApp(transcriptOf(10)));
+    // A normal turn (stream), then the summary (create).
+    streamScript.push({ content: [{ type: "text", text: "Next?" }], stop_reason: "end_turn" });
+    createScript.push({ content: [{ type: "text", text: "Summary." }], stop_reason: "end_turn" });
+    await call({ applicationId: "app1", message: "answer" });
+    // The cap path (forced assessment via create).
+    db.set("app2", { ...makeApp(transcriptOf(3, 31)), _id: "app2" });
+    createScript.push({ content: [{ type: "text", text: JSON.stringify(ASSESSMENT_INPUT) }], stop_reason: "end_turn" });
+    await call({ applicationId: "app2", message: "hi" });
+
+    const all = [...streamCalls, ...createCalls];
+    expect(all).toHaveLength(3);
+    for (const params of all) {
+      expect(params).not.toHaveProperty("fallbacks");
+      expect(params).not.toHaveProperty("betas");
+      expect(params).not.toHaveProperty("tool_choice");
+      expect(params.thinking).toEqual({ type: "between_tools" });
+    }
   });
 });

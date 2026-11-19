@@ -129,5 +129,9 @@ export const SUMMARY_SYSTEM_PROMPT =
 export const CLOSING_MESSAGE =
   "That's us — thanks for taking the time to chat. Greg reads every application himself, and if it looks like a fit he'll be in touch to arrange a call. Fair winds!";
 
-export const REFUSAL_MESSAGE =
-  "Sorry, I can't help with that one. Greg will be able to pick it up with you directly. Shall we carry on?";
+/** Shown when the model declines a request: the interview ends there and Greg follows up. */
+export const REFUSAL_CLOSING_MESSAGE =
+  "Sorry — I'm not able to carry on with the interview from here. Your application is saved, and Greg reads every one himself, so he'll pick it up with you directly. Thanks for your time.";
+
+/** Added to the application (not the assessment) when the model refuses. */
+export const REFUSAL_RED_FLAG = "model refusal during interview";
