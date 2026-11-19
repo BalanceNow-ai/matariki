@@ -19,6 +19,10 @@ describe("VoyageTimeline", () => {
     expect(screen.getByRole("link", { name: "Vava'u Regatta" }).getAttribute("href")).toBe("https://example.com");
     expect(screen.getByText("20 May 2027 · Neiafu")).toBeTruthy();
     expect(screen.getByText("Sailed")).toBeTruthy();
+    // Event guides share the bars' horizontal bounds (after the label column on desktop).
+    const guides = screen.getByTestId("timeline-guides");
+    expect(guides.className).toContain("md:left-[15rem]");
+    expect(guides.children).toHaveLength(1);
     expect(screen.getByText("Planned", { selector: "span.text-xs.text-storm-grey" })).toBeTruthy();
   });
 

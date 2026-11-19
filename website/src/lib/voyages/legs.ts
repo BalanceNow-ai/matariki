@@ -139,9 +139,10 @@ export function routeLinesFromGeoJson(text: string | null | undefined): LatLng[]
   const visit = (node: unknown) => {
     if (!node || typeof node !== "object") return;
     const n = node as { type?: string; coordinates?: unknown; geometry?: unknown; features?: unknown[]; geometries?: unknown[] };
-    if (n.type === "FeatureCollection") n.features?.forEach(visit);
+    // Editors can publish any JSON with a `type`, so check shapes before iterating.
+    if (n.type === "FeatureCollection") (Array.isArray(n.features) ? n.features : []).forEach(visit);
     else if (n.type === "Feature") visit(n.geometry);
-    else if (n.type === "GeometryCollection") n.geometries?.forEach(visit);
+    else if (n.type === "GeometryCollection") (Array.isArray(n.geometries) ? n.geometries : []).forEach(visit);
     else if (n.type === "LineString") lines.push(toLine(n.coordinates));
     else if (n.type === "MultiLineString" && Array.isArray(n.coordinates)) n.coordinates.forEach((c) => lines.push(toLine(c)));
   };
