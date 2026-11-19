@@ -5,9 +5,8 @@
  * inputs (notes, scores, the assessment) stay on the server.
  */
 import "server-only";
-import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { getAnthropic, INTERVIEW_MODEL } from "../anthropic";
+import { getInterviewProvider, type ChatMessage, type ToolResult, type ToolSpec } from "./providers";
 import {
   buildApplicantDataTurn,
   buildTrustedContext,
@@ -31,8 +30,6 @@ import { buildAssessment, FINALISE_JSON_SCHEMA, finaliseInputSchema, type Finali
 import { injectionRedFlags } from "../injection";
 import { DIMENSIONS, type Assessment, type CrewApplication, type InterviewNote, type Passage, type TranscriptEntry } from "../types";
 
-type MessageParam = Anthropic.MessageParam;
-
 export const MAX_APPLICANT_TURNS = 14;
 export const MAX_DURATION_MS = 30 * 60 * 1000;
 export const MIN_TURN_INTERVAL_MS = 2000;
@@ -44,15 +41,7 @@ export const MAX_MESSAGE_CHARS = 2000;
 /** Wrap up when less than this much of the 30 minutes is left. */
 const WRAP_UP_MARGIN_MS = 3 * 60 * 1000;
 const MAX_TOOL_ROUNDS = 4;
-export const TURN_MAX_TOKENS = 600;
-const FINALISE_MAX_TOKENS = 3000;
-
-/**
- * Thinking off for every call. On claude-sonnet-5-5, omitting `thinking`
- * means adaptive thinking (on) and `{ type: "disabled" }` is rejected, so
- * `between_tools` is the supported way to turn it off.
- */
-const NO_THINKING: Anthropic.ThinkingConfigParam = { type: "between_tools" };
+export { TURN_MAX_TOKENS } from "./providers/anthropic";
 
 /** Raised when the model declines a request. We never retry on another model. */
 export class ModelRefusal extends Error {
@@ -72,12 +61,12 @@ const noteInputSchema = z.object({
   evidence: z.string().trim().max(600).default(""),
 });
 
-export const INTERVIEW_TOOLS: Anthropic.Tool[] = [
+/** Tool definitions, shared by every provider (each maps them to its own format). */
+export const INTERVIEW_TOOLS: ToolSpec[] = [
   {
     name: "get_passage_details",
     description: "Look up the published details of one of the applicant's passages by id.",
-    strict: true,
-    input_schema: {
+    schema: {
       type: "object",
       additionalProperties: false,
       required: ["passageId"],
@@ -88,8 +77,7 @@ export const INTERVIEW_TOOLS: Anthropic.Tool[] = [
     name: "record_note",
     description:
       "Privately record an observation for Greg about one rubric dimension, with the specific evidence (a short quote or fact). Never record health or protected personal information.",
-    strict: true,
-    input_schema: {
+    schema: {
       type: "object",
       additionalProperties: false,
       required: ["dimension", "note", "evidence"],
@@ -104,8 +92,7 @@ export const INTERVIEW_TOOLS: Anthropic.Tool[] = [
     name: "finalise_assessment",
     description:
       "Submit the private assessment for Greg at the end of the interview. Call exactly once, after your closing message. Exactly 3 callQuestions; summary at most 100 words.",
-    strict: true,
-    input_schema: FINALISE_JSON_SCHEMA as unknown as Anthropic.Tool["input_schema"],
+    schema: FINALISE_JSON_SCHEMA as unknown as Record<string, unknown>,
   },
 ];
 
@@ -120,7 +107,8 @@ function capsReached(turns: number, startedAt: Date, now: Date): boolean {
 type Context = {
   app: CrewApplication;
   passages: Passage[];
-  system: Anthropic.TextBlockParam[];
+  /** Trusted system text only (prompt, passages, scenarios, page facts). */
+  system: string[];
 };
 
 async function loadContext(app: CrewApplication): Promise<Context> {
@@ -132,18 +120,18 @@ async function loadContext(app: CrewApplication): Promise<Context> {
     app,
     passages,
     system: [
-      { type: "text", text: INTERVIEW_SYSTEM_PROMPT },
-      { type: "text", text: buildTrustedContext({ passages, scenarios: scenarios.slice(0, 6), level, pageFacts: pageFactsForPrompt() }) },
+      INTERVIEW_SYSTEM_PROMPT,
+      buildTrustedContext({ passages, scenarios: scenarios.slice(0, 6), level, pageFacts: pageFactsForPrompt() }),
     ],
   };
 }
 
 /** Rebuild the conversation from the stored transcript (text only). */
-export function buildMessages(app: CrewApplication, entries: Pick<TranscriptEntry, "role" | "content">[]): MessageParam[] {
+export function buildMessages(app: CrewApplication, entries: Pick<TranscriptEntry, "role" | "content">[]): ChatMessage[] {
   const summary = app.transcriptSummary;
   const skip = summary ? Math.min(summary.coversEntries, entries.length) : 0;
   const first = buildApplicantDataTurn(app) + (summary && skip > 0 ? `\n\n${wrapSummary(summary.text)}` : "");
-  const messages: MessageParam[] = [{ role: "user", content: first }];
+  const messages: ChatMessage[] = [{ role: "user", content: first }];
   for (const e of entries.slice(skip)) {
     messages.push(
       e.role === "assistant"
@@ -152,13 +140,6 @@ export function buildMessages(app: CrewApplication, entries: Pick<TranscriptEntr
     );
   }
   return messages;
-}
-
-function textOf(message: Anthropic.Message): string {
-  return message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
 }
 
 function coerceFinalise(raw: unknown): FinaliseInput | null {
@@ -197,22 +178,18 @@ export type FinaliseOutcome =
 
 /** When the caps hit before the model finalised: ask for the assessment as structured output. */
 export async function forceFinalise(ctx: Context, entries: Pick<TranscriptEntry, "role" | "content">[]): Promise<FinaliseOutcome> {
-  // claude-sonnet-5-5 rejects a forced tool_choice (any/tool) outright, with
-  // or without thinking, so the "forced call" asks for structured output
-  // against the same schema as the finalise_assessment tool instead.
+  // Structured output against the finalise_assessment schema (a forced tool
+  // call isn't available on claude-sonnet-5-5, so every provider does it this way).
   const messages = buildMessages(ctx.app, entries);
   messages.push({ role: "user", content: FORCED_FINALISE_INSTRUCTION });
   try {
-    const res = await getAnthropic().messages.create({
-      model: INTERVIEW_MODEL,
-      max_tokens: FINALISE_MAX_TOKENS,
-      thinking: NO_THINKING,
+    const res = await getInterviewProvider().structured({
       system: ctx.system,
-      output_config: { effort: "medium", format: { type: "json_schema", schema: FINALISE_JSON_SCHEMA as unknown as Record<string, unknown> } },
       messages,
+      schema: FINALISE_JSON_SCHEMA as unknown as Record<string, unknown>,
     });
-    if (res.stop_reason === "refusal") return { kind: "refused" };
-    const parsed = coerceFinalise(JSON.parse(textOf(res)));
+    if (res.refused) return { kind: "refused" };
+    const parsed = coerceFinalise(JSON.parse(res.text));
     return parsed
       ? { kind: "assessment", assessment: buildAssessment(parsed, automaticRedFlags(ctx.app, entries), "forced") }
       : { kind: "failed" };
@@ -231,16 +208,12 @@ async function maybeSummarise(app: CrewApplication, entries: TranscriptEntry[]):
     .map((e) => `${e.role === "assistant" ? "Assistant" : "Applicant"}: ${e.content}`)
     .join("\n");
   try {
-    const res = await getAnthropic().messages.create({
-      model: INTERVIEW_MODEL,
-      max_tokens: 600,
-      thinking: NO_THINKING,
+    const res = await getInterviewProvider().complete({
       system: SUMMARY_SYSTEM_PROMPT,
-      output_config: { effort: "low" },
-      messages: [{ role: "user", content: `<transcript>\n${transcript.replace(/<\/?transcript>/gi, "")}\n</transcript>` }],
+      user: `<transcript>\n${transcript.replace(/<\/?transcript>/gi, "")}\n</transcript>`,
     });
-    if (res.stop_reason === "refusal") throw new ModelRefusal("transcript summary");
-    const text = textOf(res).trim();
+    if (res.refused) throw new ModelRefusal("transcript summary");
+    const text = res.text.trim();
     return text ? { coversEntries: cover, text } : null;
   } catch (error) {
     if (error instanceof ModelRefusal) throw error;
@@ -305,8 +278,12 @@ export async function* runInterviewTurn(
   const timeLeft = MAX_DURATION_MS - (now.getTime() - startedAt.getTime());
   const wrapUp = turns >= MAX_APPLICANT_TURNS || timeLeft <= WRAP_UP_MARGIN_MS;
 
-  const messages = buildMessages(app, entries);
-  if (wrapUp) messages.push({ role: "system", content: WRAP_UP_INSTRUCTION } as MessageParam);
+  const conversation = getInterviewProvider().conversation({
+    system: ctx.system,
+    messages: buildMessages(app, entries),
+    tools: INTERVIEW_TOOLS,
+    systemNote: wrapUp ? WRAP_UP_INSTRUCTION : undefined,
+  });
 
   const notes: Omit<InterviewNote, "_key">[] = [];
   let finalised: FinaliseInput | null = null;
@@ -315,26 +292,16 @@ export async function* runInterviewTurn(
   let assistantText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const stream = getAnthropic().messages.stream({
-      model: INTERVIEW_MODEL,
-      max_tokens: TURN_MAX_TOKENS,
-      thinking: NO_THINKING,
-      output_config: { effort: "medium" },
-      cache_control: { type: "ephemeral" },
-      system: ctx.system,
-      tools: INTERVIEW_TOOLS,
-      messages,
-    });
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta" && event.delta.text) {
-        assistantText += event.delta.text;
-        yield { type: "text", text: event.delta.text };
-      }
+    const turn = conversation.round();
+    let step = await turn.next();
+    while (!step.done) {
+      assistantText += step.value;
+      yield { type: "text", text: step.value };
+      step = await turn.next();
     }
-    const reply = await stream.finalMessage();
+    const reply = step.value;
 
-    if (reply.stop_reason === "refusal") {
+    if (reply.stop === "refusal") {
       // No retry on another model: close the interview and let Greg pick it up.
       refused = true;
       const text = (assistantText.trim() ? "\n\n" : "") + REFUSAL_CLOSING_MESSAGE;
@@ -343,43 +310,43 @@ export async function* runInterviewTurn(
       break;
     }
 
-    const toolUses = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (reply.stop_reason !== "tool_use" || toolUses.length === 0) {
-      if (reply.stop_reason === "max_tokens" && toolUses.some((t) => t.name === "finalise_assessment")) truncatedFinalise = true;
+    const toolUses = reply.toolCalls;
+    if (reply.stop !== "tool_use" || toolUses.length === 0) {
+      if (reply.stop === "max_tokens" && toolUses.some((t) => t.name === "finalise_assessment")) truncatedFinalise = true;
       break;
     }
 
-    messages.push({ role: "assistant", content: reply.content });
-    const results: Anthropic.ToolResultBlockParam[] = [];
+    const results: ToolResult[] = [];
+    const result = (tool: (typeof toolUses)[number], content: string, isError = false) =>
+      results.push({ id: tool.id, name: tool.name, content, isError });
     for (const tool of toolUses) {
       if (tool.name === "get_passage_details") {
         const id = (tool.input as { passageId?: unknown })?.passageId;
         const p = ctx.passages.find((x) => x._id === id);
-        results.push({ type: "tool_result", tool_use_id: tool.id, content: p ? describePassage(p) : "No such passage among the applicant's choices.", is_error: !p });
+        result(tool, p ? describePassage(p) : "No such passage among the applicant's choices.", !p);
       } else if (tool.name === "record_note") {
         const parsed = noteInputSchema.safeParse(tool.input);
         if (parsed.success) notes.push(parsed.data);
-        results.push({ type: "tool_result", tool_use_id: tool.id, content: parsed.success ? "Noted." : "Invalid note.", is_error: !parsed.success });
+        result(tool, parsed.success ? "Noted." : "Invalid note.", !parsed.success);
       } else if (tool.name === "finalise_assessment") {
         const parsed = coerceFinalise(tool.input);
         if (parsed) {
           finalised = parsed;
-          results.push({
-            type: "tool_result",
-            tool_use_id: tool.id,
-            content: assistantText.trim()
+          result(
+            tool,
+            assistantText.trim()
               ? "Saved. Do not write anything further."
-              : "Saved. Now write a brief, warm closing message for the applicant. No scores or outcome.",
-          });
+              : "Saved. Now write a brief, warm closing message for the applicant. No scores or outcome."
+          );
         } else {
           const issues = finaliseInputSchema.safeParse(tool.input).error?.issues.map((i) => `${i.path.join(".")}: ${i.message}`) ?? [];
-          results.push({ type: "tool_result", tool_use_id: tool.id, is_error: true, content: `Invalid assessment: ${issues.join("; ")}` });
+          result(tool, `Invalid assessment: ${issues.join("; ")}`, true);
         }
       } else {
-        results.push({ type: "tool_result", tool_use_id: tool.id, is_error: true, content: "Unknown tool." });
+        result(tool, "Unknown tool.", true);
       }
     }
-    messages.push({ role: "user", content: results });
+    conversation.addToolResults(results);
     // Once finalised, allow one more round only if a closing message is still needed.
     if (finalised && assistantText.trim()) break;
   }

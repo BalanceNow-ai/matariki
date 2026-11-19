@@ -262,8 +262,15 @@ async function interviewDryRun() {
           : errorEvent || r.res.status >= 500
             ? "server error; re-run with CREW_ADMIN_TOKEN set to see the cause"
             : `HTTP ${r.res.status}`;
-    if (detail && /between_tools|thinking/i.test(JSON.stringify(detail))) {
-      console.log("\n  ! The API rejected the thinking setting (between_tools). See the body above.");
+    const raw = detail ? JSON.stringify(detail) : "";
+    if (/between_tools|thinking/i.test(raw)) {
+      console.log("\n  ! The API rejected the thinking setting (Claude: between_tools; Gemini: thinkingLevel LOW). See the body above.");
+    }
+    if (/GEMINI_API_KEY|API key not valid|API_KEY_INVALID/i.test(raw)) {
+      console.log("\n  ! The Gemini key is missing or invalid for this deployment (GEMINI_API_KEY).");
+    }
+    if (/gemini-4-argon/i.test(raw) && /not found|permission|access/i.test(raw)) {
+      console.log("\n  ! This Gemini key can't use gemini-4-argon. Check the key's project has access to the model.");
     }
     record(check, "FAIL", why);
     return;
