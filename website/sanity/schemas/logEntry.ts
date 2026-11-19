@@ -43,6 +43,19 @@ export const logEntry = defineType({
       to: [{ type: "voyage" }],
     }),
     defineField({
+      name: "leg",
+      title: "Leg",
+      type: "reference",
+      to: [{ type: "passage" }],
+      description: "Optional. The voyage leg this entry belongs to; it then appears on that leg's page.",
+      options: {
+        filter: ({ document }) => {
+          const voyageId = (document.voyage as { _ref?: string } | undefined)?._ref;
+          return voyageId ? { filter: "voyage._ref == $voyageId", params: { voyageId } } : {};
+        },
+      },
+    }),
+    defineField({
       name: "category",
       title: "Category",
       type: "string",

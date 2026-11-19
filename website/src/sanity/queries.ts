@@ -114,6 +114,7 @@ export const VOYAGES_QUERY = groq`*[
   _id,
   title,
   slug,
+  summary,
   description,
   startDate,
   endDate,
@@ -215,6 +216,30 @@ export const LOG_ENTRIES_WITH_COORDS_QUERY = groq`*[
   "voyageTitle": voyage->title
 }`;
 
+// ── Voyage legs (the `passage` type) ──────────────────────────────────────────
+// Dates fall back to the pre-legs startDate/endDate until the migration has run.
+export const LEG_CARD_FIELDS = `
+  _id,
+  title,
+  "slug": slug.current,
+  order,
+  kind,
+  fromPlace,
+  toPlace,
+  fromPoint,
+  toPoint,
+  "plannedStart": coalesce(plannedStart, startDate),
+  "plannedEnd": coalesce(plannedEnd, endDate),
+  actualStart,
+  actualEnd,
+  plannedDistanceNm,
+  actualDistanceNm,
+  waypoints,
+  crewPlaces,
+  status,
+  heroImage
+`;
+
 // Fetch single voyage by slug with gallery
 export const VOYAGE_BY_SLUG_QUERY = groq`*[
   _type == "voyage"
@@ -229,6 +254,11 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
   status,
   heroImage,
   gallery,
+  summary,
+  keyEvents[]{ _key, name, date, place, url },
+  routeGeoJson,
+  "legs": legs[]->{ ${LEG_CARD_FIELDS} },
+  "legsByRef": *[_type == "passage" && voyage._ref == ^._id && !(_id in path("drafts.**"))]{ ${LEG_CARD_FIELDS} }|order(order asc, plannedStart asc),
   "galleryImages": *[_type == "galleryImage" && references(^._id)]|order(takenAt desc){
     _id,
     image,
@@ -248,6 +278,30 @@ export const VOYAGE_BY_SLUG_QUERY = groq`*[
     duration
   },
   "logEntries": *[_type == "logEntry" && references(^._id) && defined(slug.current)]|order(publishedAt desc){
+    _id,
+    title,
+    slug,
+    publishedAt,
+    category,
+    excerpt,
+    heroImage
+  }
+}`;
+
+// One leg of a voyage, by the voyage slug and the leg slug. The leg must belong
+// to that voyage. Log entries reach it through their own `leg` reference.
+export const LEG_BY_SLUG_QUERY = groq`*[
+  _type == "passage"
+  && slug.current == $legSlug
+  && voyage->slug.current == $slug
+  && !(_id in path("drafts.**"))
+][0]{
+  ${LEG_CARD_FIELDS},
+  route,
+  minExperience,
+  gallery,
+  "voyage": voyage->{ _id, title, "slug": slug.current, status },
+  "logEntries": *[_type == "logEntry" && leg._ref == ^._id && defined(slug.current)]|order(publishedAt desc){
     _id,
     title,
     slug,

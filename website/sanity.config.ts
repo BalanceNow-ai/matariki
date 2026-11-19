@@ -3,6 +3,7 @@ import { structureTool, type StructureResolver } from "sanity/structure";
 import { visionTool } from "@sanity/vision";
 import { schemaTypes } from "./sanity/schemas";
 import { crewApplication } from "./sanity/crew-schemas/crewApplication";
+import { legForVoyageTemplate, siteStructure } from "./sanity/structure/siteStructure";
 
 const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "your-project-id";
 const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production";
@@ -48,8 +49,8 @@ export default defineConfig([
     projectId,
     dataset,
     basePath: "/studio",
-    plugins: [structureTool(), visionTool()],
-    schema: { types: schemaTypes },
+    plugins: [structureTool({ structure: siteStructure }), visionTool()],
+    schema: { types: schemaTypes, templates: (prev) => [...prev, legForVoyageTemplate] },
   },
   {
     name: "crew",

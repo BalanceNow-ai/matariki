@@ -15,7 +15,10 @@ import {
   VOYAGES_FOR_SELECTOR_QUERY,
   LOG_ENTRIES_WITH_COORDS_QUERY,
   VOYAGE_BY_SLUG_QUERY,
+  LEG_BY_SLUG_QUERY,
+  LEG_CARD_FIELDS,
 } from '@/sanity/queries'
+import { LISTED_PASSAGES_QUERY, OPEN_PASSAGES_QUERY, OPEN_FOR_CREW_FILTER } from '@/lib/crew/passages'
 
 describe('Sanity GROQ Queries', () => {
   describe('RECENT_POSTS_QUERY', () => {
@@ -258,5 +261,56 @@ describe('Sanity GROQ Queries', () => {
     it('includes related log entries', () => {
       expect(VOYAGE_BY_SLUG_QUERY).toContain('logEntries')
     })
+  })
+})
+
+describe('Voyage legs queries', () => {
+  it('VOYAGE_BY_SLUG_QUERY returns the ordered legs, legs referencing the voyage, key events and route', () => {
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('"legs": legs[]->')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('_type == "passage" && voyage._ref == ^._id')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('!(_id in path("drafts.**"))')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('|order(order asc, plannedStart asc)')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('keyEvents[]{ _key, name, date, place, url }')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('summary')
+    expect(VOYAGE_BY_SLUG_QUERY).toContain('routeGeoJson')
+  })
+
+  it('leg fields read planned dates with a fallback to the pre-migration names', () => {
+    expect(LEG_CARD_FIELDS).toContain('"plannedStart": coalesce(plannedStart, startDate)')
+    expect(LEG_CARD_FIELDS).toContain('"plannedEnd": coalesce(plannedEnd, endDate)')
+    for (const f of ['actualStart', 'actualEnd', 'plannedDistanceNm', 'actualDistanceNm', 'waypoints', 'fromPoint', 'toPoint', 'kind', 'crewPlaces', 'status']) {
+      expect(LEG_CARD_FIELDS).toContain(f)
+    }
+  })
+
+  it('LEG_BY_SLUG_QUERY only matches a published leg of the voyage in the URL', () => {
+    expect(LEG_BY_SLUG_QUERY).toContain('_type == "passage"')
+    expect(LEG_BY_SLUG_QUERY).toContain('slug.current == $legSlug')
+    expect(LEG_BY_SLUG_QUERY).toContain('voyage->slug.current == $slug')
+    expect(LEG_BY_SLUG_QUERY).toContain('!(_id in path("drafts.**"))')
+    expect(LEG_BY_SLUG_QUERY).toContain('[0]')
+  })
+
+  it('LEG_BY_SLUG_QUERY finds log entries through their leg reference', () => {
+    expect(LEG_BY_SLUG_QUERY).toContain('*[_type == "logEntry" && leg._ref == ^._id && defined(slug.current)]')
+    expect(LEG_BY_SLUG_QUERY).toContain('gallery')
+    expect(LEG_BY_SLUG_QUERY).toContain('minExperience')
+  })
+})
+
+describe('/crew passage queries', () => {
+  it('list a leg only when it is open and has crew places', () => {
+    expect(OPEN_FOR_CREW_FILTER).toContain('status == "open"')
+    expect(OPEN_FOR_CREW_FILTER).toContain('crewPlaces > 0')
+    expect(LISTED_PASSAGES_QUERY).toContain(OPEN_FOR_CREW_FILTER)
+    expect(LISTED_PASSAGES_QUERY).not.toContain('"full"')
+    // The form accepts exactly what the page lists.
+    expect(OPEN_PASSAGES_QUERY).toBe(LISTED_PASSAGES_QUERY)
+  })
+
+  it('keep the dates crew code expects, from the planned fields', () => {
+    expect(LISTED_PASSAGES_QUERY).toContain('"startDate": coalesce(plannedStart, startDate)')
+    expect(LISTED_PASSAGES_QUERY).toContain('"endDate": coalesce(plannedEnd, endDate)')
+    expect(LISTED_PASSAGES_QUERY).toContain('| order(startDate asc)')
   })
 })

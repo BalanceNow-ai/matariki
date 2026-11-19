@@ -8,6 +8,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { LegCard } from "@/components/voyages/LegCard";
+import { LegMap, type MapTrack } from "@/components/voyages/LegMap";
+import { VoyageTimeline } from "@/components/voyages/VoyageTimeline";
+import { legTrack, orderLegs, routeLinesFromGeoJson, type KeyEvent, type Leg } from "@/lib/voyages/legs";
+import { crewPagePublic } from "@/lib/crew/visibility";
 
 // Force dynamic rendering to always fetch fresh data from Sanity
 export const dynamic = "force-dynamic";
@@ -58,6 +63,11 @@ type Voyage = {
   title: string;
   slug: { current: string };
   description?: string;
+  summary?: string;
+  keyEvents?: KeyEvent[];
+  routeGeoJson?: string;
+  legs?: (Leg | null)[];
+  legsByRef?: Leg[];
   startDate?: string;
   endDate?: string;
   status?: string;
@@ -80,7 +90,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     if (voyage) {
       return {
         title: voyage.title,
-        description: voyage.description || `Follow the ${voyage.title} voyage of Matariki III.`,
+        description: voyage.summary || voyage.description || `Follow the ${voyage.title} voyage of Matariki III.`,
       };
     }
   } catch {
@@ -158,6 +168,21 @@ export default async function VoyagePage({ params }: PageProps) {
   // Use Sanity log entries directly
   const allLogEntries = voyage.logEntries || [];
 
+  // Legs: the voyage's ordered list, or every leg that references it.
+  const legs = orderLegs(voyage.legs, voyage.legsByRef);
+  const voyageSlug = voyage.slug.current;
+  const showCrew = crewPagePublic();
+  const mapTracks: MapTrack[] = legs
+    .map((leg) => ({
+      id: leg._id,
+      title: leg.title,
+      coords: legTrack(leg),
+      dashed: !leg.actualStart,
+      href: leg.slug ? `/voyages/${voyageSlug}/${leg.slug}` : undefined,
+    }))
+    .filter((t) => t.coords.length >= 2);
+  const routeLines = routeLinesFromGeoJson(voyage.routeGeoJson);
+
   return (
       <>
         <Header />
@@ -209,12 +234,38 @@ export default async function VoyagePage({ params }: PageProps) {
                     {!voyage.endDate && voyage.status === "active" && " — Present"}
                   </p>
                 )}
+                {voyage.summary && (
+                  <p className="text-salt-white text-xl leading-relaxed mb-4">{voyage.summary}</p>
+                )}
                 {voyage.description && (
                   <p className="text-mist text-lg leading-relaxed">{voyage.description}</p>
                 )}
               </div>
             </div>
           </section>
+
+          {/* Legs: timeline, overview map and cards */}
+          {legs.length > 0 && (
+            <Section background="dark">
+              <SectionLabel label="The Legs" className="mb-8" />
+              <div className="space-y-8">
+                <VoyageTimeline legs={legs} keyEvents={voyage.keyEvents ?? []} voyageSlug={voyageSlug} />
+                <LegMap tracks={mapTracks} routeLines={routeLines} />
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {legs.map((leg, i) => (
+                    <LegCard
+                      key={leg._id}
+                      leg={leg}
+                      index={i}
+                      voyageSlug={voyageSlug}
+                      imageUrl={urlFor(leg.heroImage)?.width(800).height(450).url()}
+                      showCrew={showCrew}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Section>
+          )}
 
           {/* Log Entries */}
           {allLogEntries.length > 0 && (
@@ -273,7 +324,7 @@ export default async function VoyagePage({ params }: PageProps) {
           )}
 
           {/* Empty State - only show if no log entries and no gallery */}
-          {allLogEntries.length === 0 && allMedia.length === 0 && (
+          {legs.length === 0 && allLogEntries.length === 0 && allMedia.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>

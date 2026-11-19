@@ -102,6 +102,8 @@ export type Passage = {
   status: "open" | "full" | "closed";
   minExperience?: string;
   heroImage?: unknown;
+  /** Title of the voyage this leg belongs to. */
+  voyage?: string;
 };
 
 export type InterviewScenario = {
