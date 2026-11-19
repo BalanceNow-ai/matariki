@@ -1,8 +1,10 @@
 import { Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
+import { crewPagePublic } from "@/lib/crew/visibility";
 
-/** "Apply to crew" call to action for the /crew-info pages. */
+/** "Apply to crew" call to action for the /crew-info pages. Hidden until CREW_PAGE_PUBLIC. */
 export function ApplyToCrewCta() {
+  if (!crewPagePublic()) return null;
   return (
     <Section background="gradient">
       <div className="max-w-3xl mx-auto text-center">

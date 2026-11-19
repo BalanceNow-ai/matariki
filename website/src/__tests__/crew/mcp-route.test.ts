@@ -134,6 +134,9 @@ describe("/api/mcp", () => {
 });
 
 describe("/api/cron/crew-purge", () => {
+  beforeEach(() => {
+    process.env.SANITY_CREW_WRITE_TOKEN = "sk-test"; // configured; the unconfigured case is in crew-purge-route.test.ts
+  });
   it("requires CRON_SECRET", async () => {
     process.env.CRON_SECRET = "c".repeat(40);
     const { GET } = await import("@/app/api/cron/crew-purge/route");

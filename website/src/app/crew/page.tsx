@@ -4,12 +4,16 @@ import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import { listedPassages } from "@/lib/crew/passages";
 import { crewPage, privacyContact } from "@/lib/crew/pageContent";
+import { crewRobots } from "@/lib/crew/visibility";
 import type { Passage } from "@/lib/crew/types";
 
-export const metadata: Metadata = {
-  title: "Crew",
-  description: "Sail as crew aboard Matariki III, an Oyster 68. Upcoming passages and how to apply.",
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: "Crew",
+    description: "Sail as crew aboard Matariki III, an Oyster 68. Upcoming passages and how to apply.",
+    robots: crewRobots(),
+  };
+}
 
 // Passages are CMS-driven; always render with fresh data.
 export const dynamic = "force-dynamic";
