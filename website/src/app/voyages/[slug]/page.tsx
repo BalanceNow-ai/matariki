@@ -245,9 +245,10 @@ export default async function VoyagePage({ params }: PageProps) {
           </section>
 
           {/* Legs: timeline, overview map and cards */}
-          {legs.length > 0 && (
+          {/* Shown when there are legs, or just a route GeoJSON to draw. */}
+          {(legs.length > 0 || routeLines.length > 0) && (
             <Section background="dark">
-              <SectionLabel label="The Legs" className="mb-8" />
+              <SectionLabel label={legs.length > 0 ? "The Legs" : "The Route"} className="mb-8" />
               <div className="space-y-8">
                 <VoyageTimeline legs={legs} keyEvents={voyage.keyEvents ?? []} voyageSlug={voyageSlug} />
                 <LegMap tracks={mapTracks} routeLines={routeLines} />
@@ -324,7 +325,7 @@ export default async function VoyagePage({ params }: PageProps) {
           )}
 
           {/* Empty State - only show if no log entries and no gallery */}
-          {legs.length === 0 && allLogEntries.length === 0 && allMedia.length === 0 && (
+          {legs.length === 0 && routeLines.length === 0 && allLogEntries.length === 0 && allMedia.length === 0 && (
             <Section>
               <div className="text-center py-16">
                 <p className="text-mist">Content for this voyage coming soon.</p>

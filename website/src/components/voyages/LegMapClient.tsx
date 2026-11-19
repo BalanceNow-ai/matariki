@@ -60,7 +60,12 @@ export function LegMapClient({ tracks: rawTracks, routeLines: rawRoute = [], cla
         attribution='&copy; <a href="http://www.openseamap.org">OpenSeaMap</a>'
       />
       {routeLines.map((line, i) => (
-        <Polyline key={`route-${i}`} positions={line} pathOptions={{ color: MUTED, weight: 2, opacity: 0.6, dashArray: "4 8" }} />
+        // Background to leg tracks when there are any; the main line (copper) when it's all there is.
+        <Polyline
+          key={`route-${i}`}
+          positions={line}
+          pathOptions={tracks.length ? { color: MUTED, weight: 2, opacity: 0.6, dashArray: "4 8" } : { color: COPPER, weight: 3, opacity: 0.9, dashArray: "8 8" }}
+        />
       ))}
       {tracks.map((t) => (
         <Polyline
