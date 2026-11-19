@@ -77,9 +77,17 @@ Public page at `/crew`, a three-step application form at `/crew/apply`, a ~10 mi
 7. **Secrets.** Generate each of these with `openssl rand -hex 32`: `CREW_SESSION_SECRET`,
    `CREW_ADMIN_TOKEN`, and `CRON_SECRET` if it isn't already set. Set `CREW_PRIVACY_CONTACT` to the
    email address (or URL) for privacy requests; until it is set, the privacy note shows a placeholder.
-8. **Anthropic.** Set `ANTHROPIC_API_KEY`. The interview uses `claude-sonnet-5-5` with thinking off
-   and no fallback model. If the model refuses a request, the interview ends politely and the
-   application is submitted without an assessment, flagged "model refusal during interview".
+8. **Interview model.** `CREW_INTERVIEW_PROVIDER` picks the model; there is no automatic fallback
+   from one to the other.
+   - `gemini` (the default) uses Gemini 4 Argon (`gemini-4-argon`) and needs `GEMINI_API_KEY`.
+     Argon can't turn thinking off, so it runs at the lowest level (`low`). Its output cap counts
+     thinking and the reply together, so the caps are higher than Claude's (16k per turn, 32k for
+     the forced assessment); replies stay short because the prompt asks for two to four sentences.
+   - `anthropic` uses `claude-sonnet-5-5` with thinking off and needs `ANTHROPIC_API_KEY`.
+
+   On either model, if it refuses (for Gemini, a safety block), the interview ends politely and
+   the application is submitted without an assessment, flagged "model refusal during interview".
+   Switching takes effect on the next deployment.
 9. **Rate limiting.** This reuses the existing `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
    (or Vercel KV's `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
 

@@ -93,6 +93,8 @@ vi.mock("@/lib/crew/anthropic", () => ({
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const SECRET = "t".repeat(40);
 process.env.CREW_SESSION_SECRET = SECRET;
+// These tests drive the Claude provider; gemini-provider.test.ts covers Gemini.
+process.env.CREW_INTERVIEW_PROVIDER = "anthropic";
 
 const ASSESSMENT_INPUT = {
   scores: {
