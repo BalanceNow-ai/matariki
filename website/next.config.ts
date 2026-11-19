@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
+  // CV text extraction libraries load workers/data files at runtime and must
+  // not be bundled.
+  serverExternalPackages: ["pdf-parse", "mammoth"],
 };
 
 export default nextConfig;

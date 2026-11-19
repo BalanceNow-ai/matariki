@@ -6,6 +6,8 @@ import { siteSettings } from "./siteSettings";
 import { position } from "./position";
 import { crew } from "./crew";
 import { vessel } from "./vessel";
+import { passage } from "./passage";
+import { interviewScenario } from "./interviewScenario";
 
 export const schemaTypes = [
   voyage,
@@ -16,4 +18,6 @@ export const schemaTypes = [
   position,
   crew,
   vessel,
+  passage,
+  interviewScenario,
 ];
