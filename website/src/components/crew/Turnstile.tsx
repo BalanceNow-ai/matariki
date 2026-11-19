@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type TurnstileApi = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;
@@ -35,21 +35,26 @@ function loadScript(): Promise<TurnstileApi> {
  * Turnstile tokens are single-use, and the form needs one for the application
  * and another for the CV upload. `getToken()` hands out the current token and
  * resets the widget so the next call waits for a fresh one.
+ *
+ * The container is tracked with a callback ref, not a ref object: the wizard
+ * only renders it on the last step, and the widget must be created when it
+ * actually mounts (and removed when it unmounts), not when the hook first runs.
  */
 export function useTurnstile() {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const containerRef = useCallback((el: HTMLDivElement | null) => setContainer(el), []);
   const widgetId = useRef<string | null>(null);
   const token = useRef<string | null>(null);
   const waiters = useRef<((t: string) => void)[]>([]);
 
   useEffect(() => {
-    if (!siteKey || !containerRef.current) return;
+    if (!siteKey || !container) return;
     let cancelled = false;
     loadScript()
       .then((ts) => {
-        if (cancelled || !containerRef.current || widgetId.current) return;
-        widgetId.current = ts.render(containerRef.current, {
+        if (cancelled || widgetId.current) return;
+        widgetId.current = ts.render(container, {
           sitekey: siteKey,
           theme: "dark",
           callback: (t: string) => {
@@ -67,8 +72,10 @@ export function useTurnstile() {
       cancelled = true;
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
       widgetId.current = null;
+      // A token from a removed widget can't be redeemed; wait for the next one.
+      token.current = null;
     };
-  }, [siteKey]);
+  }, [siteKey, container]);
 
   const getToken = useCallback(async (): Promise<string> => {
     // Without a site key the server skips verification outside production.
