@@ -148,6 +148,23 @@ The result must be a 401/403 or `"result": []`, never documents.
 
 ### Preview test plan
 
+**Automated smoke check first.** `scripts/crew-preview-smoke.ts` checks that `/crew` and
+`/crew/apply` return 200, that `/api/mcp` returns the app's own 401 without a token, that
+`list_applications` and `passage_roster` (first open passage) answer with a token, and that the `crew`
+dataset refuses anonymous reads. It prints a pass/fail table, makes no applications and sends no
+email. The form itself stays a manual test (below), because Turnstile blocks scripted submissions.
+
+```bash
+CREW_ADMIN_TOKEN=<token> npx tsx scripts/crew-preview-smoke.ts --url https://<preview-host>
+```
+
+After submitting one application by hand, `--interview-dry-run --session <token>` sends one real
+interview turn and prints the status and the first 300 characters of the reply. If the turn fails, it
+prints the full error body, including the Claude API's error when `CREW_ADMIN_TOKEN` is set. Get the
+token from that browser tab's devtools console:
+`JSON.parse(sessionStorage.getItem("crew:session")).sessionToken`. If the preview has Vercel
+Deployment Protection on, also set `VERCEL_AUTOMATION_BYPASS_SECRET`.
+
 Run this on a Vercel **preview** deployment with preview-scoped environment variables, a test
 Turnstile widget (or real keys for the preview domain), and `CREW_NOTIFY_EMAIL` set to an inbox you
 can read. Before starting, publish at least one passage with status `open` and two or three interview

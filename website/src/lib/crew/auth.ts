@@ -42,3 +42,28 @@ export function unauthorized(): Response {
     },
   });
 }
+
+/**
+ * Admin-only diagnostics on applicant-facing routes. A request carrying
+ * `x-crew-debug-token: <CREW_ADMIN_TOKEN>` may receive internal error detail
+ * (e.g. the Claude API's error message). Applicants never send this header,
+ * so what they see is unchanged.
+ */
+export function isAdminDebugRequest(request: Request): boolean {
+  const expected = process.env.CREW_ADMIN_TOKEN;
+  const given = request.headers.get("x-crew-debug-token");
+  return Boolean(expected && expected.length >= 32 && given && constantTimeEquals(given, expected));
+}
+
+/** Error detail safe to show an admin: status, API error type and message, request id. */
+export function describeError(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") return { message: String(error) };
+  const e = error as { name?: string; message?: string; status?: number; error?: unknown; requestID?: string };
+  return {
+    name: e.name,
+    message: e.message,
+    ...(typeof e.status === "number" ? { status: e.status } : {}),
+    ...(e.error !== undefined ? { apiError: e.error } : {}),
+    ...(e.requestID ? { requestId: e.requestID } : {}),
+  };
+}
