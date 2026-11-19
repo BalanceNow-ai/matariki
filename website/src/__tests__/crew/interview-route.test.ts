@@ -45,6 +45,8 @@ const streamScript: Scripted[] = [];
 const createScript: Scripted[] = [];
 const streamCalls: Record<string, unknown>[] = [];
 const createCalls: Record<string, unknown>[] = [];
+/** When set, the next stream() call throws (like the SDK on an API error). */
+let streamThrow: (() => never) | null = null;
 
 function fakeStream(msg: Scripted) {
   return {
@@ -69,6 +71,11 @@ vi.mock("@/lib/crew/anthropic", () => ({
     messages: {
         stream: (params: Record<string, unknown>) => {
           streamCalls.push(structuredClone(params));
+          if (streamThrow) {
+            const t = streamThrow;
+            streamThrow = null;
+            t();
+          }
           const next = streamScript.shift();
           if (!next) throw new Error("No scripted stream response left");
           return fakeStream(next);
@@ -136,11 +143,12 @@ function makeApp(over: Partial<CrewApplication> = {}): CrewApplication {
   };
 }
 
-async function call(body: Record<string, unknown>, token: string | null = "auto") {
+async function call(body: Record<string, unknown>, token: string | null = "auto", extraHeaders: Record<string, string> = {}) {
   const { POST } = await import("@/app/api/crew/interview/route");
   const { signSession } = await import("@/lib/crew/session");
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token) headers["x-crew-session"] = token === "auto" ? signSession(String(body.applicationId)) : token;
+  Object.assign(headers, extraHeaders);
   const res = await POST(new Request("http://localhost/api/crew/interview", { method: "POST", headers, body: JSON.stringify(body) }));
   const text = await res.text();
   const events = res.headers.get("content-type")?.includes("ndjson")
@@ -170,6 +178,7 @@ beforeEach(() => {
   streamCalls.length = 0;
   createCalls.length = 0;
   sendSubmissionEmails.mockClear();
+  streamThrow = null;
   delete process.env.CREW_INTERVIEW_ENABLED;
 });
 
@@ -394,5 +403,63 @@ describe("POST /api/crew/interview", () => {
       expect(params).not.toHaveProperty("tool_choice");
       expect(params.thinking).toEqual({ type: "between_tools" });
     }
+  });
+
+  describe("API errors", () => {
+    const apiError = Object.assign(new Error("400 thinking: invalid type"), {
+      name: "BadRequestError",
+      status: 400,
+      error: { type: "error", error: { type: "invalid_request_error", message: "thinking: invalid type" } },
+      requestID: "req_123",
+    });
+
+    it("gives applicants only a generic error", async () => {
+      db.set("app1", makeApp());
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      streamThrow = () => {
+        throw apiError;
+      };
+      const { events, text } = await call({ applicationId: "app1", message: null });
+      expect(events.at(-1)).toMatchObject({ type: "error" });
+      expect(events.at(-1)).not.toHaveProperty("detail");
+      expect(text).not.toContain("invalid_request_error");
+    });
+
+    it("includes the API error for an admin debug request", async () => {
+      process.env.CREW_ADMIN_TOKEN = "d".repeat(40);
+      db.set("app1", makeApp());
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      streamThrow = () => {
+        throw apiError;
+      };
+      const { events } = await call({ applicationId: "app1", message: null }, "auto", { "x-crew-debug-token": "d".repeat(40) });
+      expect(events.at(-1)).toMatchObject({
+        type: "error",
+        detail: { status: 400, requestId: "req_123", apiError: { error: { type: "invalid_request_error" } } },
+      });
+      // A wrong token gets nothing extra.
+      streamThrow = () => {
+        throw apiError;
+      };
+      const wrong = await call({ applicationId: "app1", message: null }, "auto", { "x-crew-debug-token": "x".repeat(40) });
+      expect(wrong.events.at(-1)).not.toHaveProperty("detail");
+      delete process.env.CREW_ADMIN_TOKEN;
+    });
+  });
+
+  it("returns a JSON error (with admin detail) if the application can't be loaded", async () => {
+    process.env.CREW_ADMIN_TOKEN = "d".repeat(40);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const store = await import("@/lib/crew/store");
+    vi.mocked(store.getApplication).mockRejectedValueOnce(Object.assign(new Error("Unauthorized - Session not found"), { status: 401 }));
+    const plain = await call({ applicationId: "app1", message: null });
+    expect(plain.res.status).toBe(500);
+    expect(JSON.parse(plain.text)).not.toHaveProperty("detail");
+
+    vi.mocked(store.getApplication).mockRejectedValueOnce(Object.assign(new Error("Unauthorized - Session not found"), { status: 401 }));
+    const debug = await call({ applicationId: "app1", message: null }, "auto", { "x-crew-debug-token": "d".repeat(40) });
+    expect(debug.res.status).toBe(500);
+    expect(JSON.parse(debug.text).detail).toMatchObject({ message: "Unauthorized - Session not found", status: 401 });
+    delete process.env.CREW_ADMIN_TOKEN;
   });
 });

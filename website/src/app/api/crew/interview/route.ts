@@ -3,7 +3,7 @@
  *   {"type":"text","text":"…"}            assistant text as it arrives
  *   {"type":"history","entries":[…]}      transcript so far (on reload)
  *   {"type":"done","finished":bool,"turnsRemaining":n}
- *   {"type":"error","message":"…"}
+ *   {"type":"error","message":"…"}        (+ "detail" for admin debug requests)
  * Only conversational text is ever sent; scores and notes stay server-side.
  */
 import { NextResponse } from "next/server";
@@ -11,6 +11,7 @@ import { z } from "zod";
 import { requestHasSessionFor } from "@/lib/crew/session";
 import { getApplication } from "@/lib/crew/store";
 import { readJson } from "@/lib/crew/request";
+import { describeError, isAdminDebugRequest } from "@/lib/crew/auth";
 import {
   interviewEnabled,
   MAX_MESSAGE_CHARS,
@@ -40,7 +41,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Your session has expired" }, { status: 401 });
   }
 
-  const app = await getApplication(body.applicationId);
+  const debug = isAdminDebugRequest(request);
+  // Failures before streaming starts (loading the application, the kill-switch
+  // submit) return JSON instead of an empty 500.
+  const serverError = (error: unknown) => {
+    console.error("Interview request failed:", error);
+    return NextResponse.json(
+      { error: "Sorry, something went wrong on our side. Please try again.", ...(debug ? { detail: describeError(error) } : {}) },
+      { status: 500 }
+    );
+  };
+
+  let app: Awaited<ReturnType<typeof getApplication>>;
+  try {
+    app = await getApplication(body.applicationId);
+  } catch (error) {
+    return serverError(error);
+  }
   if (!app) return NextResponse.json({ error: "Application not found" }, { status: 404 });
 
   if (app.status !== "draft" && app.status !== "interviewing") {
@@ -48,7 +65,11 @@ export async function POST(request: Request) {
   }
 
   if (!interviewEnabled()) {
-    await submitWithoutInterview(app);
+    try {
+      await submitWithoutInterview(app);
+    } catch (error) {
+      return serverError(error);
+    }
     return NextResponse.json({ finished: true, interviewDisabled: true });
   }
 
@@ -68,7 +89,11 @@ export async function POST(request: Request) {
         for await (const event of runInterviewTurn(app, message)) send(event);
       } catch (error) {
         console.error("Interview turn failed:", error);
-        send({ type: "error", message: "Sorry, something went wrong on our side. Please try sending that again." });
+        send({
+          type: "error",
+          message: "Sorry, something went wrong on our side. Please try sending that again.",
+          ...(debug ? { detail: describeError(error) } : {}),
+        });
       } finally {
         controller.close();
       }
