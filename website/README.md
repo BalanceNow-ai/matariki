@@ -37,6 +37,38 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ---
 
+## Voyage legs
+
+A voyage is split into legs. A leg is the existing **Crew Passage** (`passage`) type, which now also
+carries its voyage, order, kind (ocean passage, cruising ground or port stay), from/to places and map
+points, planned and actual dates and distances, waypoints and a gallery.
+
+- **Order.** The voyage's **Legs** list sets the order. If that list is empty, the site falls back to
+  every leg that references the voyage, sorted by `order` then planned start.
+- **Pages.** `/voyages/[slug]` shows a timeline (planned vs actual, with the voyage's key events as
+  markers), a chart of all leg tracks, and leg cards. `/voyages/[slug]/[legSlug]` shows one leg: track,
+  dates, distance, its log entries (set **Leg** on a log entry) and gallery.
+- **Crew.** A leg is open for crew only when its status is Open **and** it has crew places. Only those
+  legs are listed on `/crew`. They also get an "Apply for this leg" button, which shows once
+  `CREW_PAGE_PUBLIC` is on.
+- **Studio.** Open a voyage under **Voyages** to see *Voyage details* and *Legs, in order*. A new leg
+  created there is already linked to the voyage.
+- **Maps.** Tracks come from the leg's waypoints, with the from/to points at either end. Lines crossing
+  the 180° meridian take the short way. The optional `routeGeoJson` on a voyage draws as a dashed
+  background line.
+
+### Migration (run once)
+
+Older passages used `startDate`/`endDate`. Pages read either name, so nothing breaks before the
+migration runs. The migration moves them to `plannedStart`/`plannedEnd`, and adds an empty `legs` list to
+voyages that don't have one. It changes nothing else on any voyage. It's a dry run unless you pass
+`--apply`. It needs an Editor token for the production dataset in `SANITY_API_TOKEN`:
+
+```bash
+npx tsx scripts/migrate-voyage-legs.ts
+npx tsx scripts/migrate-voyage-legs.ts --apply
+```
+
 ## Crew applications (`/crew`)
 
 Public page at `/crew`, a three-step application form at `/crew/apply`, a ~10 minute AI interview at

@@ -1,4 +1,16 @@
-import { defineType, defineField } from "sanity";
+import { defineType, defineField, defineArrayMember } from "sanity";
+import { galleryMembers, waypointMember } from "./shared/fields";
+
+/** routeGeoJson is optional; when present it must be JSON with a GeoJSON `type`. */
+export function validateRouteGeoJson(value?: string): true | string {
+  if (!value?.trim()) return true;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && typeof parsed.type === "string" ? true : "Must be a GeoJSON object";
+  } catch {
+    return "Not valid JSON";
+  }
+}
 
 export const voyage = defineType({
   name: "voyage",
@@ -26,6 +38,13 @@ export const voyage = defineType({
       title: "Description",
       type: "text",
       rows: 3,
+    }),
+    defineField({
+      name: "summary",
+      title: "Summary",
+      type: "string",
+      description: "One line shown under the title and on voyage cards (max 200 characters).",
+      validation: (Rule) => Rule.max(200),
     }),
     defineField({
       name: "startDate",
@@ -63,123 +82,67 @@ export const voyage = defineType({
       name: "gallery",
       title: "Gallery",
       type: "array",
-      of: [
-        {
-          type: "image",
-          options: { hotspot: true },
-          fields: [
-            {
-              name: "caption",
-              title: "Caption",
-              type: "string",
-            },
-          ],
-        },
-      ],
+      of: galleryMembers,
     }),
     defineField({
       name: "waypoints",
-      title: "Waypoints",
+      title: "Waypoints (deprecated)",
+      description:
+        "Deprecated: add waypoints to each leg instead. Kept so existing voyage routes still show; new voyages should leave this empty.",
       type: "array",
       of: [
-        {
+        waypointMember,
+      ],
+    }),
+    defineField({
+      name: "legs",
+      title: "Legs",
+      description: "The voyage's legs in sailing order. Drag to reorder. Only legs that belong to this voyage can be added.",
+      type: "array",
+      of: [
+        defineArrayMember({
+          type: "reference",
+          to: [{ type: "passage" }],
+          options: {
+            filter: ({ document }) => ({
+              filter: "voyage._ref == $voyageId",
+              params: { voyageId: String(document._id).replace(/^drafts\./, "") },
+            }),
+          },
+        }),
+      ],
+      validation: (Rule) => Rule.unique(),
+    }),
+    defineField({
+      name: "keyEvents",
+      title: "Key events",
+      description: "Regattas, festivals, crew changes and the like, shown as markers on the voyage timeline.",
+      type: "array",
+      of: [
+        defineArrayMember({
           type: "object",
-          name: "waypoint",
-          title: "Waypoint",
+          name: "keyEvent",
+          title: "Key event",
           fields: [
-            {
-              name: "number",
-              title: "Waypoint Number",
-              type: "number",
-              validation: (Rule) => Rule.required().integer().positive(),
-            },
-            {
-              name: "name",
-              title: "Name",
-              type: "string",
-            },
-            {
-              name: "latitude",
-              title: "Latitude",
-              type: "object",
-              fields: [
-                {
-                  name: "degrees",
-                  title: "Degrees",
-                  type: "number",
-                  validation: (Rule) => Rule.required().min(0).max(90).integer(),
-                },
-                {
-                  name: "minutes",
-                  title: "Minutes",
-                  type: "number",
-                  validation: (Rule) => Rule.required().min(0).max(59.9999).precision(4),
-                },
-                {
-                  name: "direction",
-                  title: "Direction",
-                  type: "string",
-                  options: {
-                    list: [
-                      { title: "North", value: "N" },
-                      { title: "South", value: "S" },
-                    ],
-                    layout: "radio",
-                  },
-                  initialValue: "S",
-                },
-              ],
-            },
-            {
-              name: "longitude",
-              title: "Longitude",
-              type: "object",
-              fields: [
-                {
-                  name: "degrees",
-                  title: "Degrees",
-                  type: "number",
-                  validation: (Rule) => Rule.required().min(0).max(180).integer(),
-                },
-                {
-                  name: "minutes",
-                  title: "Minutes",
-                  type: "number",
-                  validation: (Rule) => Rule.required().min(0).max(59.9999).precision(4),
-                },
-                {
-                  name: "direction",
-                  title: "Direction",
-                  type: "string",
-                  options: {
-                    list: [
-                      { title: "East", value: "E" },
-                      { title: "West", value: "W" },
-                    ],
-                    layout: "radio",
-                  },
-                  initialValue: "E",
-                },
-              ],
-            },
+            defineField({ name: "name", title: "Name", type: "string", validation: (Rule) => Rule.required() }),
+            defineField({ name: "date", title: "Date", type: "date", validation: (Rule) => Rule.required() }),
+            defineField({ name: "place", title: "Place", type: "string" }),
+            defineField({ name: "url", title: "Link", type: "url" }),
           ],
           preview: {
-            select: {
-              number: "number",
-              name: "name",
-              latDeg: "latitude.degrees",
-              latMin: "latitude.minutes",
-              latDir: "latitude.direction",
-            },
-            prepare({ number, name, latDeg, latMin, latDir }) {
-              return {
-                title: `WPT ${number}${name ? ` - ${name}` : ""}`,
-                subtitle: latDeg ? `${latDeg}° ${latMin}' ${latDir}` : "",
-              };
-            },
+            select: { title: "name", date: "date", place: "place" },
+            prepare: ({ title, date, place }) => ({ title, subtitle: [date, place].filter(Boolean).join(" · ") }),
           },
-        },
+        }),
       ],
+    }),
+    defineField({
+      name: "routeGeoJson",
+      title: "Route GeoJSON",
+      description: "Optional. A GeoJSON LineString, MultiLineString, Feature or FeatureCollection for the overall planned route.",
+      type: "text",
+      rows: 6,
+      validation: (Rule) => Rule.custom(validateRouteGeoJson),
     }),
   ],
   preview: {
