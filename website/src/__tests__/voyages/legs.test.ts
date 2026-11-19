@@ -25,13 +25,20 @@ describe("isOpenForCrew", () => {
 });
 
 describe("orderLegs", () => {
-  it("uses the voyage's own legs array, in its order, dropping unpublished refs and duplicates", () => {
+  it("puts the voyage's own legs list first, in its order, dropping unpublished refs and duplicates", () => {
     const a = leg({ _id: "a", order: 2 });
     const b = leg({ _id: "b", order: 1 });
     expect(orderLegs([a, null, b, a], [b, a]).map((l) => l._id)).toEqual(["a", "b"]);
   });
 
-  it("falls back to referencing legs sorted by order, then planned start", () => {
+  it("still shows legs that reference the voyage but aren't in its list, after the listed ones", () => {
+    const listed = leg({ _id: "auckland-fiji", order: 1 });
+    const fiji = leg({ _id: "fiji", plannedStart: "2027-06-12" });
+    const vanuatu = leg({ _id: "vanuatu", order: 3 });
+    expect(orderLegs([listed], [fiji, listed, vanuatu]).map((l) => l._id)).toEqual(["auckland-fiji", "vanuatu", "fiji"]);
+  });
+
+  it("with no list, sorts referencing legs by order, then planned start", () => {
     const legs = [
       leg({ _id: "late", plannedStart: "2027-06-01" }),
       leg({ _id: "second", order: 2 }),
