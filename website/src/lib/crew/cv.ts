@@ -66,7 +66,8 @@ export async function extractCvText(buf: Uint8Array, kind: CvKind): Promise<stri
     const parser = new PDFParse({ data: buf });
     try {
       const result = await parser.getText();
-      return normaliseCvText(result.text);
+      // pdf-parse separates pages with "-- 1 of 3 --" lines; they only eat the 20,000-char budget.
+      return normaliseCvText(result.text.replace(/^\s*-- \d+ of \d+ --\s*$/gm, ""));
     } finally {
       await parser.destroy();
     }

@@ -1,6 +1,7 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import type { Metadata } from "next";
+import { ApplyToCrewCta } from "@/components/crew/ApplyToCrewCta";
 
 export const metadata: Metadata = {
   title: "Join Matariki III",
@@ -171,6 +172,7 @@ export default function JoinMatarikePage() {
             </div>
           </div>
         </Section>
+        <ApplyToCrewCta />
       </main>
       <Footer />
     </>

@@ -1,6 +1,7 @@
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import type { Metadata } from "next";
+import { ApplyToCrewCta } from "@/components/crew/ApplyToCrewCta";
 
 export const metadata: Metadata = {
   title: "Crew Orientation | Pre-Reading for New Crew",
@@ -323,6 +324,7 @@ export default function CrewOrientationPage() {
             </div>
           </div>
         </Section>
+        <ApplyToCrewCta />
       </main>
       <Footer />
     </>

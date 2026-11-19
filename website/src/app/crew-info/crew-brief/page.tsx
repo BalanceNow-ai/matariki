@@ -63,7 +63,10 @@ export default function CrewBriefPage() {
             </svg>
             Back to Crew Info
           </Link>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
+            <Link href="/crew" className="text-copper-accent hover:text-copper-light transition-colors">
+              Apply to crew
+            </Link>
             <button
               onClick={() => window.print()}
               className="px-4 py-2 bg-copper-accent text-white rounded hover:bg-copper-accent/90 transition-colors flex items-center gap-2"

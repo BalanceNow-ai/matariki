@@ -109,7 +109,7 @@ export function buildCrewMcpServer(): McpServer {
             weightedScore: a.assessment?.weightedScore ?? null,
             recommendation: a.assessment?.recommendation ?? null,
             scores: a.assessment ? Object.fromEntries(Object.entries(a.assessment.scores).map(([k, v]) => [k, v.score])) : null,
-            redFlags: a.assessment?.redFlags ?? [],
+            redFlags: [...(a.redFlags ?? []), ...(a.assessment?.redFlags ?? [])],
             inconsistencies: a.assessment?.inconsistencies ?? [],
             passages: a.passages,
             availabilityNotes: a.applicant.availabilityNotes ?? null,

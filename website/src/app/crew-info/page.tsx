@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Header, Footer, Section } from "@/components/layout";
 import { SectionLabel, Button } from "@/components/ui";
 import type { Metadata } from "next";
+import { ApplyToCrewCta } from "@/components/crew/ApplyToCrewCta";
 
 export const metadata: Metadata = {
   title: "Crew Info",
@@ -217,6 +218,7 @@ export default function CrewInfoPage() {
             </Button>
           </div>
         </Section>
+        <ApplyToCrewCta />
       </main>
       <Footer />
     </>

@@ -29,7 +29,8 @@ export function ownerEmailText(app: CrewApplication, passageTitles: string[]): s
       ? `AI summary (advisory only): ${a.recommendation}, weighted ${a.weightedScore}/5${
           a.redFlags.length ? `, ${a.redFlags.length} red flag(s)` : ""
         }`
-      : "No AI interview (interview disabled or skipped).",
+      : "No AI assessment (interview disabled, refused, or not completed).",
+    app.redFlags?.length ? `Flags: ${app.redFlags.join("; ")}` : "",
     a ? `\n${a.summary}` : "",
     "",
     `Application id: ${app._id}`,

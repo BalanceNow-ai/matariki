@@ -5,6 +5,7 @@
  * inputs (notes, scores, the assessment) stay on the server.
  */
 import "server-only";
+import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { getAnthropic, INTERVIEW_MODEL } from "../anthropic";
 import {
@@ -15,7 +16,8 @@ import {
   describePassage,
   FORCED_FINALISE_INSTRUCTION,
   INTERVIEW_SYSTEM_PROMPT,
-  REFUSAL_MESSAGE,
+  REFUSAL_CLOSING_MESSAGE,
+  REFUSAL_RED_FLAG,
   SUMMARY_SYSTEM_PROMPT,
   WRAP_UP_INSTRUCTION,
   wrapApplicantMessage,
@@ -29,8 +31,7 @@ import { buildAssessment, FINALISE_JSON_SCHEMA, finaliseInputSchema, type Finali
 import { injectionRedFlags } from "../injection";
 import { DIMENSIONS, type Assessment, type CrewApplication, type InterviewNote, type Passage, type TranscriptEntry } from "../types";
 
-import type * as Beta from "@anthropic-ai/sdk/resources/beta";
-type MessageParam = Beta.BetaMessageParam;
+type MessageParam = Anthropic.MessageParam;
 
 export const MAX_APPLICANT_TURNS = 14;
 export const MAX_DURATION_MS = 30 * 60 * 1000;
@@ -46,7 +47,19 @@ const MAX_TOOL_ROUNDS = 4;
 export const TURN_MAX_TOKENS = 600;
 const FINALISE_MAX_TOKENS = 3000;
 
-const BETAS: Beta.AnthropicBeta[] = ["server-side-fallback-2026-07-01"];
+/**
+ * Thinking off for every call. On claude-sonnet-5-5, omitting `thinking`
+ * means adaptive thinking (on) and `{ type: "disabled" }` is rejected, so
+ * `between_tools` is the supported way to turn it off.
+ */
+const NO_THINKING: Anthropic.ThinkingConfigParam = { type: "between_tools" };
+
+/** Raised when the model declines a request. We never retry on another model. */
+export class ModelRefusal extends Error {
+  constructor(where: string) {
+    super(`Model refused (${where})`);
+  }
+}
 
 export type InterviewEvent =
   | { type: "history"; entries: { role: TranscriptEntry["role"]; content: string }[] }
@@ -59,7 +72,7 @@ const noteInputSchema = z.object({
   evidence: z.string().trim().max(600).default(""),
 });
 
-export const INTERVIEW_TOOLS: Beta.BetaTool[] = [
+export const INTERVIEW_TOOLS: Anthropic.Tool[] = [
   {
     name: "get_passage_details",
     description: "Look up the published details of one of the applicant's passages by id.",
@@ -92,7 +105,7 @@ export const INTERVIEW_TOOLS: Beta.BetaTool[] = [
     description:
       "Submit the private assessment for Greg at the end of the interview. Call exactly once, after your closing message. Exactly 3 callQuestions; summary at most 100 words.",
     strict: true,
-    input_schema: FINALISE_JSON_SCHEMA as unknown as Beta.BetaTool["input_schema"],
+    input_schema: FINALISE_JSON_SCHEMA as unknown as Anthropic.Tool["input_schema"],
   },
 ];
 
@@ -107,7 +120,7 @@ function capsReached(turns: number, startedAt: Date, now: Date): boolean {
 type Context = {
   app: CrewApplication;
   passages: Passage[];
-  system: Beta.BetaTextBlockParam[];
+  system: Anthropic.TextBlockParam[];
 };
 
 async function loadContext(app: CrewApplication): Promise<Context> {
@@ -141,9 +154,9 @@ export function buildMessages(app: CrewApplication, entries: Pick<TranscriptEntr
   return messages;
 }
 
-function textOf(message: Beta.BetaMessage): string {
+function textOf(message: Anthropic.Message): string {
   return message.content
-    .filter((b): b is Beta.BetaTextBlock => b.type === "text")
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("");
 }
@@ -177,28 +190,35 @@ function automaticRedFlags(app: CrewApplication, entries: Pick<TranscriptEntry, 
   ]);
 }
 
+export type FinaliseOutcome =
+  | { kind: "assessment"; assessment: Assessment }
+  | { kind: "failed" }
+  | { kind: "refused" };
+
 /** When the caps hit before the model finalised: ask for the assessment as structured output. */
-export async function forceFinalise(ctx: Context, entries: Pick<TranscriptEntry, "role" | "content">[]): Promise<Assessment | null> {
-  // claude-sonnet-5-5 rejects a forced tool_choice, so the "forced call" uses
-  // structured output against the same schema as the finalise tool.
+export async function forceFinalise(ctx: Context, entries: Pick<TranscriptEntry, "role" | "content">[]): Promise<FinaliseOutcome> {
+  // claude-sonnet-5-5 rejects a forced tool_choice (any/tool) outright, with
+  // or without thinking, so the "forced call" asks for structured output
+  // against the same schema as the finalise_assessment tool instead.
   const messages = buildMessages(ctx.app, entries);
   messages.push({ role: "user", content: FORCED_FINALISE_INSTRUCTION });
   try {
-    const res = await getAnthropic().beta.messages.create({
+    const res = await getAnthropic().messages.create({
       model: INTERVIEW_MODEL,
       max_tokens: FINALISE_MAX_TOKENS,
-      betas: BETAS,
-      fallbacks: "default",
+      thinking: NO_THINKING,
       system: ctx.system,
       output_config: { effort: "medium", format: { type: "json_schema", schema: FINALISE_JSON_SCHEMA as unknown as Record<string, unknown> } },
       messages,
     });
-    if (res.stop_reason === "refusal") return null;
+    if (res.stop_reason === "refusal") return { kind: "refused" };
     const parsed = coerceFinalise(JSON.parse(textOf(res)));
-    return parsed ? buildAssessment(parsed, automaticRedFlags(ctx.app, entries), "forced") : null;
+    return parsed
+      ? { kind: "assessment", assessment: buildAssessment(parsed, automaticRedFlags(ctx.app, entries), "forced") }
+      : { kind: "failed" };
   } catch (error) {
     console.error("Forced finalise failed:", error);
-    return null;
+    return { kind: "failed" };
   }
 }
 
@@ -211,27 +231,34 @@ async function maybeSummarise(app: CrewApplication, entries: TranscriptEntry[]):
     .map((e) => `${e.role === "assistant" ? "Assistant" : "Applicant"}: ${e.content}`)
     .join("\n");
   try {
-    const res = await getAnthropic().beta.messages.create({
+    const res = await getAnthropic().messages.create({
       model: INTERVIEW_MODEL,
       max_tokens: 600,
-      betas: BETAS,
-      fallbacks: "default",
+      thinking: NO_THINKING,
       system: SUMMARY_SYSTEM_PROMPT,
       output_config: { effort: "low" },
       messages: [{ role: "user", content: `<transcript>\n${transcript.replace(/<\/?transcript>/gi, "")}\n</transcript>` }],
     });
+    if (res.stop_reason === "refusal") throw new ModelRefusal("transcript summary");
     const text = textOf(res).trim();
     return text ? { coversEntries: cover, text } : null;
   } catch (error) {
+    if (error instanceof ModelRefusal) throw error;
     console.error("Transcript summary failed:", error);
     return null;
   }
 }
 
-async function finish(ctx: Context, assessment: Assessment | null): Promise<void> {
-  await submitWithAssessment(ctx.app._id, assessment);
+async function finish(ctx: Context, assessment: Assessment | null, redFlags: string[] = []): Promise<void> {
+  await submitWithAssessment(ctx.app._id, assessment, new Date(), redFlags);
   const fresh = await getApplication(ctx.app._id);
   if (fresh) await sendSubmissionEmails(fresh, ctx.passages.map((p) => p.title));
+}
+
+async function finishForced(ctx: Context, entries: Pick<TranscriptEntry, "role" | "content">[]): Promise<void> {
+  const outcome = await forceFinalise(ctx, entries);
+  if (outcome.kind === "assessment") await finish(ctx, outcome.assessment);
+  else await finish(ctx, null, outcome.kind === "refused" ? [REFUSAL_RED_FLAG] : []);
 }
 
 /** Kill-switch path: no interview, straight to submitted. */
@@ -284,16 +311,14 @@ export async function* runInterviewTurn(
   const notes: Omit<InterviewNote, "_key">[] = [];
   let finalised: FinaliseInput | null = null;
   let truncatedFinalise = false;
+  let refused = false;
   let assistantText = "";
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const stream = getAnthropic().beta.messages.stream({
+    const stream = getAnthropic().messages.stream({
       model: INTERVIEW_MODEL,
       max_tokens: TURN_MAX_TOKENS,
-      betas: BETAS,
-      fallbacks: "default",
-      // Conversation turns are short and latency-sensitive; no extended reasoning.
-      thinking: { type: "between_tools" },
+      thinking: NO_THINKING,
       output_config: { effort: "medium" },
       cache_control: { type: "ephemeral" },
       system: ctx.system,
@@ -310,20 +335,22 @@ export async function* runInterviewTurn(
     const reply = await stream.finalMessage();
 
     if (reply.stop_reason === "refusal") {
-      const text = (assistantText ? "\n\n" : "") + REFUSAL_MESSAGE;
+      // No retry on another model: close the interview and let Greg pick it up.
+      refused = true;
+      const text = (assistantText.trim() ? "\n\n" : "") + REFUSAL_CLOSING_MESSAGE;
       assistantText += text;
       yield { type: "text", text };
       break;
     }
 
-    const toolUses = reply.content.filter((b): b is Beta.BetaToolUseBlock => b.type === "tool_use");
+    const toolUses = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (reply.stop_reason !== "tool_use" || toolUses.length === 0) {
       if (reply.stop_reason === "max_tokens" && toolUses.some((t) => t.name === "finalise_assessment")) truncatedFinalise = true;
       break;
     }
 
     messages.push({ role: "assistant", content: reply.content });
-    const results: Beta.BetaToolResultBlockParam[] = [];
+    const results: Anthropic.ToolResultBlockParam[] = [];
     for (const tool of toolUses) {
       if (tool.name === "get_passage_details") {
         const id = (tool.input as { passageId?: unknown })?.passageId;
@@ -372,6 +399,12 @@ export async function* runInterviewTurn(
   await appendTranscript(app._id, newEntries, set);
   await appendNotes(app._id, notes);
 
+  if (refused) {
+    await finish(ctx, null, [REFUSAL_RED_FLAG]);
+    yield { type: "done", finished: true, turnsRemaining: 0 };
+    return;
+  }
+
   if (finalised) {
     await finish(ctx, buildAssessment(finalised, automaticRedFlags(app, entries), "model"));
     yield { type: "done", finished: true, turnsRemaining: 0 };
@@ -380,14 +413,24 @@ export async function* runInterviewTurn(
 
   const nowAfter = new Date(Math.max(Date.now(), now.getTime()));
   if (truncatedFinalise || capsReached(applicantTurns(entries), startedAt, nowAfter) || wrapUp) {
-    const assessment = await forceFinalise(ctx, entries);
-    await finish(ctx, assessment);
+    await finishForced(ctx, entries);
     if (!/greg/i.test(assistantText)) yield { type: "text", text: `\n\n${CLOSING_MESSAGE}` };
     yield { type: "done", finished: true, turnsRemaining: 0 };
     return;
   }
 
-  const summary = await maybeSummarise(app, entries);
+  let summary: Awaited<ReturnType<typeof maybeSummarise>> = null;
+  try {
+    summary = await maybeSummarise(app, entries);
+  } catch (error) {
+    if (!(error instanceof ModelRefusal)) throw error;
+    // This turn's reply has already been shown; close politely and submit.
+    yield { type: "text", text: `\n\n${REFUSAL_CLOSING_MESSAGE}` };
+    await appendTranscript(app._id, [{ role: "assistant", content: REFUSAL_CLOSING_MESSAGE, ts: new Date().toISOString() }]);
+    await finish(ctx, null, [REFUSAL_RED_FLAG]);
+    yield { type: "done", finished: true, turnsRemaining: 0 };
+    return;
+  }
   if (summary) await appendTranscript(app._id, [], { transcriptSummary: summary });
 
   yield { type: "done", finished: false, turnsRemaining: Math.max(0, MAX_APPLICANT_TURNS - applicantTurns(entries)) };
@@ -405,7 +448,6 @@ async function* closeOut(
   await appendTranscript(ctx.app._id, newEntries);
   const all = [...entries, ...newEntries.map((e) => ({ _key: "x", ...e }))];
   yield { type: "text", text: CLOSING_MESSAGE };
-  const assessment = await forceFinalise(ctx, all);
-  await finish(ctx, assessment);
+  await finishForced(ctx, all);
   yield { type: "done", finished: true, turnsRemaining: 0 };
 }
